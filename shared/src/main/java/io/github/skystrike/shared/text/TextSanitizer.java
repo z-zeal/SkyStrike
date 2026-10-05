@@ -32,13 +32,16 @@ public final class TextSanitizer {
             int codePoint = raw.codePointAt(offset);
             offset += Character.charCount(codePoint);
 
-            if (isDiscarded(codePoint)) {
-                continue;
-            }
+            // Whitespace controls (tab/newline) become one ordinary separator; all other
+            // controls are discarded below. This ordering prevents words either side of a tab
+            // from being silently glued together.
             if (Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint)) {
                 if (cleaned.length() > 0) {
                     pendingSpace = true;
                 }
+                continue;
+            }
+            if (isDiscarded(codePoint)) {
                 continue;
             }
             int requiredCodePoints = pendingSpace ? 2 : 1;
