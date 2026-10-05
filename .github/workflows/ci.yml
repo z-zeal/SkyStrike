@@ -34,3 +34,14 @@ jobs:
 
       - name: Compile Java for all subprojects
         run: ./gradlew shared:compileJava server:compileJava core:compileJava --no-daemon
+
+      - name: Print failing test details
+        if: failure()
+        run: |
+          for f in shared/build/test-results/test/*.xml server/build/test-results/test/*.xml; do
+            [ -f "$f" ] || continue
+            if grep -q '<failure' "$f"; then
+              echo "=== $f ==="
+              cat "$f"
+            fi
+          done

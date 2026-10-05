@@ -10,7 +10,7 @@ import io.github.skystrike.shared.weapons.WeaponRegistry;
  * One player's live state for the gun in their hands.
  *
  * <p>Spread and recoil are not properties of a weapon, they are properties of a weapon
- * <i>being used by someone</i>: two players holding a SCAR-L have independent cones. This is the
+ * <i>being used by someone</i>: two players holding an Iron Carbine have independent cones. This is the
  * per-player half, and it is deliberately the only mutable thing in the weapon package. The
  * static definition comes from {@link WeaponRegistry}, as a private copy.
  *

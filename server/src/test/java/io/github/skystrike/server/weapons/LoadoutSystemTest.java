@@ -82,24 +82,24 @@ class LoadoutSystemTest {
     // --- Ammunition -------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("firing spends magazine rounds; a shotgun spends one shell for six pellets")
+    @DisplayName("firing spends magazine rounds; a shotgun spends one shell for eight pellets")
     void firingConsumesAmmo() {
         holdTrigger(1);
-        tick(); // SCAR-L is AUTO: one round
-        assertEquals(19, player.loadout.primary.magazine);
+        tick(); // the Iron Carbine is AUTO: one round
+        assertEquals(29, player.loadout.primary.magazine);
 
         releaseTrigger(2);
 
-        // Swap in a shotgun: six pellets leave, one shell is spent.
-        int roundsAlreadyLive = bulletSystem.active().size(); // the SCAR round from above
-        session.player().loadout.setComposition(WeaponId.SHOTGUN, null, null);
+        // Swap in a shotgun: eight pellets leave, one shell is spent.
+        int roundsAlreadyLive = bulletSystem.active().size(); // the carbine round from above
+        session.player().loadout.setComposition(WeaponId.SCATTER_BENCH, null, null);
         system.resetForRespawn(session);
         holdTrigger(10);
         tick();
-        assertEquals(WeaponId.SHOTGUN, player.loadout.primary.weaponId());
+        assertEquals(WeaponId.SCATTER_BENCH, player.loadout.primary.weaponId());
         assertEquals(7, player.loadout.primary.magazine, "one shell for the whole volley");
-        assertEquals(6, bulletSystem.active().size() - roundsAlreadyLive,
-            "six new pellets are in the air for that one shell");
+        assertEquals(8, bulletSystem.active().size() - roundsAlreadyLive,
+            "eight new pellets are in the air for that one shell");
     }
 
     @Test
@@ -117,14 +117,14 @@ class LoadoutSystemTest {
         releaseTrigger(77);
         int spent = tickUntilReloadDone();
         assertTrue(spent <= 60 * 4, "reload finished in reasonable time");
-        assertEquals(20, player.loadout.primary.magazine);
-        // One round left the magazine before the reload started: a full 20 is topped from 120.
-        assertEquals(100, player.loadout.primary.reserve);
+        assertEquals(30, player.loadout.primary.magazine);
+        // One round left the magazine before the reload started: a full 30 is topped from 120.
+        assertEquals(90, player.loadout.primary.reserve);
 
         // And the gun can speak again at its own cadence afterwards.
         holdTrigger(88);
         tick();
-        assertEquals(19, player.loadout.primary.magazine);
+        assertEquals(29, player.loadout.primary.magazine);
     }
 
     private int tickUntilReloadDone() {
@@ -153,7 +153,7 @@ class LoadoutSystemTest {
     @Test
     @DisplayName("a burst with a short magazine runs dry mid-pattern")
     void partialBurst() {
-        player.loadout.setComposition(WeaponId.BURST_RIFLE, null, null);
+        player.loadout.setComposition(WeaponId.HALCYON_16, null, null);
         system.resetForRespawn(session);
         player.loadout.primary.magazine = 2; // two of the three rounds exist
 
@@ -230,19 +230,19 @@ class LoadoutSystemTest {
     @DisplayName("selecting the handgun swaps the live gun, its own magazine intact")
     void handgunHasItsOwnMagazine() {
         holdTrigger(1);
-        tick(); // primary: 19/120
+        tick(); // primary: 29/120
 
         pressSlot(2, PlayerLoadout.SLOT_HANDGUN, 100L);
         tick();
-        assertEquals(WeaponId.DESERT_EAGLE, session.gun().weaponId());
+        assertEquals(WeaponId.DEFAULT_SIDEARM, session.gun().weaponId());
 
         releaseTrigger(3);
         holdTrigger(4);
         tick();
-        assertEquals(6, player.loadout.handgun.magazine, "the Deagle spends its own rounds");
-        assertEquals(19, player.loadout.primary.magazine,
+        assertEquals(14, player.loadout.handgun.magazine, "the sidearm spends its own rounds");
+        assertEquals(29, player.loadout.primary.magazine,
             "the holstered primary keeps its magazine as it was");
-        assertEquals(WeaponId.DESERT_EAGLE.ordinal(), player.weaponId);
+        assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), player.weaponId);
     }
 
     @Test
@@ -287,17 +287,17 @@ class LoadoutSystemTest {
 
         holdTrigger(1);
         system.tick(session, DT, targets, damage); // first swing
-        assertEquals(CombatConfig.MAX_HEALTH - 50f, victim.health, 1e-4f);
+        assertEquals(CombatConfig.MAX_HEALTH - 45f, victim.health, 1e-4f);
 
-        system.tick(session, DT, targets, damage); // too soon for the knife's 2.0/s
-        assertEquals(CombatConfig.MAX_HEALTH - 50f, victim.health, 1e-4f,
+        system.tick(session, DT, targets, damage); // too soon for the knuckle's 1.5/s
+        assertEquals(CombatConfig.MAX_HEALTH - 45f, victim.health, 1e-4f,
             "the swing cooldown gates the cadence");
 
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 45; i++) {
             system.tick(session, DT, targets, damage);
         }
-        assertEquals(CombatConfig.MAX_HEALTH - 100f, victim.health, 1e-4f,
-            "half a second later, the second swing");
+        assertEquals(CombatConfig.MAX_HEALTH - 90f, victim.health, 1e-4f,
+            "two thirds of a second later, the second swing");
     }
 
     @Test
@@ -305,7 +305,7 @@ class LoadoutSystemTest {
     void meleeKillShowsUpAsMelee() {
         player.loadout.tapSlot(PlayerLoadout.SLOT_PRIMARY);
         Player victim = new Player(2, "Doomed", 1, 430f, 1200f);
-        victim.health = 50f;
+        victim.health = 40f; // the knuckle's 45 finishes it
 
         holdTrigger(1);
         system.tick(session, DT, List.of(victim), damage);

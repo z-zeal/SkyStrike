@@ -9,7 +9,7 @@ import java.util.Collection;
 /**
  * The swept path of one round, resolved against terrain and player hitboxes.
  *
- * <p>This exists because of one number: at 60 Hz the AWP covers 32.5 units a tick and the tunnel
+ * <p>This exists because of one number: at 60 Hz the fastest sniper round covers 32.5 units a tick and the tunnel
  * roofs are 14 units thick. A point test at the new position walks straight through them, and
  * the resulting bug — rounds that occasionally pass through a specific piece of geometry — is
  * close to impossible to find from a bug report. So the segment from the previous position to

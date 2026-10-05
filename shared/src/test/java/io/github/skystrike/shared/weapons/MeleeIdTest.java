@@ -8,24 +8,24 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The melee wire encoding: one int on the wire can name a gun or a melee weapon, and the cut
- * between the two ranges must be exact, because damage events and the kill feed read it.
+ * The melee wire encoding: 1000 + ordinal, disjoint from every gun ordinal, append-only. The
+ * catalog order of the 21 sprite-backed melee weapons is frozen the same way the gun order is.
  */
 class MeleeIdTest {
 
     @Test
     @DisplayName("wire ids are the base plus the ordinal, and round-trip")
-    void wireIdsRoundTrip() {
+    void wireIdRoundTrip() {
         for (MeleeId id : MeleeId.values()) {
             assertEquals(MeleeId.WIRE_ID_BASE + id.ordinal(), id.wireId());
             assertEquals(id, MeleeId.fromWireId(id.wireId()));
         }
-        assertEquals(1000, MeleeId.COMBAT_KNIFE.wireId());
+        assertEquals(1000, MeleeId.POCKET_THORN.wireId());
     }
 
     @Test
-    @DisplayName("the melee range starts exactly above every gun ordinal")
-    void rangesDoNotOverlap() {
+    @DisplayName("the melee range can never collide with a gun ordinal")
+    void meleeRangeIsDisjointFromGuns() {
         for (WeaponId gun : WeaponId.values()) {
             assertFalse(MeleeId.isMeleeWireId(gun.ordinal()), gun + " collides with the melee range");
         }
@@ -33,8 +33,8 @@ class MeleeIdTest {
     }
 
     @Test
-    @DisplayName("range checks are exact at the boundaries")
-    void boundariesAreExact() {
+    @DisplayName("the wire-id discriminator is exact at both edges")
+    void wireIdBounds() {
         assertFalse(MeleeId.isMeleeWireId(MeleeId.WIRE_ID_BASE - 1));
         assertTrue(MeleeId.isMeleeWireId(MeleeId.WIRE_ID_BASE));
         assertTrue(MeleeId.isMeleeWireId(MeleeId.WIRE_ID_BASE + MeleeId.values().length - 1));
@@ -43,21 +43,25 @@ class MeleeIdTest {
     }
 
     @Test
-    @DisplayName("out-of-range lookups fall back instead of throwing")
-    void lookupsFallBack() {
+    @DisplayName("ordinal lookups fall back instead of throwing")
+    void ordinalFallbacks() {
         assertEquals(MeleeId.DEFAULT, MeleeId.fromOrdinal(-1));
         assertEquals(MeleeId.DEFAULT, MeleeId.fromOrdinal(999));
-        assertEquals(MeleeId.KATANA, MeleeId.fromOrdinal(3));
+        assertEquals(MeleeId.WINTER_KATANA, MeleeId.fromOrdinal(9));
         assertTrue(MeleeId.isValidOrdinal(0));
-        assertTrue(MeleeId.isValidOrdinal(3));
-        assertFalse(MeleeId.isValidOrdinal(4));
+        assertTrue(MeleeId.isValidOrdinal(MeleeId.values().length - 1));
+        assertFalse(MeleeId.isValidOrdinal(MeleeId.values().length));
         assertFalse(MeleeId.isValidOrdinal(-1));
     }
 
     @Test
-    @DisplayName("slot 3 is never empty: the default melee weapon always exists")
-    void defaultExists() {
-        assertEquals(MeleeId.COMBAT_KNIFE, MeleeId.DEFAULT);
-        assertEquals("Combat Knife", MeleeId.DEFAULT.displayName());
+    @DisplayName("the catalog roster is frozen: 21 weapons, knife default")
+    void rosterIsFrozen() {
+        assertEquals(21, MeleeId.values().length);
+        assertEquals(MeleeId.TRENCH_KNUCKLE, MeleeId.DEFAULT);
+        assertEquals("Trench Knuckle", MeleeId.DEFAULT.displayName());
+        assertEquals(0, MeleeId.POCKET_THORN.ordinal());
+        assertEquals(20, MeleeId.BLACK_WAKIZASHI.ordinal());
+        assertEquals("winter-katana", MeleeId.WINTER_KATANA.assetId());
     }
 }

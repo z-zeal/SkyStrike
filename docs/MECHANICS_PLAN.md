@@ -85,10 +85,10 @@ Because the head zone is a fraction of *current* height, crouching lowers the he
 
 Bullets are physical travelling projectiles, not instant hitscan. They have muzzle speed, drop, drag and damage falloff, so leading a moving target at range is a real skill.
 
-- Each weapon has a bullet speed from 900 (sawed-off) to 1950 (AWP).
-- Bullets drop under a per-class gravity: snipers 1.0, rifles 2.5, SMGs 3.5, pistols 4.0, shotguns 5.0. Gravity ramps in over a short time (0.5–1.8 s depending on weapon) so bullets fly flat at close range and arc at distance.
-- A per-shot drag coefficient (0.980 on the sawed-off up to 0.998 on the AWP) bleeds velocity over distance.
-- **Damage falls off linearly with distance travelled**, from full damage at the muzzle down to a per-weapon minimum ratio at maximum range: sawed-off decays to 35%, P90 to 42%, Desert Eagle to 55%, rifles to ~70%, HK417 to 72%, Kar98k to 75%, AWP to 85%. The AWP keeps almost all its damage at any range; the sawed-off is useless beyond a couple of body lengths.
+- Each weapon has a bullet speed from 520 (snub pistols) to 1820 (the Cathedral sniper rifle), clamped to the 520–1950 band.
+- Bullets drop under a per-class gravity: snipers 1.0, DMRs 1.8, rifles 2.5, SMGs/PDWs 3.5, pistols and revolvers 4.0, shotguns 5.0. Gravity ramps in over a short time (0.5–1.8 s depending on weapon) so bullets fly flat at close range and arc at distance.
+- A per-shot drag coefficient (0.980 on the slowest shotguns and pistols up to 0.998 on the fastest snipers) bleeds velocity over distance.
+- **Damage falls off linearly with distance travelled**, from full damage at the muzzle down to a per-weapon minimum ratio at maximum range: sawed-off shotguns decay to 35%, SMGs to ~42–50%, pistols to ~55%, rifles to ~70%, DMRs to ~75%, snipers to 80%. A sniper keeps almost all its damage at any range; the Short Gospel is useless beyond a couple of body lengths.
 - Very fast projectiles must never tunnel through thin geometry — above roughly 100 units/s, sweep the path from the previous position to the new one each tick rather than testing a point.
 
 ### 4.3 Spread — dynamic, stance-driven
@@ -120,8 +120,9 @@ All three are multiplied by the current recoil multiplier, which lerps smoothly 
 
 - **Automatic** weapons fire continuously while held.
 - **Semi-automatic** weapons fire once per trigger press at their cooldown rate.
-- **Burst** weapons fire 3 rounds per trigger pull in one instant, spaced 0.55° apart in a fixed pattern, each with a small random offset of 20% of current spread. The pattern makes bursts land as a tight readable group rather than a random clump.
-- **Shotguns** fire 6 pellets distributed evenly across the full spread cone, each with random jitter — 1.5° hip-fire, 0.8° aiming. Every pellet is a full damage instance, so point-blank hits are lethal and the falloff makes range useless.
+- **Bolt, pump and break actions** are semi-automatic triggers with long cycles: one round (or shell) per press, and a fresh press required each time.
+- **Burst** weapons fire 3 rounds per trigger pull in one instant, spaced 0.55° apart in a fixed pattern, each with a small random offset of 20% of current spread. The pattern makes bursts land as a tight readable group rather than a random clump. The trigger cadence is throttled so the quoted rounds-per-minute holds across whole bursts.
+- **Shotguns** fire a per-weapon pellet count (up to 8, most commonly 8; the Brass Judge revolver throws 4) distributed evenly across the full spread cone, each pellet with random jitter — 1.5° hip-fire, 0.8° aiming. Every pellet is a full damage instance, so point-blank hits are lethal and the falloff makes range useless. A shell costs one magazine round regardless of pellet count.
 
 ### 4.6 Friendly fire
 
@@ -133,38 +134,56 @@ Friendly fire is **on by default, including self-damage**. Your own grenades, mo
 
 ### 5.1 Guns
 
-| Weapon | Damage | Rate (/s) | Range | Mag | Reserve | Reload | Spread | Mode |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Desert Eagle | 60 | 1.5 | 620 | 7 | 42 | 2.0 s | 5.2° | Semi |
-| FAMAS | 25 | 10.0 | 740 | 25 | 150 | 2.0 s | 4.1° | Auto |
-| SCAR-L | 32 | 7.5 | 780 | 20 | 120 | 2.2 s | 3.8° | Auto |
-| P90 | 18 | 14.0 | 420 | 50 | 200 | 2.4 s | 5.5° | Auto |
-| Karabiner 98k | 90 | 0.75 | 1200 | 5 | 30 | 3.2 s | 1.8° | Bolt |
-| AWP | 145 | 0.5 | 1500 | 5 | 25 | 3.8 s | 1.2° | Bolt |
-| HK417 | 48 | 4.0 | 950 | 10 | 60 | 2.6 s | 2.4° | Semi |
-| Sawed-Off Shotgun | 100 | 1.2 | 180 | 2 | 18 | 2.8 s | 15.0° | 6 pellets |
-| Burst Rifle | 24 | 3.2 bursts | 720 | 24 | 144 | 2.2 s | 4.9° | 3-round burst |
-| Assault Rifle | 30 | 6.0 | 750 | 30 | 120 | 2.2 s | 6.3° | Auto |
-| Shotgun | 80 | 1.2 | 260 | 8 | 40 | 2.8 s | 18.5° | Pellets |
-| Sniper Rifle | 100 | 0.8 | 1500 | 5 | 20 | 3.0 s | 0.75° | Semi |
-| SMG | 20 | 8.0 | 450 | 25 | 150 | 1.8 s | 7.8° | Auto |
+The roster is **89 guns across ten classes**, generated from the sprite catalog
+`assets/sprites/guns.json` by `tools/weapons/generate_weapon_tables.py`. The full stat table
+lives in [`docs/WEAPONS_TABLE.md`](WEAPONS_TABLE.md); the generated enums and registries are the
+single source of truth in code (`shared/weapons/WeaponId`, `WeaponRegistry`, `WeaponBallistics`).
 
-Balance intent, given 150 health: the AWP is a guaranteed one-shot headshot (145 × 2.0) and a two-shot body kill. The Kar98k headshots for 180 — also a one-shot kill, but with a 1.33 s cycle. The Desert Eagle needs three body shots or two heads. The P90 needs nine body shots but delivers them in 0.64 s. The sawed-off kills instantly at contact range (6 pellets × 100) and does nothing past 250 units.
+| Class | Count | Role |
+| --- | --- | --- |
+| Pistol | 12 | Fast-swap sidearms; 25–40 damage, quick reloads |
+| Revolver | 8 | Heavy sidearms; the Longspur .44 two-shots a body |
+| SMG | 12 | High rate-of-fire hoses (up to 20 rounds/s) that fall off hard past mid range |
+| PDW | 6 | Compact autos between pistols and SMGs |
+| Assault rifle | 16 | The 5–6 body-shot workhorses (Iron Carbine is the default) |
+| Battle rifle | 2 | Slower, harder-hitting autos |
+| DMR | 8 | Semi-auto precision; 2–3 body shots |
+| Sniper | 10 | Bolt and semi; every one of them is a one-shot headshot, two-shot body |
+| Shotgun | 11 | Pump/break one-shell kills up close, autoloaders two-shell |
+| LMG | 4 | Big belts, heavy recoil, slow reloads |
 
-Per-weapon ADS behaviour varies meaningfully: the AWP tightens to 18% of its hip spread, the P90 only to 42% — snipers reward scoping, SMGs barely care.
+Representative flagships, given 150 health: the **Cathedral** (126.5 damage, bolt) and every
+other sniper one-shot a headshot and two-shot a body. The **Magpie** semi sniper tops out at
+149.5 — no gun body-one-shots in a single projectile. The **Iron Carbine** kills in five body
+hits at 12 rounds/s. The **Scatter Bench** pump and **Cinder Tube** break-action kill with one
+point-blank shell (8 pellets); autoloading shotguns like the **Room Sweeper** need two. The
+**Longspur .44** magnum two-shots a body; the **Smoke Stitch** LMG shreds at 15 rounds/s from a
+50-round belt.
+
+Per-weapon ADS behaviour varies meaningfully: snipers tighten to ~18% of hip spread, SMGs only
+to ~42% — snipers reward scoping, SMGs barely care.
 
 ### 5.2 Melee
 
-Always available in slot 3 and can never be removed, so a player is never defenceless. Melee swings deal damage in an arc in front of the player and apply knockback.
+Always available in slot 3 and can never be removed, so a player is never defenceless. Melee
+swings deal damage in an arc in front of the player and apply knockback.
+
+The roster is **21 melee weapons**, generated from `assets/sprites/melee.json` into
+`shared/weapons/MeleeId` and `MeleeRegistry`; the full table is in
+[`docs/WEAPONS_TABLE.md`](WEAPONS_TABLE.md). Flavour spans knuckles, knives, machetes, tools and
+long blades. Representative rows:
 
 | Weapon | Damage | Swings/s | Range | Knockback |
 | --- | --- | --- | --- | --- |
-| Combat Knife | 50 | 2.0 | 60 | 200 |
-| Shovel | 65 | 1.667 | 70 | 250 |
-| Baseball Bat | 65 | 1.5 | 80 | 350 |
-| Katana | 75 | 2.5 | 90 | 150 |
+| Trench Knuckle (default) | 45 | 1.5 | 64 | 290 |
+| Winter Katana | 76 | 1.067 | 78 | 190 |
+| Mill Zwei | 106 | 0.667 | 89 | 330 |
+| Frost Naginata | 81 | 0.833 | 103 | 210 |
+| Night Letter | 34 | 2.167 | 64 | 130 |
 
-Knockback is a real physics impulse — a bat to an airborne enemy launches them, and can be used to shove opponents off ledges or into fire.
+No melee weapon one-shots a body (the Mill Zwei's 106 is the ceiling). Knockback is a real
+physics impulse — a heavy swing at an airborne enemy launches them, and can be used to shove
+opponents off ledges or into fire.
 
 ---
 

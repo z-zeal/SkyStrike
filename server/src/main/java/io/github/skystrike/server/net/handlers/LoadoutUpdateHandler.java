@@ -16,7 +16,7 @@ import io.github.skystrike.shared.weapons.WeaponRegistry;
  * at the next respawn — nothing here touches the live loadout mid-life.
  *
  * <p>Validation is the whole point of the packet existing server-side: slot 1 takes any gun,
- * slot 2 takes pistols only (it is the handgun slot), slot 3 takes any melee weapon. Anything
+ * slot 2 takes sidearms only — pistols and revolvers — slot 3 takes any melee weapon. Anything
  * else is dropped field by field, not trusted field by field.
  */
 public final class LoadoutUpdateHandler implements PacketHandler<PacketLoadoutUpdate> {
@@ -56,6 +56,6 @@ public final class LoadoutUpdateHandler implements PacketHandler<PacketLoadoutUp
         if (!WeaponId.isValidOrdinal(ordinal)) {
             return false;
         }
-        return WeaponRegistry.ofOrdinal(ordinal).ballistics().weaponClass() == WeaponClass.PISTOL;
+        return WeaponRegistry.ofOrdinal(ordinal).ballistics().weaponClass().isSidearm();
     }
 }

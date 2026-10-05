@@ -48,23 +48,23 @@ class MeleeSystemTest {
     void swingHitsArc() {
         Player front = targetAt(540f, 100f); // 40 units dead ahead
         Player alsoFront = targetAt(500f, 140f); // 40 units straight up
-        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.COMBAT_KNIFE),
+        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE),
             List.of(front, alsoFront, attacker), damage);
 
         assertEquals(1, hits, "the one above is outside the ±60° wedge of a level aim");
-        assertEquals(CombatConfig.MAX_HEALTH - 50f, front.health, EPSILON);
+        assertEquals(CombatConfig.MAX_HEALTH - 45f, front.health, EPSILON);
         assertEquals(CombatConfig.MAX_HEALTH, alsoFront.health, EPSILON);
-        assertEquals(CombatConfig.MAX_HEALTH, attacker.health, EPSILON, "you cannot knife yourself");
+        assertEquals(CombatConfig.MAX_HEALTH, attacker.health, EPSILON, "you cannot punch yourself");
     }
 
     @Test
     @DisplayName("a swing reaches nothing behind the attacker or beyond the weapon's reach")
     void swingMissesBehindAndFar() {
         Player behind = targetAt(460f, 100f); // 40 units dead behind
-        Player far = targetAt(500f + 61f, 100f); // one unit past the knife's 60
-        Player inside = targetAt(500f + 60f, 100f); // exactly at range: the boundary counts
+        Player far = targetAt(500f + 65f, 100f); // one unit past the knuckle's 64
+        Player inside = targetAt(500f + 64f, 100f); // exactly at range: the boundary counts
 
-        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.COMBAT_KNIFE),
+        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE),
             List.of(behind, far, inside), damage);
 
         assertEquals(1, hits);
@@ -98,9 +98,9 @@ class MeleeSystemTest {
     @DisplayName("knockback is a real impulse along attacker → victim, at the table magnitude")
     void knockbackImpulse() {
         Player front = targetAt(540f, 100f); // dead ahead: direction is (1, 0)
-        melee.swing(attacker, MeleeRegistry.of(MeleeId.BASEBALL_BAT), List.of(front), damage);
+        melee.swing(attacker, MeleeRegistry.of(MeleeId.YARD_WRENCH), List.of(front), damage);
 
-        assertEquals(350f, front.vx, EPSILON, "the bat shoves at 350 units/s");
+        assertEquals(310f, front.vx, EPSILON, "the wrench shoves at 310 units/s");
         assertEquals(0f, front.vy, EPSILON);
 
         // Diagonal victim: the impulse splits across the axes but keeps its magnitude.
@@ -108,10 +108,10 @@ class MeleeSystemTest {
         attacker.aimAngle = 45f;
         Player diagonal = new Player(4, "Launched", 1, 30f, 30f);
         diagonal.grounded = false; // airborne, the case the mechanics plan calls out
-        melee.swing(attacker, MeleeRegistry.of(MeleeId.BASEBALL_BAT), List.of(diagonal), damage);
+        melee.swing(attacker, MeleeRegistry.of(MeleeId.YARD_WRENCH), List.of(diagonal), damage);
 
         float magnitude = (float) Math.sqrt(diagonal.vx * diagonal.vx + diagonal.vy * diagonal.vy);
-        assertEquals(350f, magnitude, 1e-3f);
+        assertEquals(310f, magnitude, 1e-3f);
         assertTrue(diagonal.vx > 0f && diagonal.vy > 0f,
             "an airborne enemy is genuinely launched, up and away");
     }
@@ -120,8 +120,8 @@ class MeleeSystemTest {
     @DisplayName("a killing blow does not launch the body")
     void killingBlowDoesNotLaunch() {
         Player dying = targetAt(540f, 100f);
-        dying.health = 40f; // the knife takes 50
-        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.COMBAT_KNIFE), List.of(dying), damage);
+        dying.health = 40f; // the knuckle takes 45
+        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE), List.of(dying), damage);
 
         assertEquals(1, hits);
         assertFalse(dying.alive);
@@ -131,7 +131,7 @@ class MeleeSystemTest {
         // And the kill feed learned it was a knife, as a wire id that cannot be a gun.
         assertEquals(1, killFeed.pendingCount());
         KillFeedService.KillEvent event = killFeed.drain().get(0);
-        assertEquals(MeleeId.COMBAT_KNIFE.wireId(), event.weaponId());
+        assertEquals(MeleeId.TRENCH_KNUCKLE.wireId(), event.weaponId());
         assertFalse(event.headshot(), "melee has no headshots");
     }
 
@@ -139,14 +139,14 @@ class MeleeSystemTest {
     @DisplayName("damage events carry the melee wire id and the body zone")
     void damageEventShape() {
         Player front = targetAt(540f, 100f);
-        melee.swing(attacker, MeleeRegistry.of(MeleeId.SHOVEL), List.of(front), damage);
+        melee.swing(attacker, MeleeRegistry.of(MeleeId.ASH_MACHETE), List.of(front), damage);
 
         List<DamageService.DamageResult> results = damage.drain();
         assertEquals(1, results.size());
         DamageService.DamageResult result = results.get(0);
-        assertEquals(MeleeId.SHOVEL.wireId(), result.weaponId());
+        assertEquals(MeleeId.ASH_MACHETE.wireId(), result.weaponId());
         assertEquals(HitZone.BODY, result.zone());
-        assertEquals(65f, result.amount(), EPSILON);
+        assertEquals(56f, result.amount(), EPSILON);
         assertFalse(result.killed());
     }
 
@@ -154,12 +154,12 @@ class MeleeSystemTest {
     @DisplayName("friendly fire is respected: teammates are valid targets while it is on")
     void friendlyFireIsRespected() {
         Player teammates = new Player(5, "Mate", 0, 540f, 100f); // same team as the attacker
-        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.COMBAT_KNIFE),
+        int hits = melee.swing(attacker, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE),
             List.of(teammates), damage);
 
         assertTrue(CombatConfig.FRIENDLY_FIRE, "this test only means anything with FF on");
         assertEquals(1, hits);
-        assertEquals(CombatConfig.MAX_HEALTH - 50f, teammates.health, EPSILON);
+        assertEquals(CombatConfig.MAX_HEALTH - 45f, teammates.health, EPSILON);
     }
 
     @Test
@@ -167,13 +167,13 @@ class MeleeSystemTest {
     void theDeadAreOut() {
         Player corpse = targetAt(540f, 100f);
         corpse.alive = false;
-        assertEquals(0, melee.swing(attacker, MeleeRegistry.of(MeleeId.COMBAT_KNIFE),
+        assertEquals(0, melee.swing(attacker, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE),
             List.of(corpse), damage));
 
         attacker.alive = false;
         Player freshVictim = targetAt(540f, 100f);
         freshVictim.health = CombatConfig.MAX_HEALTH;
-        assertEquals(0, melee.swing(attacker, MeleeRegistry.of(MeleeId.COMBAT_KNIFE),
+        assertEquals(0, melee.swing(attacker, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE),
             List.of(freshVictim), damage));
         assertEquals(CombatConfig.MAX_HEALTH, freshVictim.health, EPSILON);
     }
@@ -181,7 +181,7 @@ class MeleeSystemTest {
     @Test
     @DisplayName("a swing against nobody and against nothing is a quiet no-op")
     void degenerateSwings() {
-        assertEquals(0, melee.swing(attacker, MeleeRegistry.of(MeleeId.KATANA), null, damage));
+        assertEquals(0, melee.swing(attacker, MeleeRegistry.of(MeleeId.WINTER_KATANA), null, damage));
         assertEquals(0, melee.swing(attacker, null, List.of(), damage));
         assertEquals(0, damage.pendingCount(), "no damage events either");
     }

@@ -106,10 +106,14 @@ public final class FireController {
         out.burst = burst;
         out.recoilMultiplier = multiplier;
 
-        switch (mode) {
-            case BURST -> fireBurst(gun, aim, multiplier, out);
-            case SHOTGUN -> fireShell(gun, aim, aiming, multiplier, out);
-            default -> fireSingle(gun, aim, multiplier, out);
+        if (mode == FireMode.BURST) {
+            fireBurst(gun, aim, multiplier, out);
+        } else if (gun.definition().firesPellets()) {
+            // Pellets are a property of the shell, not the trigger: pump, break-action,
+            // semi-automatic and automatic shotguns all spread the same way.
+            fireShell(gun, aim, aiming, multiplier, out);
+        } else {
+            fireSingle(gun, aim, multiplier, out);
         }
 
         gun.startCooldown();

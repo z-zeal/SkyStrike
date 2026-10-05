@@ -34,14 +34,14 @@ class RecoilServiceTest {
     @Test
     @DisplayName("the multiplier is 1 standing still at the hip on the ground")
     void baselineMultiplierIsOne() {
-        GunInstance gun = new GunInstance(WeaponId.SCAR_L);
+        GunInstance gun = new GunInstance(WeaponId.IRON_CARBINE);
         assertEquals(1f, recoil.multiplier(player, gun, false), EPSILON);
     }
 
     @Test
     @DisplayName("movement, air and burst each bend the multiplier the documented way")
     void multiplierRespondsToStance() {
-        GunInstance gun = new GunInstance(WeaponId.SCAR_L);
+        GunInstance gun = new GunInstance(WeaponId.IRON_CARBINE);
         WeaponDefinition.RecoilProfile profile = gun.definition().recoil();
 
         player.vx = 200f;
@@ -66,7 +66,7 @@ class RecoilServiceTest {
     @Test
     @DisplayName("firing right pushes you left")
     void linearPushOpposesTheAim() {
-        GunInstance gun = new GunInstance(WeaponId.AWP);
+        GunInstance gun = new GunInstance(WeaponId.CATHEDRAL);
         float impulse = gun.definition().recoil().linearImpulse();
 
         player.aimAngle = 0f;
@@ -79,7 +79,7 @@ class RecoilServiceTest {
     @Test
     @DisplayName("firing down while airborne buys height")
     void firingDownAirborneGainsHeight() {
-        GunInstance gun = new GunInstance(WeaponId.AWP);
+        GunInstance gun = new GunInstance(WeaponId.CATHEDRAL);
         player.grounded = false;
         player.aimAngle = -90f;
         player.vy = -200f;
@@ -99,7 +99,7 @@ class RecoilServiceTest {
     @Test
     @DisplayName("body torque follows the aim and the visual kick stays capped")
     void torqueAndVisualKick() {
-        GunInstance gun = new GunInstance(WeaponId.AWP);
+        GunInstance gun = new GunInstance(WeaponId.CATHEDRAL);
         WeaponDefinition.RecoilProfile profile = gun.definition().recoil();
 
         recoil.apply(player, gun, 0f, 1f);
@@ -124,8 +124,8 @@ class RecoilServiceTest {
     @Test
     @DisplayName("aiming visibly reduces the shove")
     void aimingReducesTheShove() {
-        GunInstance hipGun = new GunInstance(WeaponId.HK417);
-        GunInstance adsGun = new GunInstance(WeaponId.HK417);
+        GunInstance hipGun = new GunInstance(WeaponId.THORN_DMR);
+        GunInstance adsGun = new GunInstance(WeaponId.THORN_DMR);
         for (int tick = 0; tick < 120; tick++) {
             adsGun.update(1f / 60f, false, true);
         }

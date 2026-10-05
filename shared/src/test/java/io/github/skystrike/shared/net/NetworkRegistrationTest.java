@@ -148,10 +148,10 @@ class NetworkRegistrationTest {
         assertEquals(11L, decodedPress.slotPressSeq);
 
         PacketLoadoutUpdate loadout = roundTrip(
-            new PacketLoadoutUpdate(WeaponId.AWP.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.KATANA.ordinal()));
-        assertEquals(WeaponId.AWP.ordinal(), loadout.primary);
+            new PacketLoadoutUpdate(WeaponId.CATHEDRAL.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.WINTER_KATANA.ordinal()));
+        assertEquals(WeaponId.CATHEDRAL.ordinal(), loadout.primary);
         assertEquals(PacketLoadoutUpdate.KEEP_CURRENT, loadout.handgun);
-        assertEquals(MeleeId.KATANA.ordinal(), loadout.melee);
+        assertEquals(MeleeId.WINTER_KATANA.ordinal(), loadout.melee);
     }
 
     @Test
@@ -173,7 +173,7 @@ class NetworkRegistrationTest {
         p.vx = 50f;
         p.vy = -100f;
         p.rotation = 15f;
-        p.weaponId = MeleeId.BASEBALL_BAT.wireId();
+        p.weaponId = MeleeId.YARD_WRENCH.wireId();
         p.spread = 1.25f;
         p.gunKick = 4.5f;
         p.kills = 3;
@@ -183,13 +183,13 @@ class NetworkRegistrationTest {
         p.loadout.primary.magazine = 3;
         p.loadout.primary.reserve = 17;
         p.loadout.handgun.magazine = 4;
-        p.loadout.melee = MeleeId.BASEBALL_BAT.ordinal();
+        p.loadout.melee = MeleeId.YARD_WRENCH.ordinal();
         p.loadout.activeSlot = PlayerLoadout.SLOT_MELEE;
         p.loadout.quickSwapOrigin = PlayerLoadout.SLOT_PRIMARY;
         p.loadout.reloading = true;
         p.loadout.reloadTimer = 1.25f;
 
-        Projectile round = new Projectile(9, 1, 0, WeaponId.AWP.ordinal(), 300f, 400f, 1500f, 20f);
+        Projectile round = new Projectile(9, 1, 0, WeaponId.CATHEDRAL.ordinal(), 300f, 400f, 1500f, 20f);
         round.age = 0.25f;
         round.distanceTravelled = 375f;
 
@@ -202,12 +202,12 @@ class NetworkRegistrationTest {
         assertEquals(100f, state.players.get(0).x);
         assertEquals(200f, state.players.get(0).y);
         assertEquals(15f, state.players.get(0).rotation);
-        assertEquals(MeleeId.BASEBALL_BAT.wireId(), state.players.get(0).weaponId);
+        assertEquals(MeleeId.YARD_WRENCH.wireId(), state.players.get(0).weaponId);
         PlayerLoadout decodedLoadout = state.players.get(0).loadout;
         assertEquals(3, decodedLoadout.primary.magazine);
         assertEquals(17, decodedLoadout.primary.reserve);
         assertEquals(4, decodedLoadout.handgun.magazine);
-        assertEquals(MeleeId.BASEBALL_BAT, decodedLoadout.meleeId());
+        assertEquals(MeleeId.YARD_WRENCH, decodedLoadout.meleeId());
         assertEquals(PlayerLoadout.SLOT_MELEE, decodedLoadout.activeSlot);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, decodedLoadout.quickSwapOrigin);
         assertTrue(decodedLoadout.reloading);
@@ -222,7 +222,7 @@ class NetworkRegistrationTest {
         Projectile decoded = state.projectiles.get(0);
         assertEquals(9, decoded.id);
         assertEquals(1, decoded.ownerId);
-        assertEquals(WeaponId.AWP, decoded.weapon());
+        assertEquals(WeaponId.CATHEDRAL, decoded.weapon());
         assertEquals(300f, decoded.x);
         assertEquals(1500f, decoded.vx);
         assertEquals(375f, decoded.distanceTravelled);
@@ -232,7 +232,7 @@ class NetworkRegistrationTest {
     @DisplayName("damage and kill events survive the wire with their hit zone intact")
     void combatEventsRoundTrip() {
         PacketDamageEvent damage = roundTrip(new PacketDamageEvent(
-            1, 2, 96.4f, 53.6f, HitZone.HEAD, WeaponId.SCAR_L.ordinal(), 120f, 240f, 310f, false));
+            1, 2, 96.4f, 53.6f, HitZone.HEAD, WeaponId.IRON_CARBINE.ordinal(), 120f, 240f, 310f, false));
         assertEquals(1, damage.attackerId);
         assertEquals(2, damage.targetId);
         assertEquals(96.4f, damage.amount);
@@ -240,14 +240,14 @@ class NetworkRegistrationTest {
         assertEquals(HitZone.HEAD, damage.zone);
         assertTrue(damage.isHeadshot());
         assertFalse(damage.killed);
-        assertEquals(WeaponId.SCAR_L, damage.weapon());
+        assertEquals(WeaponId.IRON_CARBINE, damage.weapon());
 
         PacketKillEvent kill = roundTrip(new PacketKillEvent(
-            1, "Nova", 2, "Rook", WeaponId.AWP.ordinal(), true, false, false));
+            1, "Nova", 2, "Rook", WeaponId.CATHEDRAL.ordinal(), true, false, false));
         assertEquals("Nova", kill.killerName);
         assertEquals("Rook", kill.victimName);
         assertTrue(kill.headshot);
-        assertEquals(WeaponId.AWP, kill.weapon());
+        assertEquals(WeaponId.CATHEDRAL, kill.weapon());
     }
 
     @Test
