@@ -20,16 +20,13 @@ public final class WeaponConfig {
     /** Random offset per burst round, as a fraction of the current spread. */
     public static final float BURST_JITTER_FRACTION = 0.20f;
 
-    /** Pellets in one shotgun shell, each a full damage instance. */
-    public static final int SHOTGUN_PELLETS = 6;
-
-    /** Random offset per pellet while hip firing. */
+    /** Random offset per pellet while hip firing. Pellet counts are per-weapon. */
     public static final float PELLET_JITTER_HIP_DEGREES = 1.5f;
 
     /** Random offset per pellet while aiming. */
     public static final float PELLET_JITTER_ADS_DEGREES = 0.8f;
 
-    /** Upper bound on the rounds one trigger event can produce (6 pellets is the worst case). */
+    /** Upper bound on the rounds one trigger event can produce (8 pellets is the worst case). */
     public static final int MAX_SHOTS_PER_VOLLEY = 8;
 
     // --- Melee (mechanics §5.2) ----------------------------------------------------------------
@@ -88,7 +85,7 @@ public final class WeaponConfig {
     public static final float VISUAL_KICK_DECAY_DEGREES_PER_SECOND = 120f;
 
     // --- Ballistics bounds (mechanics §4.2, §5.1) ---------------------------------------------
-    public static final float MUZZLE_SPEED_MIN = 900f;
+    public static final float MUZZLE_SPEED_MIN = 520f;
     public static final float MUZZLE_SPEED_MAX = 1950f;
 
     /** Per-shot drag coefficient bounds, quoted per simulation tick. */

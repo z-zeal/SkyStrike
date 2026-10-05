@@ -18,7 +18,7 @@ import java.util.List;
  * <p>A bullet is a few units across and crosses the screen in a quarter of a second, so drawing
  * it as a dot would be drawing nothing. What reads is the <b>streak</b>: a short line along the
  * round's own velocity, brightest at the nose and fading behind it. The streak length is scaled
- * by speed, so a sniper round is a long hard line and a sawed-off pellet is a stub — the weapon
+ * by speed, so a sniper round is a long hard line and a shotgun pellet is a stub — the weapon
  * is legible from the tracer alone.
  *
  * <p>The tracer is drawn along velocity rather than between snapshot positions on purpose:
@@ -110,11 +110,11 @@ public final class ProjectileRenderer implements Disposable {
         }
         WeaponClass weaponClass = WeaponBallistics.of(weaponId).weaponClass();
         return switch (weaponClass) {
-            case SNIPER -> COLOR_SNIPER;
-            case SMG -> COLOR_SMG;
-            case PISTOL -> COLOR_PISTOL;
+            case SNIPER, DMR -> COLOR_SNIPER;
+            case SMG, PDW -> COLOR_SMG;
+            case PISTOL, REVOLVER -> COLOR_PISTOL;
             case SHOTGUN -> COLOR_SHOTGUN;
-            case RIFLE -> COLOR_RIFLE;
+            case ASSAULT_RIFLE, BATTLE_RIFLE, LMG -> COLOR_RIFLE;
         };
     }
 

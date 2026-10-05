@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.weapons;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -8,71 +9,94 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * The melee table of mechanics §5.2, asserted against the plan rather than itself.
+ * The melee table of mechanics §5.2, generated from the sprite catalog: completeness over all
+ * 21 weapons, flagship rows verbatim, the reach/cadence/knockback identities, and the copy
+ * contract shared with {@link WeaponRegistry}.
  */
 class MeleeRegistryTest {
 
     private static final float EPSILON = 1e-4f;
 
     @Test
-    @DisplayName("all four melee weapons are defined")
+    @DisplayName("every melee weapon of the catalog is defined and plausible")
     void tableIsComplete() {
-        assertEquals(4, MeleeId.values().length);
+        assertEquals(21, MeleeId.values().length);
         assertEquals(MeleeId.values().length, MeleeRegistry.all().size());
         for (MeleeId id : MeleeId.values()) {
             MeleeDefinition definition = MeleeRegistry.of(id);
+            assertNotNull(definition);
             assertEquals(id, definition.id());
             assertTrue(definition.damage() > 0f, id + " does no damage");
-            assertTrue(definition.swingsPerSecond() > 0f, id + " cannot swing");
-            assertTrue(definition.range() > 0f, id + " cannot reach");
-            assertTrue(definition.knockback() > 0f, id + " cannot launch anything");
+            assertTrue(definition.swingsPerSecond() > 0f, id + " never swings");
+            assertTrue(definition.range() > 0f, id + " has no reach");
+            assertTrue(definition.knockback() > 0f, id + " has no knockback");
         }
     }
 
     @Test
-    @DisplayName("damage, cadence, reach and knockback match the mechanics table")
-    void matchesTheMechanicsTable() {
-        assertMelee(MeleeId.COMBAT_KNIFE, 50f, 2.0f, 60f, 200f);
-        assertMelee(MeleeId.SHOVEL, 65f, 1.667f, 70f, 250f);
-        assertMelee(MeleeId.BASEBALL_BAT, 65f, 1.5f, 80f, 350f);
-        assertMelee(MeleeId.KATANA, 75f, 2.5f, 90f, 150f);
+    @DisplayName("flagship rows match the generated conversion of the catalog stats")
+    void matchesTheGeneratedTable() {
+        assertMelee(MeleeId.TRENCH_KNUCKLE, 45f, 1.5f, 64f, 260f);
+        assertMelee(MeleeId.WINTER_KATANA, 76f, 1.0667f, 78f, 250f);
+        assertMelee(MeleeId.MILL_ZWEI, 106f, 0.6667f, 89f, 400f);
+        assertMelee(MeleeId.FROST_NAGINATA, 81f, 0.8333f, 103f, 325f);
+        assertMelee(MeleeId.POCKET_THORN, 34f, 1.8333f, 61f, 145f);
     }
 
-    private static void assertMelee(MeleeId id, float damage, float rate, float range, float knockback) {
+    private void assertMelee(MeleeId id, float damage, float swings, float range, float knockback) {
         MeleeDefinition definition = MeleeRegistry.of(id);
         assertEquals(damage, definition.damage(), EPSILON, id + " damage");
-        assertEquals(rate, definition.swingsPerSecond(), EPSILON, id + " swings per second");
+        assertEquals(swings, definition.swingsPerSecond(), EPSILON, id + " cadence");
         assertEquals(range, definition.range(), EPSILON, id + " range");
         assertEquals(knockback, definition.knockback(), EPSILON, id + " knockback");
     }
 
     @Test
-    @DisplayName("the bat launches hardest and the knife is fastest")
-    void balanceIntent() {
-        assertTrue(MeleeRegistry.of(MeleeId.BASEBALL_BAT).knockback()
-            > MeleeRegistry.of(MeleeId.SHOVEL).knockback());
-        assertTrue(MeleeRegistry.of(MeleeId.COMBAT_KNIFE).swingsPerSecond()
-            >= MeleeRegistry.of(MeleeId.SHOVEL).swingsPerSecond());
-        assertTrue(MeleeRegistry.of(MeleeId.KATANA).range()
-            >= MeleeRegistry.of(MeleeId.COMBAT_KNIFE).range());
+    @DisplayName("the class identities hold: polearms reach, knives cycle, heavies shove")
+    void classIdentities() {
+        // The naginata out-reaches everything; the stiletto out-cycles everything.
+        for (MeleeId id : MeleeId.values()) {
+            assertTrue(MeleeRegistry.of(MeleeId.FROST_NAGINATA).range()
+                >= MeleeRegistry.of(id).range(), id + " out-reaches the naginata");
+            assertTrue(MeleeRegistry.of(MeleeId.NIGHT_LETTER).swingsPerSecond()
+                >= MeleeRegistry.of(id).swingsPerSecond(), id + " out-cycles the stiletto");
+        }
+        // Weight shoves: the zweihander launches, the letter opener does not.
+        assertTrue(MeleeRegistry.of(MeleeId.MILL_ZWEI).knockback()
+            > MeleeRegistry.of(MeleeId.NIGHT_LETTER).knockback() * 2f);
+        // Reach ladder: greatsword > katana > knife.
+        assertTrue(MeleeRegistry.of(MeleeId.MILL_ZWEI).range()
+            > MeleeRegistry.of(MeleeId.WINTER_KATANA).range());
+        assertTrue(MeleeRegistry.of(MeleeId.WINTER_KATANA).range()
+            > MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE).range());
     }
 
     @Test
-    @DisplayName("swing cooldown is the inverse of the quoted cadence")
-    void swingCooldownIsTheInverseOfRate() {
+    @DisplayName("no melee weapon one-shots a full-health player from the body")
+    void noBodyOneShot() {
+        for (MeleeId id : MeleeId.values()) {
+            assertTrue(MeleeRegistry.of(id).damage() < 150f, id + " one-shots the body");
+        }
+    }
+
+    @Test
+    @DisplayName("swing cooldown is the inverse of the cadence")
+    void swingCooldown() {
         for (MeleeId id : MeleeId.values()) {
             MeleeDefinition definition = MeleeRegistry.of(id);
             assertEquals(1f / definition.swingsPerSecond(), definition.swingCooldownSeconds(), EPSILON);
         }
-        assertEquals(0.5f, MeleeRegistry.of(MeleeId.COMBAT_KNIFE).swingCooldownSeconds(), EPSILON);
+        assertEquals(1f / 1.5f, MeleeRegistry.of(MeleeId.TRENCH_KNUCKLE).swingCooldownSeconds(), EPSILON);
     }
 
     @Test
     @DisplayName("lookups return copies, never the shared instance")
     void lookupsReturnCopies() {
-        MeleeDefinition first = MeleeRegistry.of(MeleeId.KATANA);
-        MeleeDefinition second = MeleeRegistry.of(MeleeId.KATANA);
-        assertNotSame(first, second);
-        assertEquals(first, second);
+        MeleeDefinition first = MeleeRegistry.of(MeleeId.WINTER_KATANA);
+        MeleeDefinition second = MeleeRegistry.of(MeleeId.WINTER_KATANA);
+        assertNotSame(first, second, "two lookups must not hand out the same object");
+        assertEquals(first, second, "but they must agree on every number");
+
+        assertEquals(MeleeId.DEFAULT, MeleeRegistry.ofOrdinal(-5).id(), "garbage falls back");
     }
 }

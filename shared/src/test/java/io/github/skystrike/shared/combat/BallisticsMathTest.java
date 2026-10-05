@@ -59,11 +59,11 @@ class BallisticsMathTest {
     }
 
     @Test
-    @DisplayName("a Deagle at maximum range does its floor damage, not its muzzle damage")
+    @DisplayName("a sidearm at maximum range does its floor damage, not its muzzle damage")
     void falloffUsesTheWeaponTable() {
-        WeaponBallistics deagle = WeaponBallistics.of(WeaponId.DESERT_EAGLE);
-        float muzzle = BallisticsMath.damageAfterFalloff(60f, 0f, deagle);
-        float far = BallisticsMath.damageAfterFalloff(60f, deagle.maxRange(), deagle);
+        WeaponBallistics sidearm = WeaponBallistics.of(WeaponId.IRON_SIDEARM);
+        float muzzle = BallisticsMath.damageAfterFalloff(60f, 0f, sidearm);
+        float far = BallisticsMath.damageAfterFalloff(60f, sidearm.maxRange(), sidearm);
 
         assertEquals(60f, muzzle, EPSILON);
         assertEquals(60f * 0.55f, far, EPSILON);
@@ -85,19 +85,19 @@ class BallisticsMathTest {
     @Test
     @DisplayName("a round fired flat drops, slows and records the path it actually flew")
     void stepIntegratesDropDragAndPath() {
-        WeaponBallistics scar = WeaponBallistics.of(WeaponId.SCAR_L);
+        WeaponBallistics carbine = WeaponBallistics.of(WeaponId.IRON_CARBINE);
         Projectile round = new Projectile(
-            1, 1, 0, WeaponId.SCAR_L.ordinal(), 0f, 500f,
-            scar.muzzleSpeed(), 0f);
+            1, 1, 0, WeaponId.IRON_CARBINE.ordinal(), 0f, 500f,
+            carbine.muzzleSpeed(), 0f);
 
         float dt = 1f / WorldConfig.TICK_RATE_HZ;
         for (int i = 0; i < 30; i++) {
-            BallisticsMath.step(round, scar, dt);
+            BallisticsMath.step(round, carbine, dt);
         }
 
         assertTrue(round.x > 0f, "the round must travel forward");
         assertTrue(round.y < 500f, "the round must drop");
-        assertTrue(round.vx < scar.muzzleSpeed(), "drag must bleed speed");
+        assertTrue(round.vx < carbine.muzzleSpeed(), "drag must bleed speed");
         assertTrue(round.vy < 0f, "gravity must build downward velocity");
         assertEquals(0.5f, round.age, EPSILON);
 
@@ -109,16 +109,16 @@ class BallisticsMathTest {
     @Test
     @DisplayName("drop is invisible up close and obvious across the arena")
     void dropRampsInWithDistance() {
-        WeaponBallistics scar = WeaponBallistics.of(WeaponId.SCAR_L);
+        WeaponBallistics carbine = WeaponBallistics.of(WeaponId.IRON_CARBINE);
         float dt = 1f / WorldConfig.TICK_RATE_HZ;
 
         Projectile round = new Projectile(
-            1, 1, 0, WeaponId.SCAR_L.ordinal(), 0f, 1000f, scar.muzzleSpeed(), 0f);
+            1, 1, 0, WeaponId.IRON_CARBINE.ordinal(), 0f, 1000f, carbine.muzzleSpeed(), 0f);
 
         float dropAtHalfRange = 0f;
-        while (round.distanceTravelled < scar.maxRange() && round.age < 2f) {
-            BallisticsMath.step(round, scar, dt);
-            if (dropAtHalfRange == 0f && round.distanceTravelled >= scar.maxRange() / 2f) {
+        while (round.distanceTravelled < carbine.maxRange() && round.age < 2f) {
+            BallisticsMath.step(round, carbine, dt);
+            if (dropAtHalfRange == 0f && round.distanceTravelled >= carbine.maxRange() / 2f) {
                 dropAtHalfRange = 1000f - round.y;
             }
         }
@@ -132,18 +132,18 @@ class BallisticsMathTest {
     @Test
     @DisplayName("rounds expire on time, on energy, or on overshooting their range")
     void expiryRules() {
-        WeaponBallistics smg = WeaponBallistics.of(WeaponId.SMG);
-        Projectile fresh = new Projectile(1, 1, 0, WeaponId.SMG.ordinal(), 0f, 0f, 1000f, 0f);
+        WeaponBallistics smg = WeaponBallistics.of(WeaponId.WASP_NEST);
+        Projectile fresh = new Projectile(1, 1, 0, WeaponId.WASP_NEST.ordinal(), 0f, 0f, 1000f, 0f);
         assertFalse(BallisticsMath.isExpired(fresh, smg));
 
-        Projectile old = new Projectile(2, 1, 0, WeaponId.SMG.ordinal(), 0f, 0f, 1000f, 0f);
+        Projectile old = new Projectile(2, 1, 0, WeaponId.WASP_NEST.ordinal(), 0f, 0f, 1000f, 0f);
         old.age = CombatConfig.MAX_PROJECTILE_LIFETIME;
         assertTrue(BallisticsMath.isExpired(old, smg));
 
-        Projectile slow = new Projectile(3, 1, 0, WeaponId.SMG.ordinal(), 0f, 0f, 10f, 0f);
+        Projectile slow = new Projectile(3, 1, 0, WeaponId.WASP_NEST.ordinal(), 0f, 0f, 10f, 0f);
         assertTrue(BallisticsMath.isExpired(slow, smg));
 
-        Projectile farGone = new Projectile(4, 1, 0, WeaponId.SMG.ordinal(), 0f, 0f, 1000f, 0f);
+        Projectile farGone = new Projectile(4, 1, 0, WeaponId.WASP_NEST.ordinal(), 0f, 0f, 1000f, 0f);
         farGone.distanceTravelled = smg.maxRange() * CombatConfig.MAX_RANGE_OVERSHOOT;
         assertTrue(BallisticsMath.isExpired(farGone, smg));
     }

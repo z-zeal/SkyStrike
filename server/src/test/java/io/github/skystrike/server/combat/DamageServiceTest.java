@@ -52,14 +52,14 @@ class DamageServiceTest {
     @Test
     @DisplayName("a body shot at the muzzle does exactly the weapon's damage")
     void pointBlankBodyShot() {
-        WeaponDefinition scar = WeaponRegistry.of(WeaponId.SCAR_L);
+        WeaponDefinition carbine = WeaponRegistry.of(WeaponId.IRON_CARBINE);
         DamageService.DamageResult result =
-            damage.applyBulletDamage(attacker, attacker.id, target, scar, 700f, bodyY(target), 0f);
+            damage.applyBulletDamage(attacker, attacker.id, target, carbine, 700f, bodyY(target), 0f);
 
         assertNotNull(result);
         assertEquals(HitZone.BODY, result.zone());
-        assertEquals(32f, result.amount(), EPSILON);
-        assertEquals(PlayerConfig.MAX_HEALTH - 32f, target.health, EPSILON);
+        assertEquals(32.2f, result.amount(), EPSILON);
+        assertEquals(PlayerConfig.MAX_HEALTH - 32.2f, target.health, EPSILON);
         assertFalse(result.killed());
         assertTrue(target.alive);
     }
@@ -67,60 +67,60 @@ class DamageServiceTest {
     @Test
     @DisplayName("a headshot is worth double at every range")
     void headshotsDoubleAtEveryRange() {
-        WeaponDefinition scar = WeaponRegistry.of(WeaponId.SCAR_L);
-        float range = scar.ballistics().maxRange();
+        WeaponDefinition carbine = WeaponRegistry.of(WeaponId.IRON_CARBINE);
+        float range = carbine.ballistics().maxRange();
 
         Player a = new Player(10, "A", 1, 0f, 0f);
         Player b = new Player(11, "B", 1, 0f, 0f);
 
-        float closeBody = damage.applyBulletDamage(attacker, 1, a, scar, 0f, bodyY(a), 0f).amount();
-        float closeHead = damage.applyBulletDamage(attacker, 1, b, scar, 0f, headY(b), 0f).amount();
+        float closeBody = damage.applyBulletDamage(attacker, 1, a, carbine, 0f, bodyY(a), 0f).amount();
+        float closeHead = damage.applyBulletDamage(attacker, 1, b, carbine, 0f, headY(b), 0f).amount();
         assertEquals(2f, closeHead / closeBody, EPSILON);
 
         Player c = new Player(12, "C", 1, 0f, 0f);
         Player d = new Player(13, "D", 1, 0f, 0f);
-        float farBody = damage.applyBulletDamage(attacker, 1, c, scar, 0f, bodyY(c), range).amount();
-        float farHead = damage.applyBulletDamage(attacker, 1, d, scar, 0f, headY(d), range).amount();
+        float farBody = damage.applyBulletDamage(attacker, 1, c, carbine, 0f, bodyY(c), range).amount();
+        float farHead = damage.applyBulletDamage(attacker, 1, d, carbine, 0f, headY(d), range).amount();
         assertEquals(2f, farHead / farBody, EPSILON);
     }
 
     @Test
     @DisplayName("a full-arena shot deals clearly less damage than a point-blank one")
     void falloffIsVisibleAcrossTheArena() {
-        WeaponDefinition deagle = WeaponRegistry.of(WeaponId.DESERT_EAGLE);
-        float range = deagle.ballistics().maxRange();
+        WeaponDefinition magnum = WeaponRegistry.of(WeaponId.LONGSPUR_44);
+        float range = magnum.ballistics().maxRange();
 
         Player near = new Player(20, "Near", 1, 0f, 0f);
         Player far = new Player(21, "Far", 1, 0f, 0f);
 
-        float close = damage.applyBulletDamage(attacker, 1, near, deagle, 0f, bodyY(near), 0f).amount();
-        float distant = damage.applyBulletDamage(attacker, 1, far, deagle, 0f, bodyY(far), range).amount();
+        float close = damage.applyBulletDamage(attacker, 1, near, magnum, 0f, bodyY(near), 0f).amount();
+        float distant = damage.applyBulletDamage(attacker, 1, far, magnum, 0f, bodyY(far), range).amount();
 
-        assertEquals(60f, close, EPSILON);
-        assertEquals(60f * 0.55f, distant, EPSILON);
+        assertEquals(82.8f, close, EPSILON);
+        assertEquals(82.8f * 0.55f, distant, EPSILON);
         assertTrue(distant < close * 0.6f, "the difference must be obvious, not subtle");
 
-        // And three body shots kill up close while four do not at maximum range.
-        assertTrue(close * 3f >= CombatConfig.MAX_HEALTH);
-        assertTrue(distant * 4f < CombatConfig.MAX_HEALTH);
+        // And two body shots kill up close while three do not at maximum range.
+        assertTrue(close * 2f >= CombatConfig.MAX_HEALTH);
+        assertTrue(distant * 3f < CombatConfig.MAX_HEALTH);
     }
 
     @Test
-    @DisplayName("an AWP headshot is one shot and a body shot is two")
-    void awpTimeToKill() {
-        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
+    @DisplayName("a Cathedral headshot is one shot and a body shot is two")
+    void sniperTimeToKill() {
+        WeaponDefinition cathedral = WeaponRegistry.of(WeaponId.CATHEDRAL);
 
         DamageService.DamageResult head =
-            damage.applyBulletDamage(attacker, attacker.id, target, awp, 700f, headY(target), 100f);
-        assertTrue(head.killed(), "an AWP headshot must kill outright");
+            damage.applyBulletDamage(attacker, attacker.id, target, cathedral, 700f, headY(target), 100f);
+        assertTrue(head.killed(), "a Cathedral headshot must kill outright");
         assertEquals(0f, target.health, EPSILON);
 
         Player second = new Player(3, "Vex", 1, 900f, 100f);
         DamageService.DamageResult first =
-            damage.applyBulletDamage(attacker, attacker.id, second, awp, 900f, bodyY(second), 100f);
+            damage.applyBulletDamage(attacker, attacker.id, second, cathedral, 900f, bodyY(second), 100f);
         assertFalse(first.killed(), "one body shot must not kill");
         DamageService.DamageResult killing =
-            damage.applyBulletDamage(attacker, attacker.id, second, awp, 900f, bodyY(second), 100f);
+            damage.applyBulletDamage(attacker, attacker.id, second, cathedral, 900f, bodyY(second), 100f);
         assertTrue(killing.killed());
     }
 
@@ -145,13 +145,13 @@ class DamageServiceTest {
     @Test
     @DisplayName("death sets the respawn timer, counts the death, and credits the killer once")
     void deathBookkeeping() {
-        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
+        WeaponDefinition cathedral = WeaponRegistry.of(WeaponId.CATHEDRAL);
         target.vx = 150f;
         target.vy = -40f;
         target.jetpacking = true;
 
         DamageService.DamageResult result =
-            damage.applyBulletDamage(attacker, attacker.id, target, awp, 700f, headY(target), 0f);
+            damage.applyBulletDamage(attacker, attacker.id, target, cathedral, 700f, headY(target), 0f);
 
         assertTrue(result.killed());
         assertFalse(target.alive);
@@ -164,7 +164,7 @@ class DamageServiceTest {
         assertEquals(1, attacker.kills);
 
         // Shooting the corpse again does nothing at all.
-        assertNull(damage.applyBulletDamage(attacker, attacker.id, target, awp, 700f, headY(target), 0f));
+        assertNull(damage.applyBulletDamage(attacker, attacker.id, target, cathedral, 700f, headY(target), 0f));
         assertEquals(1, attacker.kills);
         assertEquals(1, target.deaths);
     }
@@ -172,15 +172,15 @@ class DamageServiceTest {
     @Test
     @DisplayName("a team kill and a self kill credit nobody")
     void friendlyAndSelfKillsAreNotCredited() {
-        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
+        WeaponDefinition cathedral = WeaponRegistry.of(WeaponId.CATHEDRAL);
 
         Player teammate = new Player(4, "Mate", 0, 500f, 100f);
-        damage.applyBulletDamage(attacker, attacker.id, teammate, awp, 500f, headY(teammate), 0f);
+        damage.applyBulletDamage(attacker, attacker.id, teammate, cathedral, 500f, headY(teammate), 0f);
         assertFalse(teammate.alive);
         assertEquals(1, teammate.deaths);
         assertEquals(0, attacker.kills, "team killing is not scoring");
 
-        damage.applyBulletDamage(attacker, attacker.id, attacker, awp, 400f, headY(attacker), 0f);
+        damage.applyBulletDamage(attacker, attacker.id, attacker, cathedral, 400f, headY(attacker), 0f);
         assertFalse(attacker.alive);
         assertEquals(1, attacker.deaths);
         assertEquals(0, attacker.kills, "nor is shooting yourself");
@@ -189,7 +189,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("every applied hit is queued once and drains once")
     void resultsDrainOnce() {
-        WeaponDefinition scar = WeaponRegistry.of(WeaponId.SCAR_L);
+        WeaponDefinition scar = WeaponRegistry.of(WeaponId.IRON_CARBINE);
         damage.applyBulletDamage(attacker, attacker.id, target, scar, 700f, bodyY(target), 0f);
         damage.applyBulletDamage(attacker, attacker.id, target, scar, 700f, bodyY(target), 0f);
 
@@ -202,15 +202,15 @@ class DamageServiceTest {
         DamageService.DamageResult first = drained.get(0);
         assertEquals(attacker.id, first.attackerId());
         assertEquals(target.id, first.targetId());
-        assertEquals(WeaponId.SCAR_L.ordinal(), first.weaponId());
+        assertEquals(WeaponId.IRON_CARBINE.ordinal(), first.weaponId());
         assertFalse(first.isSelfInflicted());
     }
 
     @Test
     @DisplayName("a kill reaches the feed with the headshot and friendly-fire flags set")
     void killsReachTheFeed() {
-        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
-        damage.applyBulletDamage(attacker, attacker.id, target, awp, 700f, headY(target), 0f);
+        WeaponDefinition cathedral = WeaponRegistry.of(WeaponId.CATHEDRAL);
+        damage.applyBulletDamage(attacker, attacker.id, target, cathedral, 700f, headY(target), 0f);
 
         List<KillFeedService.KillEvent> events = killFeed.drain();
         assertEquals(1, events.size());
@@ -220,7 +220,7 @@ class DamageServiceTest {
         assertEquals("Nova", event.killerName());
         assertEquals(target.id, event.victimId());
         assertEquals("Rook", event.victimName());
-        assertEquals(WeaponId.AWP, event.weapon());
+        assertEquals(WeaponId.CATHEDRAL, event.weapon());
         assertTrue(event.headshot());
         assertFalse(event.selfInflicted());
         assertFalse(event.friendlyFire());

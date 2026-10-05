@@ -19,18 +19,18 @@ class WeaponItemTest {
     @Test
     @DisplayName("a fresh item is full to the registry table")
     void freshItemIsFull() {
-        WeaponItem item = new WeaponItem(WeaponId.AWP);
-        assertEquals(WeaponId.AWP, item.weaponId());
+        WeaponItem item = new WeaponItem(WeaponId.CATHEDRAL);
+        assertEquals(WeaponId.CATHEDRAL, item.weaponId());
         assertEquals(5, item.magazine);
         assertEquals(25, item.reserve);
-        assertEquals(WeaponRegistry.of(WeaponId.AWP).magazineSize(), item.magazineSize());
+        assertEquals(WeaponRegistry.of(WeaponId.CATHEDRAL).magazineSize(), item.magazineSize());
         assertFalse(item.needsReload(), "a full magazine needs nothing");
     }
 
     @Test
     @DisplayName("consumption clamps at zero")
     void consumptionClamps() {
-        WeaponItem item = new WeaponItem(WeaponId.AWP);
+        WeaponItem item = new WeaponItem(WeaponId.CATHEDRAL);
         assertEquals(3, item.consume(3));
         assertEquals(2, item.magazine);
         assertEquals(2, item.consume(5), "cannot spend what is not there");
@@ -41,7 +41,7 @@ class WeaponItemTest {
     @Test
     @DisplayName("a reload is needed exactly when the magazine is short and the reserve holds")
     void needsReloadConditions() {
-        WeaponItem item = new WeaponItem(WeaponId.DESERT_EAGLE);
+        WeaponItem item = new WeaponItem(WeaponId.IRON_SIDEARM);
         item.magazine = 3;
         assertTrue(item.needsReload());
 
@@ -56,11 +56,11 @@ class WeaponItemTest {
     @Test
     @DisplayName("reserve transfer clamps on both ends, partial top-ups included")
     void reserveTransferMath() {
-        WeaponItem item = new WeaponItem(WeaponId.SHOTGUN); // mag 8, reserve 40
+        WeaponItem item = new WeaponItem(WeaponId.SCATTER_BENCH); // mag 8, reserve 64
         item.magazine = 6;
         assertEquals(2, item.transferFromReserve(Integer.MAX_VALUE), "only the shortfall moves");
         assertEquals(8, item.magazine);
-        assertEquals(38, item.reserve);
+        assertEquals(62, item.reserve);
 
         item.magazine = 0;
         item.reserve = 3;
@@ -85,7 +85,7 @@ class WeaponItemTest {
     @Test
     @DisplayName("copies are independent")
     void copiesAreIndependent() {
-        WeaponItem item = new WeaponItem(WeaponId.P90);
+        WeaponItem item = new WeaponItem(WeaponId.SMOKE_STITCH);
         WeaponItem twin = item.copy();
         twin.consume(10);
         assertEquals(50, item.magazine, "editing the copy must not touch the original");

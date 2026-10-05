@@ -167,9 +167,9 @@ extends sight, and the server never transmits hidden players.
 ## PHASE 3 — Combat core
 
 ### 3.1 Ballistics (`shared/combat/BallisticsMath`, `shared/weapons/WeaponBallistics`)
-Travelling projectiles, never hitscan. Per-weapon muzzle speed 900–1950; per-class drop
+Travelling projectiles, never hitscan. Per-weapon muzzle speed 520–1950; per-class drop
 (sniper 1.0 → shotgun 5.0) ramping in over 0.5–1.8 s; per-shot drag 0.980–0.998;
-linear damage falloff to a per-weapon floor (sawed-off 35% → AWP 85%).
+linear damage falloff to a per-weapon floor (sawed-off shotguns 35% → snipers 80%).
 **Above ~100 u/s, sweep previous→current position each tick.** Fast bullets tunnelling through the 14-unit
 tunnel roof is the bug you will otherwise spend a week finding.
 
@@ -188,11 +188,11 @@ angular spin on the body, and a visual gun-angle kick decaying at 120 deg/s capp
 Multipliers: ADS 0.45–0.78 (lerped, not snapped), moving 1.4–2.0×, airborne 0.25×, burst 1.20×.
 
 ### 3.5 Fire modes and friendly fire
-Auto / semi / bolt / 3-round burst (0.55° fixed spacing + 20%-of-spread jitter) / shotgun
-(6 pellets even across the cone, 1.5° hip / 0.8° ADS jitter, each a full damage instance).
+Auto / semi / bolt / pump / break / 3-round burst (0.55° fixed spacing + 20%-of-spread jitter) / shotgun
+(per-weapon pellet count up to 8, even across the cone, 1.5° hip / 0.8° ADS jitter, each a full damage instance).
 Friendly fire **and self-damage on by default**; Neutral fights everyone.
 
-**Done when:** the weapon table's TTK math holds in practice (AWP headshot = 1 shot, DE = 3 body),
+**Done when:** the weapon table's TTK math holds in practice (sniper headshot = 1 shot, magnum = 2 body),
 a full-arena shot visibly drops and deals clearly less damage, and spray-vs-tap accuracy differs over
 roughly a second rather than instantly.
 
@@ -202,10 +202,11 @@ roughly a second rather than instantly.
 
 ### 4.1 Registry and data
 `shared/weapons/WeaponRegistry` — id → definition, **returns copies** (a shared mutable weapon instance is a
-cross-player state leak). All 13 guns from the §5.1 table, plus per-weapon ADS spread ratio (AWP 18%, P90 42%).
+cross-player state leak). All 89 guns generated from the sprite catalog (see §5.1 and `docs/WEAPONS_TABLE.md`),
+plus per-weapon ADS spread ratio (snipers ~18%, SMGs ~42%).
 
 ### 4.2 Melee
-Four weapons from §5.2. Arc damage in front of the player, knockback as a **real physics impulse** —
+Twenty-one weapons from §5.2. Arc damage in front of the player, knockback as a **real physics impulse** —
 bats launch airborne enemies, shove them off ledges and into fire. Slot 3 can never be empty.
 
 ### 4.3 Slots and switching

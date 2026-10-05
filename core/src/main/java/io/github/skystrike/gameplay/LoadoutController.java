@@ -236,18 +236,18 @@ public final class LoadoutController {
 
     private static int firstPistolOrdinal() {
         for (WeaponId id : WeaponId.values()) {
-            if (WeaponRegistry.of(id).ballistics().weaponClass() == WeaponClass.PISTOL) {
+            if (WeaponRegistry.of(id).ballistics().weaponClass().isSidearm()) {
                 return id.ordinal();
             }
         }
-        return WeaponId.DESERT_EAGLE.ordinal();
+        return WeaponId.DEFAULT_SIDEARM.ordinal();
     }
 
     private static int nextPistolOrdinal(int current) {
         WeaponId[] ids = WeaponId.values();
         for (int i = 1; i <= ids.length; i++) {
             int ordinal = (current + i) % ids.length;
-            if (WeaponRegistry.of(ids[ordinal]).ballistics().weaponClass() == WeaponClass.PISTOL) {
+            if (WeaponRegistry.of(ids[ordinal]).ballistics().weaponClass().isSidearm()) {
                 return ordinal;
             }
         }

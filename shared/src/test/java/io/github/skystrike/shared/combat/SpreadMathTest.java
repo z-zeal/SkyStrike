@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.WeaponConfig;
+import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -177,10 +179,10 @@ class SpreadMathTest {
     }
 
     @Test
-    @DisplayName("six pellets spread evenly across the whole cone, endpoints included")
+    @DisplayName("eight pellets spread evenly across the whole cone, endpoints included")
     void pelletPattern() {
         float spread = 15f;
-        int pellets = WeaponConfig.SHOTGUN_PELLETS;
+        int pellets = WeaponRegistry.of(WeaponId.SCATTER_BENCH).pelletCount();
 
         assertEquals(-7.5f, SpreadMath.pelletOffsetDegrees(0, pellets, spread), EPSILON);
         assertEquals(7.5f, SpreadMath.pelletOffsetDegrees(pellets - 1, pellets, spread), EPSILON);

@@ -32,7 +32,7 @@ class PlayerLoadoutTest {
     @DisplayName("the default loadout is rifle, sidearm, knife, hands on the primary")
     void defaultComposition() {
         assertEquals(WeaponId.DEFAULT, loadout.primary.weaponId());
-        assertEquals(WeaponId.DESERT_EAGLE, loadout.handgun.weaponId());
+        assertEquals(WeaponId.DEFAULT_SIDEARM, loadout.handgun.weaponId());
         assertEquals(MeleeId.DEFAULT, loadout.meleeId());
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
         assertFalse(loadout.reloading);
@@ -40,7 +40,7 @@ class PlayerLoadoutTest {
 
         // Everyone spawns with a full tank.
         assertEquals(WeaponRegistry.of(WeaponId.DEFAULT).magazineSize(), loadout.primary.magazine);
-        assertEquals(WeaponRegistry.of(WeaponId.DESERT_EAGLE).magazineSize(), loadout.handgun.magazine);
+        assertEquals(WeaponRegistry.of(WeaponId.DEFAULT_SIDEARM).magazineSize(), loadout.handgun.magazine);
     }
 
     @Test
@@ -144,7 +144,7 @@ class PlayerLoadoutTest {
     @Test
     @DisplayName("the wheel stays put when only melee is filled")
     void wheelWithOnlyMelee() {
-        PlayerLoadout lonely = new PlayerLoadout(null, null, MeleeId.COMBAT_KNIFE);
+        PlayerLoadout lonely = new PlayerLoadout(null, null, MeleeId.TRENCH_KNUCKLE);
         assertEquals(PlayerLoadout.SLOT_MELEE, lonely.activeSlot);
         assertEquals(PlayerLoadout.SLOT_MELEE, lonely.cycle(1));
         assertEquals(PlayerLoadout.SLOT_MELEE, lonely.cycle(-1));
@@ -185,7 +185,7 @@ class PlayerLoadoutTest {
     @Test
     @DisplayName("reload tops up the magazine from the reserve, never past full")
     void reloadRefills() {
-        loadout.primary.magazine = 5; // SCAR-L: mag 20, reserve 120
+        loadout.primary.magazine = 5; // Iron Carbine: mag 30, reserve 120
         assertTrue(loadout.startReload());
         float seconds = WeaponRegistry.of(WeaponId.DEFAULT).reloadSeconds();
         assertEquals(seconds, loadout.reloadTimer, 1e-4f);
@@ -196,8 +196,8 @@ class PlayerLoadoutTest {
             completed = loadout.updateReload(1f / 60f);
         }
         assertTrue(completed, "the reload must finish inside four seconds of ticks");
-        assertEquals(20, loadout.primary.magazine);
-        assertEquals(105, loadout.primary.reserve);
+        assertEquals(30, loadout.primary.magazine);
+        assertEquals(95, loadout.primary.reserve);
         assertFalse(loadout.reloading);
         assertEquals(0f, loadout.reloadDuration());
     }
@@ -218,9 +218,9 @@ class PlayerLoadoutTest {
     @Test
     @DisplayName("reload timing is float-dust safe: exactly reloadSeconds of 60 Hz ticks is enough")
     void reloadFloatDust() {
-        // The respawn timer trap: 2.2 - 132*(1/60) != 0 exactly. Reproduce it here and require
+        // The respawn timer trap: 2.1 - 126*(1/60) != 0 exactly. Reproduce it here and require
         // the epsilon to absorb the dust — a reload must not hang for an extra tick.
-        loadout.primary.magazine = 0; // SCAR-L reload: 2.2 s = 132 ticks
+        loadout.primary.magazine = 0; // Iron Carbine reload: 2.1 s = 126 ticks
         assertTrue(loadout.startReload());
 
         int ticks = Math.round(loadout.reloadDuration() * 60f);
@@ -233,7 +233,7 @@ class PlayerLoadoutTest {
         assertFalse(completedEarly, "the reload should not complete before its quoted time");
         assertTrue(loadout.updateReload(1f / 60f),
             "the final tick of the quoted duration completes the reload, dust or not");
-        assertEquals(20, loadout.primary.magazine);
+        assertEquals(30, loadout.primary.magazine);
     }
 
     @Test
@@ -257,24 +257,24 @@ class PlayerLoadoutTest {
     @DisplayName("setComposition replaces changed weapons with full ones and keeps the rest")
     void compositionChanges() {
         loadout.primary.magazine = 3;
-        loadout.setComposition(WeaponId.AWP, null, null);
+        loadout.setComposition(WeaponId.CATHEDRAL, null, null);
 
-        assertEquals(WeaponId.AWP, loadout.primary.weaponId());
+        assertEquals(WeaponId.CATHEDRAL, loadout.primary.weaponId());
         assertEquals(5, loadout.primary.magazine, "a swapped weapon comes full");
-        assertEquals(WeaponId.DESERT_EAGLE, loadout.handgun.weaponId(), "untouched slots keep their ammo");
+        assertEquals(WeaponId.DEFAULT_SIDEARM, loadout.handgun.weaponId(), "untouched slots keep their ammo");
 
         loadout.handgun.magazine = 1;
-        loadout.setComposition(null, WeaponId.DESERT_EAGLE, null);
+        loadout.setComposition(null, WeaponId.DEFAULT_SIDEARM, null);
         assertEquals(1, loadout.handgun.magazine, "an unchanged weapon keeps its magazine state");
 
-        loadout.setComposition(null, null, MeleeId.KATANA);
-        assertEquals(MeleeId.KATANA, loadout.meleeId());
+        loadout.setComposition(null, null, MeleeId.WINTER_KATANA);
+        assertEquals(MeleeId.WINTER_KATANA, loadout.meleeId());
     }
 
     @Test
     @DisplayName("respawn resets magazines, reload state and the active slot, keeping composition")
     void respawnReset() {
-        loadout.setComposition(WeaponId.AWP, null, MeleeId.BASEBALL_BAT);
+        loadout.setComposition(WeaponId.CATHEDRAL, null, MeleeId.YARD_WRENCH);
         loadout.primary.magazine = 1;
         loadout.primary.reserve = 2;
         loadout.handgun.magazine = 0;
@@ -283,14 +283,14 @@ class PlayerLoadoutTest {
 
         loadout.resetForRespawn();
 
-        assertEquals(WeaponId.AWP, loadout.primary.weaponId(), "composition survives death");
+        assertEquals(WeaponId.CATHEDRAL, loadout.primary.weaponId(), "composition survives death");
         assertEquals(5, loadout.primary.magazine);
         assertEquals(25, loadout.primary.reserve);
         assertEquals(7, loadout.handgun.magazine);
         assertFalse(loadout.reloading);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
         assertEquals(PlayerLoadout.NO_QUICK_SWAP, loadout.quickSwapOrigin);
-        assertEquals(MeleeId.BASEBALL_BAT, loadout.meleeId());
+        assertEquals(MeleeId.YARD_WRENCH, loadout.meleeId());
     }
 
     @Test
@@ -316,7 +316,7 @@ class PlayerLoadoutTest {
     void heldWireIdMirrorsHands() {
         assertEquals(WeaponId.DEFAULT.ordinal(), loadout.heldWeaponWireId());
         loadout.selectSlot(2);
-        assertEquals(WeaponId.DESERT_EAGLE.ordinal(), loadout.heldWeaponWireId());
+        assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), loadout.heldWeaponWireId());
         loadout.tapSlot(2); // to melee
         assertEquals(MeleeId.DEFAULT.wireId(), loadout.heldWeaponWireId(),
             "melee in hand is the melee wire id, not some gun");

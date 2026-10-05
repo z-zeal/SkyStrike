@@ -13,14 +13,16 @@ import io.github.skystrike.shared.config.WeaponConfig;
  * which never leaves the host except as snapshot values.
  *
  * @param id            which gun
- * @param damage        muzzle damage of one round (one pellet, for shotguns)
+ * @param damage        muzzle damage of one round (one pellet, for pellet weapons)
  * @param fireRateHz    trigger events per second — bursts per second for {@link FireMode#BURST}
- *                      and shells per second for {@link FireMode#SHOTGUN}
- * @param magazineSize  rounds per magazine (shells, for shotguns)
+ *                      and shells per second for pellet weapons
+ * @param magazineSize  rounds per magazine (shells, for pellet weapons)
  * @param reserveAmmo   rounds carried beyond the magazine
  * @param reloadSeconds reload time
  * @param fireMode      how a trigger pull becomes rounds
- * @param pelletCount   rounds produced per trigger event by a shell
+ * @param pelletCount   rounds produced per trigger event by a shell; above one the weapon
+ *                      fires a pellet cloud regardless of its fire mode (pump, break-action,
+ *                      semi-automatic and automatic shotguns all spread the same way)
  * @param spread        stance spread tuning
  * @param recoil        the three recoil channels
  * @param ballistics    flight and falloff
@@ -43,7 +45,7 @@ public record WeaponDefinition(
      * Stance spread tuning (mechanics §4.3).
      *
      * @param baseDegrees        hip-fire spread while standing still
-     * @param adsRatio           fraction of base spread while aiming — AWP 18%, P90 42%
+     * @param adsRatio           fraction of base spread while aiming — snipers 18%, SMGs 42%
      * @param movingMultiplier   1.8–2.8× while moving
      * @param kickDegrees        2.1–4.8° added per round, before the recoil multiplier
      * @param ceilingMultiplier  2.7–4× base spread
@@ -86,18 +88,23 @@ public record WeaponDefinition(
         return 1f / fireRateHz;
     }
 
+    /** True when one trigger event launches a pellet cloud rather than a single round. */
+    public boolean firesPellets() {
+        return pelletCount > 1;
+    }
+
     /** Rounds produced by one trigger event. */
     public int roundsPerTriggerEvent() {
-        return switch (fireMode) {
-            case BURST -> WeaponConfig.BURST_ROUNDS;
-            case SHOTGUN -> pelletCount;
-            default -> 1;
-        };
+        if (fireMode == FireMode.BURST) {
+            return WeaponConfig.BURST_ROUNDS;
+        }
+        return Math.max(1, pelletCount);
     }
 
     /**
      * Magazine units spent by one trigger event. A burst spends its three rounds; every other
-     * mode spends one unit per event — a shotgun magazine counts <i>shells</i>, not pellets.
+     * mode spends one unit per event — a pellet weapon's magazine counts <i>shells</i>, not
+     * pellets.
      */
     public int magazineCostPerTriggerEvent() {
         return fireMode == FireMode.BURST ? WeaponConfig.BURST_ROUNDS : 1;

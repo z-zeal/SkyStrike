@@ -49,44 +49,44 @@ class LoadoutUpdateHandlerTest {
     @DisplayName("a valid request is recorded, per field, and applied at respawn time")
     void validRequestIsRecorded() {
         handler.handle(connection, new PacketLoadoutUpdate(
-            WeaponId.AWP.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.KATANA.ordinal()));
+            WeaponId.CATHEDRAL.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.WINTER_KATANA.ordinal()));
 
-        assertEquals(WeaponId.AWP.ordinal(), session.requestedPrimary());
-        assertEquals(WeaponId.DESERT_EAGLE.ordinal(), session.requestedHandgun(), "untouched");
-        assertEquals(MeleeId.KATANA.ordinal(), session.requestedMelee());
+        assertEquals(WeaponId.CATHEDRAL.ordinal(), session.requestedPrimary());
+        assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), session.requestedHandgun(), "untouched");
+        assertEquals(MeleeId.WINTER_KATANA.ordinal(), session.requestedMelee());
 
         // The live loadout is untouched until the respawn flow applies the request.
         assertEquals(WeaponId.DEFAULT, session.player().loadout.primary.weaponId());
 
         assertTrue(session.applyRequestedLoadout());
-        assertEquals(WeaponId.AWP, session.player().loadout.primary.weaponId());
+        assertEquals(WeaponId.CATHEDRAL, session.player().loadout.primary.weaponId());
         assertEquals(5, session.player().loadout.primary.magazine, "a fresh weapon comes full");
-        assertEquals(MeleeId.KATANA, session.player().loadout.meleeId());
+        assertEquals(MeleeId.WINTER_KATANA, session.player().loadout.meleeId());
     }
 
     @Test
     @DisplayName("a non-pistol cannot take the handgun slot, while the rest of the packet lives")
     void handgunSlotRejectsNonPistols() {
         handler.handle(connection, new PacketLoadoutUpdate(
-            WeaponId.P90.ordinal(), WeaponId.AWP.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT));
+            WeaponId.SMOKE_STITCH.ordinal(), WeaponId.CATHEDRAL.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT));
 
-        assertEquals(WeaponId.P90.ordinal(), session.requestedPrimary(), "the valid field stuck");
-        assertEquals(WeaponId.DESERT_EAGLE.ordinal(), session.requestedHandgun(),
-            "the AWP is not a handgun: the field was dropped");
+        assertEquals(WeaponId.SMOKE_STITCH.ordinal(), session.requestedPrimary(), "the valid field stuck");
+        assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), session.requestedHandgun(),
+            "a sniper rifle is not a handgun: the field was dropped");
 
-        // The pistol in the table is the Desert Eagle, and it does pass.
+        // A revolver is a sidearm too, and it does pass.
         handler.handle(connection, new PacketLoadoutUpdate(
-            PacketLoadoutUpdate.KEEP_CURRENT, WeaponId.DESERT_EAGLE.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT));
-        assertEquals(WeaponId.DESERT_EAGLE.ordinal(), session.requestedHandgun());
+            PacketLoadoutUpdate.KEEP_CURRENT, WeaponId.LONGSPUR_44.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT));
+        assertEquals(WeaponId.LONGSPUR_44.ordinal(), session.requestedHandgun());
     }
 
     @Test
     @DisplayName("garbage ordinals and empty packets change nothing")
     void invalidOrdinalsAreDropped() {
-        handler.handle(connection, new PacketLoadoutUpdate(999, -7, 42));
+        handler.handle(connection, new PacketLoadoutUpdate(999, -7, 42)); // 42 >= 21 melee ids
 
         assertEquals(WeaponId.DEFAULT.ordinal(), session.requestedPrimary());
-        assertEquals(WeaponId.DESERT_EAGLE.ordinal(), session.requestedHandgun());
+        assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), session.requestedHandgun());
         assertEquals(MeleeId.DEFAULT.ordinal(), session.requestedMelee());
 
         handler.handle(connection, new PacketLoadoutUpdate()); // all KEEP_CURRENT
@@ -99,10 +99,10 @@ class LoadoutUpdateHandlerTest {
     @DisplayName("later requests overwrite earlier ones, still as full packets")
     void laterRequestsOverwrite() {
         handler.handle(connection, new PacketLoadoutUpdate(
-            WeaponId.FAMAS.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT));
+            WeaponId.BLACK_CORRIDOR.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT));
         handler.handle(connection, new PacketLoadoutUpdate(
-            WeaponId.P90.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT));
+            WeaponId.SMOKE_STITCH.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT));
 
-        assertEquals(WeaponId.P90.ordinal(), session.requestedPrimary());
+        assertEquals(WeaponId.SMOKE_STITCH.ordinal(), session.requestedPrimary());
     }
 }

@@ -70,7 +70,7 @@ public final class PlayerLoadout {
 
     /** The starting loadout: rifle, sidearm, knife — nobody spawns defenceless. */
     public PlayerLoadout() {
-        this(WeaponId.DEFAULT, WeaponId.DESERT_EAGLE, MeleeId.DEFAULT);
+        this(WeaponId.DEFAULT, WeaponId.DEFAULT_SIDEARM, MeleeId.DEFAULT);
     }
 
     public PlayerLoadout(WeaponId primaryId, WeaponId handgunId, MeleeId meleeId) {

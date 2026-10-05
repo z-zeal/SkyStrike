@@ -1,6 +1,8 @@
 package io.github.skystrike.render;
 
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
@@ -19,9 +21,14 @@ import java.util.List;
  * removing the player when a visibility threshold is crossed.
  *
  * <p>Corpses are the one exception: a dead player is not drawn at all. Combat state reaches the
- * renderer the same way position does — through the snapshot — so the barrel is drawn at
+ * renderer the same way position does — through the snapshot — so the weapon is drawn at
  * {@link Player#renderedGunAngle()} rather than the raw aim. That is the aim plus the recoil
  * kick, and it is what makes a burst look like it climbs.
+ *
+ * <p>The held weapon is a catalog sprite ({@link WeaponSprites}), anchored at its grip over the
+ * hands, rotated with the aim, flipped vertically when aiming left so the top rail stays up,
+ * and drawn into the scene pass so the fog composite shades it like everything else. A missing
+ * sprite falls back to the Phase-4 barrel line rather than an invisible gun.
  */
 public final class PlayerRenderer implements Disposable {
 
@@ -35,7 +42,12 @@ public final class PlayerRenderer implements Disposable {
     private static final Color COLOR_HEALTH_BG = new Color(0.15f, 0.15f, 0.15f, 0.8f);
     private static final Color COLOR_HEALTH_FG = new Color(0.20f, 0.85f, 0.30f, 1f);
 
+    /** Hand offset from the eye along the aim, so the grip sits in front of the body. */
+    private static final float HAND_FORWARD_OFFSET = 4f;
+
     private final ShapeRenderer shapes = new ShapeRenderer();
+    private final SpriteBatch batch = new SpriteBatch();
+    private final WeaponSprites weaponSprites = new WeaponSprites();
 
     public PlayerRenderer() {
     }
@@ -58,19 +70,73 @@ public final class PlayerRenderer implements Disposable {
         }
         shapes.end();
 
-        // 2. Draw line shapes (aim guns, outlines)
-        shapes.begin(ShapeRenderer.ShapeType.Line);
+        // 2. Draw the held weapon sprites over the bodies.
+        batch.setProjectionMatrix(camera.combined());
+        batch.begin();
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
                 if (p.alive) {
-                    drawPlayerLines(p);
+                    drawHeldWeapon(p);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
+            drawHeldWeapon(localPlayer);
+        }
+        batch.end();
+
+        // 3. Draw line shapes (barrel fallback for missing sprites).
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        if (remotePlayers != null) {
+            for (Player p : remotePlayers) {
+                if (p.alive && !weaponSprites.hasTexture(p.weaponId)) {
+                    drawPlayerLines(p);
+                }
+            }
+        }
+        if (localPlayer != null && localPlayer.alive && !weaponSprites.hasTexture(localPlayer.weaponId)) {
             drawPlayerLines(localPlayer);
         }
         shapes.end();
+    }
+
+    /**
+     * The held weapon, as its catalog sprite: grip anchored just ahead of the eye, rotated to
+     * the recoil-kicked aim, flipped vertically while aiming left so the sights stay on top.
+     * The frame size comes from the scale catalog — the sprites themselves are all fitted to
+     * their 512px frame, so without that multiplier a pocket pistol would draw rifle-sized.
+     */
+    private void drawHeldWeapon(Player p) {
+        Texture texture = weaponSprites.texture(p.weaponId);
+        if (texture == null) {
+            return; // the line pass draws the fallback barrel
+        }
+
+        float angle = p.renderedGunAngle();
+        float rad = Angles.toRadians(angle);
+        float size = weaponSprites.frameSize(p.weaponId);
+        float originX = size * weaponSprites.gripAnchorX(p.weaponId);
+        float originY = size * 0.5f;
+        float handX = p.eyeX() + HAND_FORWARD_OFFSET * (float) Math.cos(rad);
+        float handY = p.eyeY() + HAND_FORWARD_OFFSET * (float) Math.sin(rad);
+
+        batch.draw(
+                texture,
+                handX - originX,
+                handY - originY,
+                originX,
+                originY,
+                size,
+                size,
+                1f,
+                1f,
+                angle,
+                0,
+                0,
+                texture.getWidth(),
+                texture.getHeight(),
+                false,
+                !p.isFacingRight());
     }
 
     private void drawPlayerFilled(Player p) {
@@ -183,5 +249,7 @@ public final class PlayerRenderer implements Disposable {
     @Override
     public void dispose() {
         shapes.dispose();
+        batch.dispose();
+        weaponSprites.dispose();
     }
 }

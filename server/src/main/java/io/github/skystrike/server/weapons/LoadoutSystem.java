@@ -150,8 +150,8 @@ public final class LoadoutSystem {
             return;
         }
 
-        // A shotgun magazine counts shells: six pellets cost one. A burst costs what it fired —
-        // less than three when the magazine ran dry mid-burst.
+        // A pellet weapon's magazine counts shells: the whole cloud costs one. A burst costs
+        // what it fired — less than three when the magazine ran dry mid-burst.
         FireMode fireMode = gun.definition().fireMode();
         int cost = fireMode == FireMode.BURST
             ? Math.min(gun.definition().magazineCostPerTriggerEvent(), item.magazine)

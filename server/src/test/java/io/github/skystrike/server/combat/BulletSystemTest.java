@@ -52,9 +52,9 @@ class BulletSystemTest {
     @DisplayName("a round leaves the muzzle, not the eye, at the weapon's muzzle speed")
     void spawnPlacesTheRoundAtTheMuzzle() {
         Player player = shooter(500f, 100f, 0f);
-        WeaponBallistics ballistics = WeaponBallistics.of(WeaponId.SCAR_L);
+        WeaponBallistics ballistics = WeaponBallistics.of(WeaponId.IRON_CARBINE);
 
-        Projectile round = bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        Projectile round = bullets.spawn(player, WeaponId.IRON_CARBINE, 0f);
 
         assertNotNull(round);
         assertEquals(player.eyeX() + CombatConfig.MUZZLE_OFFSET, round.x, EPSILON);
@@ -63,7 +63,7 @@ class BulletSystemTest {
         assertEquals(0f, round.vy, EPSILON);
         assertEquals(player.id, round.ownerId);
         assertEquals(player.teamIndex, round.teamIndex);
-        assertEquals(WeaponId.SCAR_L, round.weapon());
+        assertEquals(WeaponId.IRON_CARBINE, round.weapon());
         assertEquals(1, bullets.count());
         assertEquals(1, bullets.spawnedCount());
     }
@@ -74,27 +74,27 @@ class BulletSystemTest {
         // Standing on the centre room floor, right up against its west wall (x 1120..1144).
         Player player = shooter(1100f, 300f, 0f);
 
-        assertNull(bullets.spawn(player, WeaponId.SCAR_L, 0f),
+        assertNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f),
             "the muzzle is inside the wall, so the round never exists");
         assertEquals(0, bullets.count());
 
         // Turning around and firing away from the wall works normally.
-        assertNotNull(bullets.spawn(player, WeaponId.SCAR_L, 180f));
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 180f));
     }
 
     @Test
     @DisplayName("a round cannot tunnel through the 14 unit tunnel roof")
     void aRoundCannotTunnelThroughTheTunnelRoof() {
         // The tunnel roof slab is (1120, 190) 180x14, so it spans y 190..204.
-        // A player hovering in the tunnel fires an AWP straight up: 1950 u/s is 32.5 units per
+        // A player hovering in the tunnel fires a Cathedral straight up: 1820 u/s is 30.3 units per
         // tick, more than twice the slab's thickness, so only a swept test can catch it.
         Player player = shooter(1200f, 115.5f, 90f);
-        Projectile round = bullets.spawn(player, WeaponId.AWP, 90f);
+        Projectile round = bullets.spawn(player, WeaponId.CATHEDRAL, 90f);
 
         assertNotNull(round);
         assertTrue(round.y < 190f, "the round must start below the slab: " + round.y);
 
-        float perTick = WeaponBallistics.of(WeaponId.AWP).muzzleSpeed() * TICK;
+        float perTick = WeaponBallistics.of(WeaponId.CATHEDRAL).muzzleSpeed() * TICK;
         assertTrue(round.y + perTick > 204f,
             "the test is only meaningful if one tick clears the slab entirely");
 
@@ -112,7 +112,7 @@ class BulletSystemTest {
         Player player = shooter(400f, 100f, 0f);
         Player victim = new Player(2, "Victim", 1, 700f, 100f);
 
-        assertNotNull(bullets.spawn(player, WeaponId.SCAR_L, 0f));
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f));
 
         for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player, victim), damage);
@@ -142,7 +142,7 @@ class BulletSystemTest {
         Player far = new Player(3, "Far", 1, 1000f, 1200f);
         Player player = shooter(300f, 1188f, 0f);
 
-        bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        bullets.spawn(player, WeaponId.IRON_CARBINE, 0f);
         for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player, near), damage);
         }
@@ -150,7 +150,7 @@ class BulletSystemTest {
         assertEquals(1, nearResults.size(), "the near round must connect");
         DamageService.DamageResult nearHit = nearResults.get(0);
 
-        bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        bullets.spawn(player, WeaponId.IRON_CARBINE, 0f);
         for (int tick = 0; tick < 60 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player, far), damage);
         }
@@ -170,7 +170,7 @@ class BulletSystemTest {
     void selfHitGraceProtectsTheShooter() {
         // Firing straight down puts the muzzle inside your own hitbox.
         Player player = shooter(500f, 100f, -90f);
-        Projectile round = bullets.spawn(player, WeaponId.AWP, -90f);
+        Projectile round = bullets.spawn(player, WeaponId.CATHEDRAL, -90f);
 
         assertNotNull(round);
         assertTrue(round.y > player.y && round.y < player.y + player.currentHeight(),
@@ -186,7 +186,7 @@ class BulletSystemTest {
     @DisplayName("rounds stop at terrain and leave the world")
     void roundsAreAbsorbedByTerrain() {
         Player player = shooter(500f, 100f, -90f);
-        bullets.spawn(player, WeaponId.SCAR_L, -90f);
+        bullets.spawn(player, WeaponId.IRON_CARBINE, -90f);
 
         for (int tick = 0; tick < 10 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player), damage);
@@ -201,7 +201,7 @@ class BulletSystemTest {
     void roundsExpire() {
         // Fired straight up the middle of the arena, away from the perch and catwalk.
         Player player = shooter(300f, 900f, 90f);
-        bullets.spawn(player, WeaponId.SMG, 90f);
+        bullets.spawn(player, WeaponId.WASP_NEST, 90f);
         assertEquals(1, bullets.count());
 
         for (int tick = 0; tick < 300 && bullets.count() > 0; tick++) {
@@ -216,7 +216,7 @@ class BulletSystemTest {
         Player player = shooter(500f, 100f, 0f);
 
         for (int i = 0; i < CombatConfig.MAX_ACTIVE_PROJECTILES + 20; i++) {
-            bullets.spawn(player, WeaponId.P90, 0f);
+            bullets.spawn(player, WeaponId.SMOKE_STITCH, 0f);
         }
         assertEquals(CombatConfig.MAX_ACTIVE_PROJECTILES, bullets.count());
 
@@ -229,7 +229,7 @@ class BulletSystemTest {
     @DisplayName("the exposed round list is a read-only view")
     void activeListIsUnmodifiable() {
         Player player = shooter(500f, 100f, 0f);
-        bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        bullets.spawn(player, WeaponId.IRON_CARBINE, 0f);
 
         List<Projectile> active = bullets.active();
         assertEquals(1, active.size());
@@ -241,8 +241,8 @@ class BulletSystemTest {
     @DisplayName("ids are unique so the client can track a round across snapshots")
     void roundIdsAreUnique() {
         Player player = shooter(500f, 100f, 0f);
-        Projectile first = bullets.spawn(player, WeaponId.SCAR_L, 0f);
-        Projectile second = bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        Projectile first = bullets.spawn(player, WeaponId.IRON_CARBINE, 0f);
+        Projectile second = bullets.spawn(player, WeaponId.IRON_CARBINE, 0f);
 
         assertNotNull(first);
         assertNotNull(second);
@@ -252,7 +252,7 @@ class BulletSystemTest {
     @Test
     @DisplayName("nothing spawns without a shooter or a weapon")
     void degenerateSpawns() {
-        assertNull(bullets.spawn(null, WeaponId.SCAR_L, 0f));
+        assertNull(bullets.spawn(null, WeaponId.IRON_CARBINE, 0f));
         assertNull(bullets.spawn(shooter(500f, 100f, 0f), null, 0f));
         assertEquals(0, bullets.count());
     }
