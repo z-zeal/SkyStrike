@@ -6,14 +6,6 @@ on:
   pull_request:
     branches: [ "**" ]
 
-permissions:
-  contents: read
-  pull-requests: write
-
-# TEMPORARY DIAGNOSTIC SCAFFOLDING (revert before merge): each gradle step tees its output to
-# /tmp/build.log and never fails the step, a reporter step posts compile errors and failing tests
-# as a PR comment, and the final gate restores the real failure signal. This exists because
-# Actions log downloads are blocked from the sandbox; the PR comment is the log channel.
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -32,88 +24,13 @@ jobs:
         run: chmod +x gradlew
 
       - name: Check module dependencies
-        id: modules
-        continue-on-error: true
-        run: ./gradlew checkModuleDependencies --no-daemon 2>&1 | tee -a /tmp/build.log
+        run: ./gradlew checkModuleDependencies --no-daemon
 
       - name: Compile and run shared tests
-        id: shared
-        continue-on-error: true
-        run: ./gradlew shared:test --no-daemon 2>&1 | tee -a /tmp/build.log
+        run: ./gradlew shared:test --no-daemon
 
       - name: Compile and run server tests
-        id: server
-        continue-on-error: true
-        run: ./gradlew server:test --no-daemon 2>&1 | tee -a /tmp/build.log
+        run: ./gradlew server:test --no-daemon
 
       - name: Compile Java for all subprojects
-        id: compileall
-        continue-on-error: true
-        run: ./gradlew shared:compileJava server:compileJava core:compileJava --no-daemon 2>&1 | tee -a /tmp/build.log
-
-      - name: Post diagnostics to the PR
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          {
-            echo "## CI diagnostics (temporary scaffolding — will be removed)"
-            echo ""
-            echo "run: ${{ github.run_id }}  sha: ${{ github.sha }}"
-            echo ""
-            echo "### javac / gradle errors"
-            echo '```'
-            grep -n -E "error:|FAILURE:|Execution failed|Caused by|\.java:[0-9]+: error" /tmp/build.log | head -80
-            echo '```'
-            echo ""
-            echo "### failing tests (from test XML)"
-            echo '```'
-            python3 - <<'PY'
-          import glob, xml.etree.ElementTree as ET
-          shown = 0
-          for f in sorted(glob.glob('*/build/test-results/test/*.xml')):
-              try:
-                  root = ET.parse(f).getroot()
-              except Exception as e:
-                  print("unparseable", f, e)
-                  continue
-              for tc in root.iter('testcase'):
-                  for fail in list(tc.iter('failure')) + list(tc.iter('error')):
-                      if shown >= 12:
-                          break
-                      if shown:
-                          print('\n----')
-                      print(f"{tc.get('classname')}#{tc.get('name')}")
-                      print((fail.get('message') or '').strip()[:2000])
-                      body = (fail.text or '').strip().splitlines()
-                      for line in body[:25]:
-                          print('   ', line[:300])
-                      shown += 1
-          if not shown:
-              print('(no failing tests in XML)')
-          PY
-            echo '```'
-            echo ""
-            echo "### build log tail"
-            echo '```'
-            tail -n 60 /tmp/build.log
-            echo '```'
-          } > /tmp/comment.md
-          BRANCH="${{ github.head_ref || github.ref_name }}"
-          PR=$(gh pr list --head "$BRANCH" --repo "${{ github.repository }}" --json number --jq '.[0].number')
-          echo "branch=$BRANCH pr=$PR"
-          if [ -n "$PR" ]; then
-            gh pr comment "$PR" --repo "${{ github.repository }}" --body-file /tmp/comment.md
-          fi
-          exit 0
-
-      - name: Gate on real step outcomes
-        if: >-
-          always() && (steps.modules.outcome != 'success'
-            || steps.shared.outcome != 'success'
-            || steps.server.outcome != 'success'
-            || steps.compileall.outcome != 'success')
-        run: |
-          echo "a build step did not succeed (see diagnostics comment)"
-          exit 1
+        run: ./gradlew shared:compileJava server:compileJava core:compileJava --no-daemon
