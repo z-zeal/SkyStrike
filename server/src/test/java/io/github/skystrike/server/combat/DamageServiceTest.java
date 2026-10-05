@@ -6,7 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.skystrike.server.weapons.WeaponStats;
+import io.github.skystrike.shared.weapons.WeaponDefinition;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.model.HitZone;
@@ -51,7 +52,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("a body shot at the muzzle does exactly the weapon's damage")
     void pointBlankBodyShot() {
-        WeaponStats scar = WeaponStats.of(WeaponId.SCAR_L);
+        WeaponDefinition scar = WeaponRegistry.of(WeaponId.SCAR_L);
         DamageService.DamageResult result =
             damage.applyBulletDamage(attacker, attacker.id, target, scar, 700f, bodyY(target), 0f);
 
@@ -66,7 +67,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("a headshot is worth double at every range")
     void headshotsDoubleAtEveryRange() {
-        WeaponStats scar = WeaponStats.of(WeaponId.SCAR_L);
+        WeaponDefinition scar = WeaponRegistry.of(WeaponId.SCAR_L);
         float range = scar.ballistics().maxRange();
 
         Player a = new Player(10, "A", 1, 0f, 0f);
@@ -86,7 +87,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("a full-arena shot deals clearly less damage than a point-blank one")
     void falloffIsVisibleAcrossTheArena() {
-        WeaponStats deagle = WeaponStats.of(WeaponId.DESERT_EAGLE);
+        WeaponDefinition deagle = WeaponRegistry.of(WeaponId.DESERT_EAGLE);
         float range = deagle.ballistics().maxRange();
 
         Player near = new Player(20, "Near", 1, 0f, 0f);
@@ -107,7 +108,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("an AWP headshot is one shot and a body shot is two")
     void awpTimeToKill() {
-        WeaponStats awp = WeaponStats.of(WeaponId.AWP);
+        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
 
         DamageService.DamageResult head =
             damage.applyBulletDamage(attacker, attacker.id, target, awp, 700f, headY(target), 100f);
@@ -144,7 +145,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("death sets the respawn timer, counts the death, and credits the killer once")
     void deathBookkeeping() {
-        WeaponStats awp = WeaponStats.of(WeaponId.AWP);
+        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
         target.vx = 150f;
         target.vy = -40f;
         target.jetpacking = true;
@@ -171,7 +172,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("a team kill and a self kill credit nobody")
     void friendlyAndSelfKillsAreNotCredited() {
-        WeaponStats awp = WeaponStats.of(WeaponId.AWP);
+        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
 
         Player teammate = new Player(4, "Mate", 0, 500f, 100f);
         damage.applyBulletDamage(attacker, attacker.id, teammate, awp, 500f, headY(teammate), 0f);
@@ -188,7 +189,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("every applied hit is queued once and drains once")
     void resultsDrainOnce() {
-        WeaponStats scar = WeaponStats.of(WeaponId.SCAR_L);
+        WeaponDefinition scar = WeaponRegistry.of(WeaponId.SCAR_L);
         damage.applyBulletDamage(attacker, attacker.id, target, scar, 700f, bodyY(target), 0f);
         damage.applyBulletDamage(attacker, attacker.id, target, scar, 700f, bodyY(target), 0f);
 
@@ -208,7 +209,7 @@ class DamageServiceTest {
     @Test
     @DisplayName("a kill reaches the feed with the headshot and friendly-fire flags set")
     void killsReachTheFeed() {
-        WeaponStats awp = WeaponStats.of(WeaponId.AWP);
+        WeaponDefinition awp = WeaponRegistry.of(WeaponId.AWP);
         damage.applyBulletDamage(attacker, attacker.id, target, awp, 700f, headY(target), 0f);
 
         List<KillFeedService.KillEvent> events = killFeed.drain();

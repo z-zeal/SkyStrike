@@ -2,9 +2,12 @@ package io.github.skystrike.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
+import io.github.skystrike.gameplay.LoadoutController;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.InputSampler;
 import io.github.skystrike.input.KeyBindings;
@@ -23,10 +26,13 @@ import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.world.TerrainRenderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +58,17 @@ public final class GameScreen implements Screen {
 
     private final KeyBindings bindings = new KeyBindings();
     private final InputRouter inputRouter = new InputRouter();
-    private final InputSampler inputSampler = new InputSampler(bindings, inputRouter);
+    private final LoadoutController loadoutController = new LoadoutController(bindings, inputRouter);
+    private final InputSampler inputSampler = new InputSampler(bindings, inputRouter, loadoutController);
+
+    /** The wheel reaches the loadout controller as slot cycles; everything else goes via polling. */
+    private final InputAdapter scrollForwarder = new InputAdapter() {
+        @Override
+        public boolean scrolled(float amountX, float amountY) {
+            loadoutController.scrolled(amountY);
+            return false;
+        }
+    };
     private final LocalPrediction prediction = new LocalPrediction();
     private final StateBuffer stateBuffer = new StateBuffer();
     private final Interpolator interpolator = new Interpolator(stateBuffer);
@@ -75,6 +91,7 @@ public final class GameScreen implements Screen {
 
         this.session.setSnapshotListener(this::onGameStateSnapshot);
         this.session.setKillListener(this::onKillEvent);
+        this.loadoutController.setPacketSender(session::sendReliable);
     }
 
     private void onGameStateSnapshot(PacketGameState snapshot) {
@@ -85,6 +102,7 @@ public final class GameScreen implements Screen {
             for (Player p : snapshot.players) {
                 if (p.id == localId) {
                     prediction.reconcile(p, arena);
+                    loadoutController.onAuthoritativePlayer(p, prediction.predicted());
                     break;
                 }
             }
@@ -98,7 +116,10 @@ public final class GameScreen implements Screen {
     @Override
     public void show() {
         camera.centreOn(arena.mirrorAxisX(), camera.viewportHeight() / 2f);
-        Gdx.input.setInputProcessor(inputRouter.multiplexer());
+        InputMultiplexer root = new InputMultiplexer();
+        root.addProcessor(inputRouter.multiplexer());
+        root.addProcessor(scrollForwarder);
+        Gdx.input.setInputProcessor(root);
         pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         session.connect(host, tcpPort, udpPort);
     }
@@ -111,7 +132,10 @@ public final class GameScreen implements Screen {
         float visionReach = VisionConfig.REACH_HIP;
 
         if (localPlayer != null) {
-            // 1. Sample input and simulate predicted local motion
+            // 1. Loadout input first: a slot press this frame rides this frame's input packet
+            loadoutController.update(localPlayer);
+
+            // 2. Sample input and simulate predicted local motion
             PacketPlayerInput input = inputSampler.sample(localPlayer, camera);
             localPlayer = prediction.predict(input, delta, arena);
             session.sendUnreliable(input);
@@ -196,7 +220,7 @@ public final class GameScreen implements Screen {
 
     private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike — Phase 3 (Combat Core)");
+        lines.add("SkyStrike — Phase 4 (Weapons, Melee and Loadout)");
         lines.add("server: " + session.statusLine());
         if (localPlayer != null) {
             lines.add(String.format(
@@ -221,7 +245,7 @@ public final class GameScreen implements Screen {
                     localPlayer.ads ? "[ADS]" : "[HIP]"));
             lines.add(String.format(
                     "combat: %s  hp %.0f/%.0f  spread %.2f°  kick %.1f°  %d-%d  rounds %d%s",
-                    localPlayer.weapon().displayName(),
+                    localPlayer.heldWeaponDisplayName(),
                     localPlayer.health,
                     CombatConfig.MAX_HEALTH,
                     localPlayer.spread,
@@ -232,6 +256,26 @@ public final class GameScreen implements Screen {
                     localPlayer.alive
                         ? ""
                         : String.format("  [DEAD — respawn in %.1fs]", localPlayer.respawnTimer)));
+            PlayerLoadout loadout = localPlayer.loadout;
+            if (loadout != null) {
+                WeaponItem item = loadout.activeItem();
+                String held = WeaponRegistry.displayNameForWireId(loadout.heldWeaponWireId());
+                String ammo = item == null
+                    ? ""
+                    : String.format("  %d/%d", item.magazine, item.reserve);
+                String reload = loadout.reloading
+                    ? String.format("  [reload %.1fs]", Math.max(0f, loadout.reloadTimer))
+                    : "";
+                lines.add(String.format(
+                    "loadout: slot %d/5  %s%s%s  swap-from=%s",
+                    loadout.activeSlot,
+                    held,
+                    ammo,
+                    reload,
+                    loadout.quickSwapOrigin == PlayerLoadout.NO_QUICK_SWAP
+                        ? "-" : String.valueOf(loadout.quickSwapOrigin)));
+                lines.add(loadoutController.debugStatusLine());
+            }
             for (PacketKillEvent kill : session.killFeed()) {
                 lines.add("  " + kill.feedLine());
             }
@@ -246,7 +290,7 @@ public final class GameScreen implements Screen {
                     arena.solids().size()));
         }
         lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
-            + "  [ / ] weapon  F1 SDF debug");
+            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  F1 SDF debug");
         return lines;
     }
 

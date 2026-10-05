@@ -4,6 +4,7 @@ import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 
 /**
  * Full state record for a networked player character.
@@ -45,8 +46,18 @@ public final class Player {
     /** Seconds left before respawn while dead. */
     public float respawnTimer;
 
-    /** Ordinal of the held {@link io.github.skystrike.shared.weapons.WeaponId}. */
+    /**
+     * What is in the hands, as a wire id: a {@link io.github.skystrike.shared.weapons.WeaponId}
+     * ordinal while a gun is held, a {@link io.github.skystrike.shared.weapons.MeleeId} wire id
+     * (1000 + ordinal) while melee is held. Derived from {@link #loadout} on the server.
+     */
     public int weaponId;
+
+    /**
+     * The full loadout (slots, ammunition, reload). Server-authoritative; mirrored to the owner
+     * in every snapshot, and never null.
+     */
+    public PlayerLoadout loadout = new PlayerLoadout();
 
     /** Live spread cone in degrees, for the crosshair and the debug readout. */
     public float spread;
@@ -94,6 +105,7 @@ public final class Player {
         this.alive = other.alive;
         this.respawnTimer = other.respawnTimer;
         this.weaponId = other.weaponId;
+        this.loadout.set(other.loadout);
         this.spread = other.spread;
         this.gunKick = other.gunKick;
         this.kills = other.kills;
@@ -132,9 +144,23 @@ public final class Player {
         return Math.cos(Angles.toRadians(aimAngle)) >= 0;
     }
 
-    /** The weapon currently held. */
+    /**
+     * The gun the {@link #weaponId} wire id names. Falls back to the default gun when the player
+     * is holding melee — check {@link #holdingMelee()} or use {@link #heldWeaponDisplayName()}
+     * when the distinction matters.
+     */
     public WeaponId weapon() {
         return WeaponId.fromOrdinal(weaponId);
+    }
+
+    /** True while the melee slot is the active one. */
+    public boolean holdingMelee() {
+        return loadout != null && loadout.meleeActive();
+    }
+
+    /** Display name of whatever is in the hands, gun or melee. */
+    public String heldWeaponDisplayName() {
+        return WeaponRegistry.displayNameForWireId(weaponId);
     }
 
     /** Aim angle plus the visual recoil kick — what the gun is drawn at, not what it hits. */

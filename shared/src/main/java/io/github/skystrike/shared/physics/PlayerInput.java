@@ -15,7 +15,7 @@ public final class PlayerInput {
     public boolean ads;
     public boolean fire;
     public float aimAngle; // degrees
-    public int weaponSelect = PacketPlayerInput.NO_WEAPON_CHANGE; // WeaponId ordinal, -1 = unchanged
+    public int slotPress = PacketPlayerInput.NO_SLOT_PRESS; // loadout slot 1-5, -1 = no press
 
     public PlayerInput() {
     }
@@ -31,7 +31,7 @@ public final class PlayerInput {
         float aimAngle
     ) {
         this(sequence, moveX, jump, crouch, jetpack, ads, fire, aimAngle,
-            PacketPlayerInput.NO_WEAPON_CHANGE);
+            PacketPlayerInput.NO_SLOT_PRESS);
     }
 
     public PlayerInput(
@@ -43,7 +43,7 @@ public final class PlayerInput {
         boolean ads,
         boolean fire,
         float aimAngle,
-        int weaponSelect
+        int slotPress
     ) {
         this.sequence = sequence;
         this.moveX = moveX;
@@ -53,7 +53,7 @@ public final class PlayerInput {
         this.ads = ads;
         this.fire = fire;
         this.aimAngle = aimAngle;
-        this.weaponSelect = weaponSelect;
+        this.slotPress = slotPress;
     }
 
     public static PlayerInput fromPacket(PacketPlayerInput packet) {
@@ -69,12 +69,12 @@ public final class PlayerInput {
             packet.ads,
             packet.fire,
             packet.aimAngle,
-            packet.weaponSelect
+            packet.slotPress
         );
     }
 
     public PlayerInput copy() {
         return new PlayerInput(
-            sequence, moveX, jump, crouch, jetpack, ads, fire, aimAngle, weaponSelect);
+            sequence, moveX, jump, crouch, jetpack, ads, fire, aimAngle, slotPress);
     }
 }

@@ -14,8 +14,12 @@ public final class NetConfig {
      * <p>3 — Phase 3 combat: {@code Projectile}, {@code HitZone}, {@code PacketDamageEvent} and
      * {@code PacketKillEvent} registered; rounds in flight added to the state snapshot and a
      * weapon selection field added to the input packet.
+     *
+     * <p>4 — Phase 4 loadout: {@code PacketLoadoutUpdate}, {@code WeaponItem} and
+     * {@code PlayerLoadout} registered; the loadout now rides inside {@code Player}, and the
+     * input packet's weapon-ordinal field became a loadout slot press.
      */
-    public static final int PROTOCOL_VERSION = 3;
+    public static final int PROTOCOL_VERSION = 4;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

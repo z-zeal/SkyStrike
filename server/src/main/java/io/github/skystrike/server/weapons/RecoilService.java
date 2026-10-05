@@ -3,6 +3,7 @@ package io.github.skystrike.server.weapons;
 import io.github.skystrike.shared.combat.RecoilMath;
 import io.github.skystrike.shared.combat.SpreadMath;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.weapons.WeaponDefinition;
 
 /**
  * Applies the three recoil channels of mechanics §4.4 to an authoritative player.
@@ -22,7 +23,7 @@ public final class RecoilService {
      * @param burst whether this volley is a burst, worth 1.20×
      */
     public float multiplier(Player player, GunInstance gun, boolean burst) {
-        WeaponStats.RecoilProfile recoil = gun.stats().recoil();
+        WeaponDefinition.RecoilProfile recoil = gun.definition().recoil();
         boolean moving = SpreadMath.isMoving(player.vx);
         boolean airborne = !player.grounded;
         return RecoilMath.recoilMultiplier(
@@ -41,7 +42,7 @@ public final class RecoilService {
      * the same number, and the two must not be able to drift apart.
      */
     public void apply(Player player, GunInstance gun, float aimAngleDegrees, float multiplier) {
-        WeaponStats.RecoilProfile recoil = gun.stats().recoil();
+        WeaponDefinition.RecoilProfile recoil = gun.definition().recoil();
 
         // 1. Linear: a real push to velocity, opposite the aim. Firing down in the air lifts you.
         player.vx += RecoilMath.linearPushX(aimAngleDegrees, recoil.linearImpulse() * multiplier);

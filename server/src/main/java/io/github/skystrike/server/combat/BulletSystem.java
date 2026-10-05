@@ -1,6 +1,7 @@
 package io.github.skystrike.server.combat;
 
-import io.github.skystrike.server.weapons.WeaponStats;
+import io.github.skystrike.shared.weapons.WeaponDefinition;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.shared.combat.BallisticsMath;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.WorldConfig;
@@ -147,7 +148,7 @@ public final class BulletSystem {
         if (damage == null) {
             return;
         }
-        WeaponStats stats = WeaponStats.ofOrdinal(projectile.weaponId);
+        WeaponDefinition stats = WeaponRegistry.ofOrdinal(projectile.weaponId);
         Player attacker = findById(targets, projectile.ownerId);
         damage.applyBulletDamage(
             attacker,

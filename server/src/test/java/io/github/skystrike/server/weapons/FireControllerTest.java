@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.skystrike.shared.config.WeaponConfig;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,11 +46,11 @@ class FireControllerTest {
         assertEquals(1, controller.fire(player, scar, true, true, volley));
         assertEquals(0, controller.fire(player, scar, true, false, volley), "still cycling");
 
-        scar.update(scar.stats().cooldownSeconds(), false, false);
+        scar.update(scar.definition().cooldownSeconds(), false, false);
         assertEquals(1, controller.fire(player, scar, true, false, volley),
             "an automatic needs no new press");
 
-        scar.update(scar.stats().cooldownSeconds(), false, false);
+        scar.update(scar.definition().cooldownSeconds(), false, false);
         assertEquals(0, controller.fire(player, scar, false, false, volley),
             "releasing the trigger stops it");
     }
@@ -60,7 +61,7 @@ class FireControllerTest {
         GunInstance deagle = gun(WeaponId.DESERT_EAGLE);
 
         assertEquals(1, controller.fire(player, deagle, true, true, volley));
-        deagle.update(deagle.stats().cooldownSeconds(), false, false);
+        deagle.update(deagle.definition().cooldownSeconds(), false, false);
 
         assertEquals(0, controller.fire(player, deagle, true, false, volley),
             "holding a Deagle down does not empty the magazine");
@@ -69,7 +70,7 @@ class FireControllerTest {
 
         GunInstance awp = gun(WeaponId.AWP);
         assertEquals(1, controller.fire(player, awp, true, true, volley));
-        awp.update(awp.stats().cooldownSeconds(), false, false);
+        awp.update(awp.definition().cooldownSeconds(), false, false);
         assertEquals(0, controller.fire(player, awp, true, false, volley));
     }
 
@@ -77,7 +78,7 @@ class FireControllerTest {
     @DisplayName("the cooldown is the weapon's cycle, to the tick")
     void cooldownGatesEverything() {
         GunInstance famas = gun(WeaponId.FAMAS);
-        float cooldown = famas.stats().cooldownSeconds();
+        float cooldown = famas.definition().cooldownSeconds();
 
         assertEquals(1, controller.fire(player, famas, true, true, volley));
 
@@ -100,7 +101,7 @@ class FireControllerTest {
         assertTrue(volley.isBurst());
 
         float spacing = WeaponConfig.BURST_SPACING_DEGREES;
-        float maxJitter = burstRifle.stats().spread().ceilingDegrees() * WeaponConfig.BURST_JITTER_FRACTION;
+        float maxJitter = burstRifle.definition().spread().ceilingDegrees() * WeaponConfig.BURST_JITTER_FRACTION;
         float mean = 0f;
         for (int i = 0; i < rounds; i++) {
             float offset = volley.angle(i) - 30f;
@@ -144,8 +145,8 @@ class FireControllerTest {
     void sustainedFireSaturatesTheCone() {
         GunInstance scar = gun(WeaponId.SCAR_L);
         float base = scar.currentSpread();
-        float ceiling = scar.stats().spread().ceilingDegrees();
-        float cooldown = scar.stats().cooldownSeconds();
+        float ceiling = scar.definition().spread().ceilingDegrees();
+        float cooldown = scar.definition().cooldownSeconds();
 
         for (int shot = 0; shot < 20; shot++) {
             controller.fire(player, scar, true, true, volley);
@@ -178,7 +179,7 @@ class FireControllerTest {
         assertTrue(ads.currentSpread() < hip.currentSpread() * 0.5f,
             "ADS should be far tighter: hip " + hip.currentSpread() + " ads " + ads.currentSpread());
         assertEquals(
-            hip.currentSpread() * hip.stats().spread().adsRatio(),
+            hip.currentSpread() * hip.definition().spread().adsRatio(),
             ads.currentSpread(),
             1e-3f);
     }
@@ -212,12 +213,12 @@ class FireControllerTest {
     void switchingWeaponsResetsState() {
         GunInstance weapon = gun(WeaponId.SCAR_L);
         controller.fire(player, weapon, true, true, volley);
-        assertTrue(weapon.currentSpread() > weapon.stats().spread().baseDegrees());
+        assertTrue(weapon.currentSpread() > weapon.definition().spread().baseDegrees());
         assertFalse(weapon.isReady());
 
         assertTrue(weapon.switchTo(WeaponId.AWP));
         assertEquals(WeaponId.AWP, weapon.weaponId());
-        assertEquals(WeaponStats.of(WeaponId.AWP).spread().baseDegrees(), weapon.currentSpread(), 1e-4f);
+        assertEquals(WeaponRegistry.of(WeaponId.AWP).spread().baseDegrees(), weapon.currentSpread(), 1e-4f);
         assertTrue(weapon.isReady(), "a fresh weapon is ready");
         assertEquals(0f, weapon.visualKick(), 1e-4f);
 

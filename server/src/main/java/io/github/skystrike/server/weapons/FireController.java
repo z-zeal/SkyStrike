@@ -91,7 +91,7 @@ public final class FireController {
             return 0;
         }
 
-        FireMode mode = gun.stats().fireMode();
+        FireMode mode = gun.definition().fireMode();
         boolean triggered = mode.requiresTriggerRelease() ? firePressed : fireHeld;
         if (!triggered) {
             return 0;
@@ -140,7 +140,7 @@ public final class FireController {
 
     /** Pellets spread evenly across the whole cone, each a full damage instance. */
     private void fireShell(GunInstance gun, float aim, boolean aiming, float multiplier, Volley out) {
-        int pellets = gun.stats().pelletCount();
+        int pellets = gun.definition().pelletCount();
         float cone = gun.currentSpread();
         for (int i = 0; i < pellets; i++) {
             float offset = SpreadMath.pelletOffsetDegrees(i, pellets, cone);
