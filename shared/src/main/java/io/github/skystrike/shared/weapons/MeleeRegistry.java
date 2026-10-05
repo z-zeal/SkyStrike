@@ -49,27 +49,27 @@ public final class MeleeRegistry {
     private static Map<MeleeId, MeleeDefinition> buildTable() {
         Map<MeleeId, MeleeDefinition> table = new EnumMap<>(MeleeId.class);
         //                                    damage  swings/s  range  knockback
-        put(table, MeleeId.POCKET_THORN,    34f, 1.8333f, 61f, 145f);
-        put(table, MeleeId.KITCHEN_HOOK,    39f, 1.5833f, 64f, 160f);
-        put(table, MeleeId.HARBOR_FOLDER,   36f, 1.8f, 61f, 150f);
+        put(table, MeleeId.POCKET_THORN,    34f, 1.8333f, 61f, 140f);
+        put(table, MeleeId.KITCHEN_HOOK,    39f, 1.5833f, 64f, 150f);
+        put(table, MeleeId.HARBOR_FOLDER,   36f, 1.8f, 61f, 140f);
         put(table, MeleeId.COPPER_PARING,   28f, 2.0833f, 57f, 130f);
-        put(table, MeleeId.NIGHT_LETTER,    34f, 2.1667f, 64f, 135f);
-        put(table, MeleeId.ASH_MACHETE,     56f, 1.3f, 71f, 230f);
-        put(table, MeleeId.TIDE_KUKRI,      59f, 1.3333f, 68f, 235f);
-        put(table, MeleeId.TRENCH_KNUCKLE,  45f, 1.5f, 64f, 260f);
-        put(table, MeleeId.SALT_BOLO,       59f, 1.2667f, 69f, 240f);
-        put(table, MeleeId.WINTER_KATANA,   76f, 1.0667f, 78f, 250f);
-        put(table, MeleeId.BLACK_NODACHI,   95f, 0.7667f, 87f, 345f);
-        put(table, MeleeId.MILL_ZWEI,       106f, 0.6667f, 89f, 400f);
-        put(table, MeleeId.ASH_FALCHION,    73f, 1.0333f, 73f, 290f);
-        put(table, MeleeId.HARBOR_HANGER,   62f, 1.2167f, 72f, 245f);
-        put(table, MeleeId.FROST_NAGINATA,  81f, 0.8333f, 103f, 325f);
-        put(table, MeleeId.YARD_WRENCH,     50f, 1.2667f, 61f, 315f);
-        put(table, MeleeId.QUIET_PROD,      36f, 1.3f, 69f, 380f);
-        put(table, MeleeId.EMBER_CHAINSAW,  118f, 1.5f, 71f, 400f);
-        put(table, MeleeId.OAK_BO,          56f, 1.1667f, 94f, 275f);
-        put(table, MeleeId.WINTER_TANTO,    39f, 1.75f, 59f, 160f);
-        put(table, MeleeId.BLACK_WAKIZASHI, 59f, 1.3f, 69f, 205f);
+        put(table, MeleeId.NIGHT_LETTER,    34f, 2.1667f, 64f, 130f);
+        put(table, MeleeId.ASH_MACHETE,     56f, 1.3f, 71f, 210f);
+        put(table, MeleeId.TIDE_KUKRI,      59f, 1.3333f, 68f, 230f);
+        put(table, MeleeId.TRENCH_KNUCKLE,  45f, 1.5f, 64f, 290f);
+        put(table, MeleeId.SALT_BOLO,       59f, 1.2667f, 69f, 220f);
+        put(table, MeleeId.WINTER_KATANA,   76f, 1.0667f, 78f, 190f);
+        put(table, MeleeId.BLACK_NODACHI,   95f, 0.7667f, 87f, 270f);
+        put(table, MeleeId.MILL_ZWEI,       106f, 0.6667f, 89f, 330f);
+        put(table, MeleeId.ASH_FALCHION,    73f, 1.0333f, 73f, 250f);
+        put(table, MeleeId.HARBOR_HANGER,   62f, 1.2167f, 72f, 190f);
+        put(table, MeleeId.FROST_NAGINATA,  81f, 0.8333f, 103f, 210f);
+        put(table, MeleeId.YARD_WRENCH,     50f, 1.2667f, 61f, 310f);
+        put(table, MeleeId.QUIET_PROD,      36f, 1.3f, 69f, 400f);
+        put(table, MeleeId.EMBER_CHAINSAW,  118f, 1.5f, 71f, 310f);
+        put(table, MeleeId.OAK_BO,          56f, 1.1667f, 94f, 250f);
+        put(table, MeleeId.WINTER_TANTO,    39f, 1.75f, 59f, 150f);
+        put(table, MeleeId.BLACK_WAKIZASHI, 59f, 1.3f, 69f, 170f);
         return Collections.unmodifiableMap(table);
     }
 

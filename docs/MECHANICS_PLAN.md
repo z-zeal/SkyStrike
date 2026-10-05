@@ -175,11 +175,11 @@ long blades. Representative rows:
 
 | Weapon | Damage | Swings/s | Range | Knockback |
 | --- | --- | --- | --- | --- |
-| Trench Knuckle (default) | 45 | 1.5 | 64 | 260 |
-| Winter Katana | 76 | 1.067 | 78 | 250 |
-| Mill Zwei | 106 | 0.667 | 89 | 400 |
-| Frost Naginata | 81 | 0.833 | 103 | 325 |
-| Night Letter | 34 | 2.167 | 64 | 135 |
+| Trench Knuckle (default) | 45 | 1.5 | 64 | 290 |
+| Winter Katana | 76 | 1.067 | 78 | 190 |
+| Mill Zwei | 106 | 0.667 | 89 | 330 |
+| Frost Naginata | 81 | 0.833 | 103 | 210 |
+| Night Letter | 34 | 2.167 | 64 | 130 |
 
 No melee weapon one-shots a body (the Mill Zwei's 106 is the ceiling). Knockback is a real
 physics impulse — a heavy swing at an airborne enemy launches them, and can be used to shove

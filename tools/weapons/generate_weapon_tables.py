@@ -110,9 +110,10 @@ MELEE_DAMAGE_SCALE = 2.8          # same 150 HP pool reasoning, arena cadence
 MELEE_RANGE_UNITS_PER_METER = 28.0  # true meters: reach is arm + blade
 MELEE_RANGE_BASE_UNITS = 44.0     # arm extension + the centre-to-centre body allowance
 
-def melee_knockback(weight_kg, stun):
-    # Heavy, concussive weapons shove; light slicers barely move the target.
-    return 5 * round(clamp(110.0 + 75.0 * weight_kg + 550.0 * stun, 130.0, 400.0) / 5)
+def melee_knockback(stun):
+    # Concussive weapons shove; light slicers barely move the target. Driven purely by the
+    # catalog's stun stat — weightKg is ignored for both guns and melee by design.
+    return 5 * round(clamp(90.0 + 1000.0 * stun, 130.0, 400.0) / 5)
 
 # ---------------------------------------------------------------------------------------
 
@@ -176,7 +177,7 @@ def convert_melee(m):
         "damage": float(round(m["damage"] * MELEE_DAMAGE_SCALE)),
         "swings": round(m["attackSpeed"] / 60.0, 4),
         "range": float(round(MELEE_RANGE_UNITS_PER_METER * m["range"] + MELEE_RANGE_BASE_UNITS)),
-        "knockback": float(melee_knockback(m["weightKg"], m["stun"])),
+        "knockback": float(melee_knockback(m["stun"])),
         "class": m["class"], "attack": m["attackType"], "hands": m["hands"],
     }
 

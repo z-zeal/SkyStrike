@@ -36,11 +36,11 @@ class MeleeRegistryTest {
     @Test
     @DisplayName("flagship rows match the generated conversion of the catalog stats")
     void matchesTheGeneratedTable() {
-        assertMelee(MeleeId.TRENCH_KNUCKLE, 45f, 1.5f, 64f, 260f);
-        assertMelee(MeleeId.WINTER_KATANA, 76f, 1.0667f, 78f, 250f);
-        assertMelee(MeleeId.MILL_ZWEI, 106f, 0.6667f, 89f, 400f);
-        assertMelee(MeleeId.FROST_NAGINATA, 81f, 0.8333f, 103f, 325f);
-        assertMelee(MeleeId.POCKET_THORN, 34f, 1.8333f, 61f, 145f);
+        assertMelee(MeleeId.TRENCH_KNUCKLE, 45f, 1.5f, 64f, 290f);
+        assertMelee(MeleeId.WINTER_KATANA, 76f, 1.0667f, 78f, 190f);
+        assertMelee(MeleeId.MILL_ZWEI, 106f, 0.6667f, 89f, 330f);
+        assertMelee(MeleeId.FROST_NAGINATA, 81f, 0.8333f, 103f, 210f);
+        assertMelee(MeleeId.POCKET_THORN, 34f, 1.8333f, 61f, 140f);
     }
 
     private void assertMelee(MeleeId id, float damage, float swings, float range, float knockback) {

@@ -102,24 +102,24 @@ and `assets/sprites/melee.json` — the conversion rules live there and are summ
 
 | Weapon | Damage | Swings/s | Range | Knockback |
 | --- | --- | --- | --- | --- |
-| Pocket Thorn | 34 | 1.8333 | 61 | 145 |
-| Kitchen Hook | 39 | 1.5833 | 64 | 160 |
-| Harbor Folder | 36 | 1.8 | 61 | 150 |
+| Pocket Thorn | 34 | 1.8333 | 61 | 140 |
+| Kitchen Hook | 39 | 1.5833 | 64 | 150 |
+| Harbor Folder | 36 | 1.8 | 61 | 140 |
 | Copper Paring | 28 | 2.0833 | 57 | 130 |
-| Night Letter | 34 | 2.1667 | 64 | 135 |
-| Ash Machete | 56 | 1.3 | 71 | 230 |
-| Tide Kukri | 59 | 1.3333 | 68 | 235 |
-| Trench Knuckle | 45 | 1.5 | 64 | 260 |
-| Salt Bolo | 59 | 1.2667 | 69 | 240 |
-| Winter Katana | 76 | 1.0667 | 78 | 250 |
-| Black Nodachi | 95 | 0.7667 | 87 | 345 |
-| Mill Zwei | 106 | 0.6667 | 89 | 400 |
-| Ash Falchion | 73 | 1.0333 | 73 | 290 |
-| Harbor Hanger | 62 | 1.2167 | 72 | 245 |
-| Frost Naginata | 81 | 0.8333 | 103 | 325 |
-| Yard Wrench | 50 | 1.2667 | 61 | 315 |
-| Quiet Prod | 36 | 1.3 | 69 | 380 |
-| Ember Chainsaw | 118 | 1.5 | 71 | 400 |
-| Oak Bo | 56 | 1.1667 | 94 | 275 |
-| Winter Tanto | 39 | 1.75 | 59 | 160 |
-| Black Wakizashi | 59 | 1.3 | 69 | 205 |
+| Night Letter | 34 | 2.1667 | 64 | 130 |
+| Ash Machete | 56 | 1.3 | 71 | 210 |
+| Tide Kukri | 59 | 1.3333 | 68 | 230 |
+| Trench Knuckle | 45 | 1.5 | 64 | 290 |
+| Salt Bolo | 59 | 1.2667 | 69 | 220 |
+| Winter Katana | 76 | 1.0667 | 78 | 190 |
+| Black Nodachi | 95 | 0.7667 | 87 | 270 |
+| Mill Zwei | 106 | 0.6667 | 89 | 330 |
+| Ash Falchion | 73 | 1.0333 | 73 | 250 |
+| Harbor Hanger | 62 | 1.2167 | 72 | 190 |
+| Frost Naginata | 81 | 0.8333 | 103 | 210 |
+| Yard Wrench | 50 | 1.2667 | 61 | 310 |
+| Quiet Prod | 36 | 1.3 | 69 | 400 |
+| Ember Chainsaw | 118 | 1.5 | 71 | 310 |
+| Oak Bo | 56 | 1.1667 | 94 | 250 |
+| Winter Tanto | 39 | 1.75 | 59 | 150 |
+| Black Wakizashi | 59 | 1.3 | 69 | 170 |

@@ -100,7 +100,7 @@ class MeleeSystemTest {
         Player front = targetAt(540f, 100f); // dead ahead: direction is (1, 0)
         melee.swing(attacker, MeleeRegistry.of(MeleeId.YARD_WRENCH), List.of(front), damage);
 
-        assertEquals(315f, front.vx, EPSILON, "the wrench shoves at 315 units/s");
+        assertEquals(310f, front.vx, EPSILON, "the wrench shoves at 310 units/s");
         assertEquals(0f, front.vy, EPSILON);
 
         // Diagonal victim: the impulse splits across the axes but keeps its magnitude.
@@ -111,7 +111,7 @@ class MeleeSystemTest {
         melee.swing(attacker, MeleeRegistry.of(MeleeId.YARD_WRENCH), List.of(diagonal), damage);
 
         float magnitude = (float) Math.sqrt(diagonal.vx * diagonal.vx + diagonal.vy * diagonal.vy);
-        assertEquals(315f, magnitude, 1e-3f);
+        assertEquals(310f, magnitude, 1e-3f);
         assertTrue(diagonal.vx > 0f && diagonal.vy > 0f,
             "an airborne enemy is genuinely launched, up and away");
     }
