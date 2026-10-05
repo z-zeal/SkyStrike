@@ -1,6 +1,7 @@
 package io.github.skystrike.server.net.handlers;
 
 import com.esotericsoftware.kryonet.Connection;
+import io.github.skystrike.server.command.CapabilityBroadcaster;
 import io.github.skystrike.server.net.ConnectionRegistry;
 import io.github.skystrike.server.net.NetworkEndpoint;
 import io.github.skystrike.server.net.PacketHandler;
@@ -27,6 +28,7 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
     private final SpawnService spawnService;
     private final SimulationClock clock;
     private final int tickRateHz;
+    private final CapabilityBroadcaster capabilities;
 
     public JoinRequestHandler(
         NetworkEndpoint endpoint,
@@ -35,12 +37,24 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
         SpawnService spawnService,
         SimulationClock clock,
         int tickRateHz) {
+        this(endpoint, connections, players, spawnService, clock, tickRateHz, null);
+    }
+
+    public JoinRequestHandler(
+        NetworkEndpoint endpoint,
+        ConnectionRegistry connections,
+        PlayerRegistry players,
+        SpawnService spawnService,
+        SimulationClock clock,
+        int tickRateHz,
+        CapabilityBroadcaster capabilities) {
         this.endpoint = endpoint;
         this.connections = connections;
         this.players = players;
         this.spawnService = spawnService;
         this.clock = clock;
         this.tickRateHz = tickRateHz;
+        this.capabilities = capabilities;
     }
 
     @Override
@@ -74,6 +88,13 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
         endpoint.sendReliable(
             connection,
             new PacketJoinAccept(entry.playerId(), entry.name(), tickRateHz, clock.tick()));
+
+        // The capability follows the accept immediately: until it arrives the client has no
+        // console, which is the correct default, but a moderator would otherwise have to wait
+        // for an unrelated change to be told they have one.
+        if (capabilities != null) {
+            capabilities.pushOnJoin(entry.playerId(), entry.name());
+        }
 
         System.out.printf(
             "[net] join  player=%d name=%s connection=%d (%d/%d)%n",

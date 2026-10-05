@@ -5,6 +5,8 @@ import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
+import io.github.skystrike.shared.net.s2c.PacketCapabilities;
+import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
@@ -54,6 +56,8 @@ public final class ClientSession {
     private Consumer<PacketGameState> snapshotListener;
     private Consumer<PacketDamageEvent> damageListener;
     private Consumer<PacketKillEvent> killListener;
+    private Consumer<io.github.skystrike.shared.text.ChatMessage> chatListener;
+    private Consumer<PacketCapabilities> capabilityListener;
 
     private final Deque<PacketKillEvent> killFeed = new ArrayDeque<>();
     private PacketDamageEvent lastDamageDealt;
@@ -102,6 +106,20 @@ public final class ClientSession {
     /** Called on the render thread for every kill in the match. */
     public void setKillListener(Consumer<PacketKillEvent> listener) {
         this.killListener = listener;
+    }
+
+    /**
+     * Called on the render thread for every chat line addressed to this client.
+     *
+     * <p>Team scoping already happened server-side: if it arrived, it was meant for us.
+     */
+    public void setChatListener(Consumer<io.github.skystrike.shared.text.ChatMessage> listener) {
+        this.chatListener = listener;
+    }
+
+    /** Called on the render thread whenever the server pushes a capability change. */
+    public void setCapabilityListener(Consumer<PacketCapabilities> listener) {
+        this.capabilityListener = listener;
     }
 
     public PacketGameState latestSnapshot() {
@@ -176,6 +194,14 @@ public final class ClientSession {
             }
             if (killListener != null) {
                 killListener.accept(kill);
+            }
+        } else if (payload instanceof PacketChatMessage chat) {
+            if (chatListener != null && chat.message != null) {
+                chatListener.accept(chat.message);
+            }
+        } else if (payload instanceof PacketCapabilities caps) {
+            if (capabilityListener != null) {
+                capabilityListener.accept(caps);
             }
         } else if (payload instanceof PacketPong pong) {
             serverTick = pong.serverTick;

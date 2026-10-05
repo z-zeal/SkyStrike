@@ -9,21 +9,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.Team;
+import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketCapabilities;
+import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.text.ChatChannel;
+import io.github.skystrike.shared.text.ChatMessage;
+import io.github.skystrike.shared.text.ChatTarget;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.HashSet;
@@ -92,14 +100,55 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    @DisplayName("the loadout types added in Phase 4 are registered, appended after Phase 3")
-    void phaseFourTypesAreAppended() {
+    @DisplayName("the loadout types added in Phase 4 sit at their pinned positions")
+    void phaseFourTypesArePinned() {
+        // Pinned by index, not by distance from the end: Phase 7 appended after these, and an
+        // end-relative assertion would have quietly followed them and stopped guarding anything.
         List<Class<?>> types = NetworkRegistration.registeredTypes();
-        int size = types.size();
-        assertEquals(PacketLoadoutUpdate.class, types.get(size - 3));
-        assertEquals(io.github.skystrike.shared.model.WeaponItem.class, types.get(size - 2));
-        assertEquals(PlayerLoadout.class, types.get(size - 1));
-        assertTrue(size >= 18, "Phase 4 must append, never replace");
+        assertEquals(PacketLoadoutUpdate.class, types.get(15));
+        assertEquals(io.github.skystrike.shared.model.WeaponItem.class, types.get(16));
+        assertEquals(PlayerLoadout.class, types.get(17));
+        assertTrue(types.size() >= 18, "Phase 4 must append, never replace");
+    }
+
+    @Test
+    @DisplayName("the chat and capability types added in Phase 7 are appended, never inserted")
+    void phaseSevenTypesAreAppended() {
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(ChatChannel.class, types.get(18));
+        assertEquals(ChatTarget.class, types.get(19));
+        assertEquals(ChatMessage.class, types.get(20));
+        assertEquals(Permission.class, types.get(21));
+        assertEquals(PacketChatRequest.class, types.get(22));
+        assertEquals(PacketChatMessage.class, types.get(23));
+        assertEquals(PacketCapabilities.class, types.get(24));
+        assertEquals(25, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+    }
+
+    @Test
+    @DisplayName("chat and capability packets survive the wire with their enums intact")
+    void phaseSevenPacketsRoundTrip() {
+        PacketChatRequest request = roundTrip(new PacketChatRequest(ChatTarget.TEAM, "  rotating B  "));
+        assertEquals(ChatTarget.TEAM, request.target);
+        assertEquals("  rotating B  ", request.body, "the server sanitises, the wire does not");
+
+        ChatMessage line = ChatMessage.fromPlayer(
+            1234L, ChatTarget.TEAM, 7, "Nova", Team.TEAM_B.index(), "rotating B");
+        PacketChatMessage delivered = roundTrip(new PacketChatMessage(line));
+        assertEquals(ChatChannel.TEAM, delivered.message.channel);
+        assertEquals(7, delivered.message.authorId);
+        assertEquals("Nova", delivered.message.authorName);
+        assertEquals(Team.TEAM_B, delivered.message.authorTeam());
+        assertEquals("rotating B", delivered.message.body);
+        assertEquals(1234L, delivered.message.timestampMillis);
+
+        PacketCapabilities caps = roundTrip(PacketCapabilities.forLevel(Permission.MODERATOR));
+        assertEquals(Permission.MODERATOR, caps.level);
+        assertTrue(caps.consoleAccess);
+
+        PacketCapabilities none = roundTrip(PacketCapabilities.forLevel(Permission.PLAYER));
+        assertEquals(Permission.PLAYER, none.level);
+        assertFalse(none.consoleAccess);
     }
 
     @Test

@@ -6,17 +6,24 @@ import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.WeaponItem;
+import io.github.skystrike.shared.command.Permission;
+import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketCapabilities;
+import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.text.ChatChannel;
+import io.github.skystrike.shared.text.ChatMessage;
+import io.github.skystrike.shared.text.ChatTarget;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,7 +69,16 @@ public final class NetworkRegistration {
         // Phase 4: Loadout — composition updates and the loadout carried inside Player (append-only)
         PacketLoadoutUpdate.class,
         WeaponItem.class,
-        PlayerLoadout.class);
+        PlayerLoadout.class,
+
+        // Phase 7: chat transport and the server-pushed console capability (append-only)
+        ChatChannel.class,
+        ChatTarget.class,
+        ChatMessage.class,
+        Permission.class,
+        PacketChatRequest.class,
+        PacketChatMessage.class,
+        PacketCapabilities.class);
 
     private NetworkRegistration() {
     }
