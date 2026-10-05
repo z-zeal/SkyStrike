@@ -19,7 +19,7 @@ import math
 import random
 
 TICK_RATE_HZ = 60.0
-BULLET_GRAVITY_BASE = 300.0      # u/s^2 per unit of class gravity
+BULLET_GRAVITY_BASE = 150.0      # u/s^2 per unit of class gravity (halved for the big map)
 SIGMA_DIVISOR = 2.5
 MOVING_ADS_SPREAD_FACTOR = 0.6
 ADS_RECOVERY_MULTIPLIER = 1.5
@@ -92,7 +92,7 @@ for wid, cls, sp, dr, rm, rng, dmg, fl, rate, spread, *_ in WEAPONS:
     cone = rng * math.tan(math.radians(spread / 2.0))
     print(f"{wid:<15}{d25:>9.2f}{d50:>9.2f}{dmax:>9.1f}{cone:>8.1f}{abs(dmax) / cone:>10.2f}"
           f"{t:>7.3f}{v:>7.0f}{100 * v / sp:>7.0f}%")
-print("expect: |drop| < 2 u at half range (flat), 3-30 u at max range (visible arc)")
+print("expect: |drop| < 1 u at half range (flat), 1.5-15 u at max range (visible arc)")
 
 rule("2. Damage falloff to the per-weapon floor (mechanics 4.2)")
 print(f"{'weapon':<15}{'muzzle':>8}{'@50%':>8}{'@max':>8}{'floor':>8}{'body shots @max':>17}")

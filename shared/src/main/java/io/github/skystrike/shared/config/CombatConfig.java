@@ -48,10 +48,12 @@ public final class CombatConfig {
     /**
      * Units/s² of bullet drop per unit of per-class gravity. The mechanics plan quotes the class
      * numbers as relative weights (sniper 1.0 → shotgun 5.0); this is the scale that turns them
-     * into an acceleration. Verified in {@code tools/scratch/phase3_ballistics.py}: flat inside
-     * half of a weapon's range, 3–30 units of drop at maximum range.
+     * into an acceleration. Halved for the big map: every class drops half as hard, but the
+     * sniper-flat → shotgun-heavy ladder is untouched (a pistol still drops four times a sniper).
+     * Verified in {@code tools/scratch/phase3_ballistics.py}: flat inside half of a weapon's
+     * range, 1.5–15 units of drop at maximum range.
      */
-    public static final float BULLET_GRAVITY_BASE = 300f;
+    public static final float BULLET_GRAVITY_BASE = 150f;
 
     /**
      * Above this speed a projectile is swept from its previous to its new position instead of
@@ -66,17 +68,32 @@ public final class CombatConfig {
     /** A round cannot hit its owner for this long, so the muzzle is never inside your own hitbox. */
     public static final float SELF_HIT_GRACE_SECONDS = 0.05f;
 
-    /** Hard lifetime cap: a stalled round falls out of the fight instead of raining down later. */
-    public static final float MAX_PROJECTILE_LIFETIME = 2.5f;
+    /**
+     * Hard lifetime cap: a stalled round falls out of the fight instead of raining down later.
+     * Raised for the big map — a fast round crossing the arena end to end is airborne for well
+     * over two seconds, and it should land before it is deleted.
+     */
+    public static final float MAX_PROJECTILE_LIFETIME = 6.0f;
 
-    /** Rounds slower than this have bled out their energy and are removed. */
-    public static final float PROJECTILE_MIN_SPEED = 120f;
+    /**
+     * Rounds slower than this have bled out their energy and are removed. Low enough that a
+     * dragged-out pistol round still counts as flying rather than vanishing at half speed.
+     */
+    public static final float PROJECTILE_MIN_SPEED = 60f;
 
-    /** Rounds are removed once they have travelled this multiple of the weapon's maximum range. */
-    public static final float MAX_RANGE_OVERSHOOT = 1.35f;
+    /**
+     * Rounds are removed once they have travelled this multiple of the weapon's maximum range.
+     * Maximum range is the damage-floor distance, not the end of the flight: past it a round
+     * keeps flying at floor damage instead of vanishing mid-air, and only this multiple reaps it.
+     */
+    public static final float MAX_RANGE_OVERSHOOT = 4.0f;
 
-    /** Upper bound on simultaneously live rounds, so a stuck trigger cannot exhaust the heap. */
-    public static final int MAX_ACTIVE_PROJECTILES = 512;
+    /**
+     * Upper bound on simultaneously live rounds, so a stuck trigger cannot exhaust the heap.
+     * Longer-lived rounds need the headroom: at the previous cap a busy big-map fight could hit
+     * the ceiling simply because every round stayed alive three times as long.
+     */
+    public static final int MAX_ACTIVE_PROJECTILES = 2048;
 
     /**
      * Visual half-thickness of a round, in world units. Collision treats a round as a point —
