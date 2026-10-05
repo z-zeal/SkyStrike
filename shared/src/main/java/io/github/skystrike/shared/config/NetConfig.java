@@ -18,8 +18,12 @@ public final class NetConfig {
      * <p>4 — Phase 4 loadout: {@code PacketLoadoutUpdate}, {@code WeaponItem} and
      * {@code PlayerLoadout} registered; the loadout now rides inside {@code Player}, and the
      * input packet's weapon-ordinal field became a loadout slot press.
+     *
+     * <p>5 — Phase 7 chat and capabilities: {@code ChatChannel}, {@code ChatTarget},
+     * {@code ChatMessage} and {@code Permission} registered as payload types, plus
+     * {@code PacketChatRequest}, {@code PacketChatMessage} and {@code PacketCapabilities}.
      */
-    public static final int PROTOCOL_VERSION = 4;
+    public static final int PROTOCOL_VERSION = 5;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

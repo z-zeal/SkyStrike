@@ -4,11 +4,15 @@ import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.combat.BulletSystem;
 import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.KillFeedService;
+import io.github.skystrike.server.chat.ChatService;
+import io.github.skystrike.server.command.CapabilityBroadcaster;
+import io.github.skystrike.server.command.PermissionResolver;
 import io.github.skystrike.server.net.ConnectionRegistry;
 import io.github.skystrike.server.net.NetworkEndpoint;
 import io.github.skystrike.server.net.NetworkEvent;
 import io.github.skystrike.server.net.PacketRouter;
 import io.github.skystrike.server.combat.MeleeSystem;
+import io.github.skystrike.server.net.handlers.ChatRequestHandler;
 import io.github.skystrike.server.net.handlers.JoinRequestHandler;
 import io.github.skystrike.server.net.handlers.LeaveRequestHandler;
 import io.github.skystrike.server.net.handlers.LoadoutUpdateHandler;
@@ -28,6 +32,7 @@ import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.net.Packet;
+import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
@@ -40,6 +45,7 @@ import io.github.skystrike.shared.physics.PlayerInput;
 import io.github.skystrike.shared.physics.PlayerMotion;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
@@ -73,6 +79,9 @@ public final class GameServer {
     private final KillFeedService killFeed;
     private final DamageService damageService;
     private final LoadoutSystem loadoutSystem;
+    private final ChatService chatService;
+    private final PermissionResolver permissions;
+    private final CapabilityBroadcaster capabilities;
 
     /** Reused per tick so the combat systems do not allocate a player list 60 times a second. */
     private final List<Player> playerStates = new ArrayList<>();
@@ -96,6 +105,11 @@ public final class GameServer {
         this.loadoutSystem = new LoadoutSystem(
             new FireController(new Random(), recoilService), new MeleeSystem(), this.bulletSystem);
 
+        // Chat identity and team scoping come from the authoritative registry, never the packet.
+        this.chatService = new ChatService(new RegistryRoster(this.players));
+        this.permissions = new PermissionResolver();
+        this.capabilities = new CapabilityBroadcaster(this.permissions, this::sendToPlayer);
+
         registerHandlers();
     }
 
@@ -103,11 +117,36 @@ public final class GameServer {
         SimulationClock clock = loop.clock();
         router.register(
                 PacketJoinRequest.class,
-                new JoinRequestHandler(endpoint, connections, players, spawnService, clock, config.tickRateHz()));
+                new JoinRequestHandler(
+                    endpoint, connections, players, spawnService, clock, config.tickRateHz(), capabilities));
         router.register(PacketPing.class, new PingHandler(endpoint, clock));
         router.register(PacketLeaveRequest.class, new LeaveRequestHandler(connections, players));
         router.register(PacketPlayerInput.class, new PlayerInputHandler(players));
         router.register(PacketLoadoutUpdate.class, new LoadoutUpdateHandler(players));
+        router.register(PacketChatRequest.class, new ChatRequestHandler(players, chatService, this::sendToPlayer));
+    }
+
+    /**
+     * The chat relay's view of who is connected. A separate type rather than a lambda because
+     * {@code ChatService.Roster} has two methods and both must read the same registry — the one
+     * the simulation uses, not a copy that can drift from it mid-tick.
+     */
+    private record RegistryRoster(PlayerRegistry players) implements ChatService.Roster {
+
+        @Override
+        public Collection<Integer> playerIds() {
+            List<Integer> ids = new ArrayList<>(players.count());
+            for (PlayerSession session : players.all()) {
+                ids.add(session.playerId());
+            }
+            return ids;
+        }
+
+        @Override
+        public int teamIndexOf(int playerId) {
+            PlayerSession session = players.byPlayerId(playerId);
+            return session == null ? ChatService.NOT_JOINED : session.player().teamIndex;
+        }
     }
 
     public ServerConfig config() {
@@ -150,6 +189,18 @@ public final class GameServer {
         return killFeed;
     }
 
+    public ChatService chatService() {
+        return chatService;
+    }
+
+    public PermissionResolver permissions() {
+        return permissions;
+    }
+
+    public CapabilityBroadcaster capabilities() {
+        return capabilities;
+    }
+
     /** Binds the transport and runs the tick loop. Blocks until {@link #stop()}. */
     public void run() throws IOException {
         endpoint.start();
@@ -173,6 +224,8 @@ public final class GameServer {
             connections.clear();
             players.clear();
             bulletSystem.clear();
+            chatService.clear();
+            capabilities.clear();
             System.out.println("[server] stopped");
         }
     }
@@ -281,7 +334,13 @@ public final class GameServer {
             case CONNECTED -> System.out.printf(
                     "[net] open  connection=%d%n", event.connection().getID());
             case DISCONNECTED -> {
-                players.remove(event.connection());
+                PlayerSession leaving = players.remove(event.connection());
+                if (leaving != null) {
+                    // Session-scoped state goes with the session: a reused player id must not
+                    // inherit the previous holder's token bucket or runtime promotion.
+                    chatService.forget(leaving.playerId());
+                    capabilities.forget(leaving.playerId());
+                }
                 ConnectionRegistry.Entry entry = connections.leave(event.connection());
                 if (entry == null) {
                     System.out.printf("[net] close connection=%d%n", event.connection().getID());

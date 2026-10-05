@@ -5,6 +5,9 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
+import io.github.skystrike.chat.ChatClient;
+import io.github.skystrike.chat.ChatMuteList;
+import io.github.skystrike.command.ClientCapabilities;
 import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.gameplay.LoadoutController;
@@ -31,8 +34,13 @@ import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
+import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
+import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
+import io.github.skystrike.ui.text.MessageBuffer;
+import io.github.skystrike.ui.text.MessageLine;
+import io.github.skystrike.ui.text.MessageSeverity;
 import io.github.skystrike.world.TerrainRenderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +56,9 @@ public final class GameScreen implements Screen {
     private static final float PAN_SPEED_UNITS_PER_SECOND = 900f;
     private static final float ZOOM_RATE_PER_SECOND = 1.6f;
 
+    /** Scrollback lines echoed into the debug readout until the dialog exists. */
+    private static final int RECENT_CHAT_LINES = 4;
+
     private final ArenaMap arena = ArenaMap.standard();
     private final GameCamera camera = new GameCamera(arena.width(), arena.height());
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
@@ -55,6 +66,16 @@ public final class GameScreen implements Screen {
     private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
     private final StatusOverlay overlay = new StatusOverlay();
     private final ClientSession session;
+
+    /**
+     * The chat/console state: the scrollback ring, the local mute list, and the one capability
+     * the server owns. The dialog that renders them is still to come — until then the transport
+     * is proven by the last few lines appearing in the debug readout.
+     */
+    private final MessageBuffer messages = new MessageBuffer();
+    private final ChatMuteList muteList = new ChatMuteList();
+    private final ClientCapabilities capabilities = new ClientCapabilities();
+    private final ChatClient chatClient = new ChatClient(messages, muteList, capabilities);
 
     private final KeyBindings bindings = new KeyBindings();
     private final InputRouter inputRouter = new InputRouter();
@@ -91,7 +112,33 @@ public final class GameScreen implements Screen {
 
         this.session.setSnapshotListener(this::onGameStateSnapshot);
         this.session.setKillListener(this::onKillEvent);
+        this.session.setChatListener(this::onChatMessage);
+        this.session.setCapabilityListener(this::onCapabilities);
+        this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
+    }
+
+    private void onChatMessage(io.github.skystrike.shared.text.ChatMessage message) {
+        chatClient.setLocalPlayerId(session.playerId());
+        chatClient.receive(message);
+    }
+
+    /**
+     * Reflects a capability push. The console appearing or disappearing is worth one system
+     * line; being told the same thing again is not, which is why the capability reports whether
+     * it actually changed.
+     */
+    private void onCapabilities(PacketCapabilities packet) {
+        if (!capabilities.apply(packet)) {
+            return;
+        }
+        chatClient.addSystemLine(
+            System.currentTimeMillis(),
+            ChatChannel.SYSTEM,
+            capabilities.consoleAccess()
+                ? "Console access granted (" + capabilities.level() + ")."
+                : "Console access is not available on this server.",
+            MessageSeverity.INFO);
     }
 
     private void onGameStateSnapshot(PacketGameState snapshot) {
@@ -279,6 +326,7 @@ public final class GameScreen implements Screen {
             for (PacketKillEvent kill : session.killFeed()) {
                 lines.add("  " + kill.feedLine());
             }
+            appendRecentChat(lines);
         } else {
             lines.add(String.format(
                     "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
@@ -292,6 +340,26 @@ public final class GameScreen implements Screen {
         lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
             + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  F1 SDF debug");
         return lines;
+    }
+
+    /**
+     * The last few scrollback lines, filtered exactly as the dialog will filter them. A stand-in
+     * for the passive view until the dialog exists; it proves the relay end to end.
+     */
+    private void appendRecentChat(List<String> lines) {
+        List<MessageLine> visible = messages.visibleLines(capabilities.consoleAccess());
+        int from = Math.max(0, visible.size() - RECENT_CHAT_LINES);
+        for (int i = from; i < visible.size(); i++) {
+            MessageLine line = visible.get(i);
+            String prefix = switch (line.channel()) {
+                case TEAM -> "[TEAM] ";
+                case ALL -> "";
+                default -> "* ";
+            };
+            lines.add("  " + prefix
+                + (line.hasAuthor() ? line.authorName() + ": " : "")
+                + line.body());
+        }
     }
 
     @Override
