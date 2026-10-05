@@ -12,7 +12,10 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    # Pinned rather than 'ubuntu-latest': three consecutive runs across two branches died with
+    # "the job was not acquired by Runner of type hosted even after multiple attempts", which is
+    # a scheduling failure and not a build result. An explicit image label asks a concrete pool.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
