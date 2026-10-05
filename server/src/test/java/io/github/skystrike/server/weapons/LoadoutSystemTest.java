@@ -287,17 +287,17 @@ class LoadoutSystemTest {
 
         holdTrigger(1);
         system.tick(session, DT, targets, damage); // first swing
-        assertEquals(CombatConfig.MAX_HEALTH - 50f, victim.health, 1e-4f);
+        assertEquals(CombatConfig.MAX_HEALTH - 45f, victim.health, 1e-4f);
 
-        system.tick(session, DT, targets, damage); // too soon for the knife's 2.0/s
-        assertEquals(CombatConfig.MAX_HEALTH - 50f, victim.health, 1e-4f,
+        system.tick(session, DT, targets, damage); // too soon for the knuckle's 1.5/s
+        assertEquals(CombatConfig.MAX_HEALTH - 45f, victim.health, 1e-4f,
             "the swing cooldown gates the cadence");
 
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 45; i++) {
             system.tick(session, DT, targets, damage);
         }
-        assertEquals(CombatConfig.MAX_HEALTH - 100f, victim.health, 1e-4f,
-            "half a second later, the second swing");
+        assertEquals(CombatConfig.MAX_HEALTH - 90f, victim.health, 1e-4f,
+            "two thirds of a second later, the second swing");
     }
 
     @Test
@@ -305,7 +305,7 @@ class LoadoutSystemTest {
     void meleeKillShowsUpAsMelee() {
         player.loadout.tapSlot(PlayerLoadout.SLOT_PRIMARY);
         Player victim = new Player(2, "Doomed", 1, 430f, 1200f);
-        victim.health = 50f;
+        victim.health = 40f; // the knuckle's 45 finishes it
 
         holdTrigger(1);
         system.tick(session, DT, List.of(victim), damage);
