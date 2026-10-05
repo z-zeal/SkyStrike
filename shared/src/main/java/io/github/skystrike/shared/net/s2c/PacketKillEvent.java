@@ -2,6 +2,7 @@ package io.github.skystrike.shared.net.s2c;
 
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 
 /**
  * A death, broadcast to everyone.
@@ -17,7 +18,10 @@ public final class PacketKillEvent implements Packet {
     public int victimId;
     public String victimName = "";
 
-    /** Ordinal of the {@link WeaponId} responsible. */
+    /**
+     * The weapon responsible, as a wire id: a {@link WeaponId} ordinal for a gun, or a
+     * {@link io.github.skystrike.shared.weapons.MeleeId} wire id (1000 + ordinal) for melee.
+     */
     public int weaponId;
 
     public boolean headshot;
@@ -47,18 +51,27 @@ public final class PacketKillEvent implements Packet {
         this.friendlyFire = friendlyFire;
     }
 
+    /**
+     * The gun responsible. Only meaningful for gun wire ids — for a melee kill use
+     * {@link #weaponDisplayName()} instead.
+     */
     public WeaponId weapon() {
         return WeaponId.fromOrdinal(weaponId);
+    }
+
+    /** Display name of the responsible weapon, gun or melee. */
+    public String weaponDisplayName() {
+        return WeaponRegistry.displayNameForWireId(weaponId);
     }
 
     /** One line suitable for the kill feed. */
     public String feedLine() {
         if (selfInflicted) {
-            return victimName + " killed themselves with the " + weapon().displayName();
+            return victimName + " killed themselves with the " + weaponDisplayName();
         }
         String suffix = headshot ? " (headshot)" : "";
         String prefix = friendlyFire ? "[FF] " : "";
-        return prefix + killerName + " → " + victimName + "  " + weapon().displayName() + suffix;
+        return prefix + killerName + " → " + victimName + "  " + weaponDisplayName() + suffix;
     }
 
     @Override

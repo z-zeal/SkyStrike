@@ -1,6 +1,6 @@
 package io.github.skystrike.server.combat;
 
-import io.github.skystrike.server.weapons.WeaponStats;
+import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.combat.BallisticsMath;
 import io.github.skystrike.shared.combat.HitZoneMath;
 import io.github.skystrike.shared.config.CombatConfig;
@@ -95,7 +95,7 @@ public final class DamageService {
             Player attacker,
             int attackerId,
             Player target,
-            WeaponStats stats,
+            WeaponDefinition stats,
             float impactX,
             float impactY,
             float distanceTravelled) {

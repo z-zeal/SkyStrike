@@ -4,8 +4,8 @@ package io.github.skystrike.shared.weapons;
  * The thirteen guns of mechanics §5.1, as a stable identity both sides can name.
  *
  * <p>Only the identity and the display name live here. Ballistics are in
- * {@link WeaponBallistics}; fire parameters are authoritative and live on the server. The Phase 4
- * registry keys off this enum.
+ * {@link WeaponBallistics}; the rest of the weapon table (including the ammunition numbers the
+ * loadout needs) is in {@link WeaponRegistry}, keyed off this enum.
  *
  * <p><b>Ordinals cross the wire</b> (the input packet carries a selection index), so this list is
  * append-only in exactly the way {@code NetworkRegistration} is.
@@ -26,7 +26,7 @@ public enum WeaponId {
     SNIPER_RIFLE("Sniper Rifle"),
     SMG("SMG");
 
-    /** The gun a player holds before any loadout exists. Phase 4 replaces this with the loadout. */
+    /** The primary of the default loadout — a player is never defenceless. */
     public static final WeaponId DEFAULT = SCAR_L;
 
     private final String displayName;

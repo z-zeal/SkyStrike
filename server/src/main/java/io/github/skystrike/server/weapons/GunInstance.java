@@ -2,22 +2,27 @@ package io.github.skystrike.server.weapons;
 
 import io.github.skystrike.shared.combat.RecoilMath;
 import io.github.skystrike.shared.combat.SpreadMath;
+import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 
 /**
  * One player's live state for the gun in their hands.
  *
  * <p>Spread and recoil are not properties of a weapon, they are properties of a weapon
  * <i>being used by someone</i>: two players holding a SCAR-L have independent cones. This is the
- * per-player half, and it is deliberately the only mutable thing in the weapon package.
+ * per-player half, and it is deliberately the only mutable thing in the weapon package. The
+ * static definition comes from {@link WeaponRegistry}, as a private copy.
  *
- * <p>Switching weapons resets the accumulated spread and recoil (roadmap §4.3) — you cannot
- * launder a blown-out cone by tapping 2 and back.
+ * <p>Switching weapons resets the accumulated spread and recoil (roadmap §4.3) — spread and
+ * recoil never carry from one weapon (or one holstering) to the next. {@link #switchTo} resets
+ * when the weapon actually changes; {@link #resetTo} forces the reset even when the same weapon
+ * is coming back out, which is what the tap-swap detour through melee needs.
  */
 public final class GunInstance {
 
     private WeaponId weaponId;
-    private WeaponStats stats;
+    private WeaponDefinition definition;
 
     private float currentSpread;
     private float cooldownRemaining;
@@ -30,9 +35,7 @@ public final class GunInstance {
     }
 
     public GunInstance(WeaponId weaponId) {
-        this.weaponId = weaponId;
-        this.stats = WeaponStats.of(weaponId);
-        this.currentSpread = stats.spread().baseDegrees();
+        resetTo(weaponId);
     }
 
     /** Swaps weapon and clears accumulated spread, recoil and cooldown. No-op if unchanged. */
@@ -40,12 +43,17 @@ public final class GunInstance {
         if (next == null || next == weaponId) {
             return false;
         }
+        resetTo(next);
+        return true;
+    }
+
+    /** Forces a fresh state for {@code next}, even when it is the weapon already held. */
+    public void resetTo(WeaponId next) {
         this.weaponId = next;
-        this.stats = WeaponStats.of(next);
-        this.currentSpread = stats.spread().baseDegrees();
+        this.definition = WeaponRegistry.of(next);
+        this.currentSpread = definition.spread().baseDegrees();
         this.cooldownRemaining = 0f;
         this.visualKick = 0f;
-        return true;
     }
 
     /**
@@ -64,14 +72,14 @@ public final class GunInstance {
         currentSpread = SpreadMath.recover(
             currentSpread,
             stanceTargetSpread(moving, aiming),
-            stats.spread().recoveryDegreesPerSecond(),
+            definition.spread().recoveryDegreesPerSecond(),
             aiming,
             dt);
     }
 
     /** The spread this stance is pulled toward (the 2×2 table of mechanics §4.3). */
     public float stanceTargetSpread(boolean moving, boolean aiming) {
-        WeaponStats.SpreadProfile spread = stats.spread();
+        WeaponDefinition.SpreadProfile spread = definition.spread();
         return SpreadMath.stanceTargetSpread(
             spread.baseDegrees(), spread.adsRatio(), spread.movingMultiplier(), moving, aiming);
     }
@@ -83,16 +91,16 @@ public final class GunInstance {
 
     /** Starts the weapon's cycle after a trigger event. */
     public void startCooldown() {
-        cooldownRemaining = stats.cooldownSeconds();
+        cooldownRemaining = definition.cooldownSeconds();
     }
 
     /** Adds one round's spread kick, scaled by the current recoil multiplier and capped. */
     public void addSpreadKick(float recoilMultiplier) {
         currentSpread = SpreadMath.applyShotKick(
             currentSpread,
-            stats.spread().kickDegrees(),
+            definition.spread().kickDegrees(),
             recoilMultiplier,
-            stats.spread().ceilingDegrees());
+            definition.spread().ceilingDegrees());
     }
 
     /** Adds the visual gun-angle kick, capped at 35°. */
@@ -109,8 +117,9 @@ public final class GunInstance {
         return weaponId;
     }
 
-    public WeaponStats stats() {
-        return stats;
+    /** The static definition of the held weapon — this instance's private copy. */
+    public WeaponDefinition definition() {
+        return definition;
     }
 
     public float currentSpread() {

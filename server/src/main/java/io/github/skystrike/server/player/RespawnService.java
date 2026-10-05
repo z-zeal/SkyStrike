@@ -3,6 +3,7 @@ package io.github.skystrike.server.player;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.model.Player;
 import java.util.Collection;
+import java.util.function.Consumer;
 
 /**
  * Counts dead players back in.
@@ -35,6 +36,15 @@ public final class RespawnService {
 
     /** Ticks every dead player's timer and respawns the ones that reach zero. */
     public int update(float dt, Collection<Player> players) {
+        return update(dt, players, null);
+    }
+
+    /**
+     * As {@link #update(float, Collection)}, with {@code onRespawn} fired for each player the
+     * moment they come back — the hook the loadout reset hangs off, so a respawned player gets
+     * their requested composition before the next tick runs.
+     */
+    public int update(float dt, Collection<Player> players, Consumer<Player> onRespawn) {
         if (players == null || dt <= 0f) {
             return 0;
         }
@@ -46,13 +56,21 @@ public final class RespawnService {
             player.respawnTimer -= dt;
             if (player.respawnTimer <= TIMER_EPSILON) {
                 respawn(player);
+                if (onRespawn != null) {
+                    onRespawn.accept(player);
+                }
                 respawned++;
             }
         }
         return respawned;
     }
 
-    /** Immediately returns a player to their spawn with full health and fuel. */
+    /**
+     * Immediately returns a player to their spawn with full health and fuel — and the loadout
+     * reset the mechanics plan demands (§10): full magazines, no reload in flight, hands on the
+     * first real weapon. Composition changes requested mid-life are applied by the
+     * {@code onRespawn} hook right after this.
+     */
     public void respawn(Player player) {
         if (player == null) {
             return;
@@ -61,6 +79,9 @@ public final class RespawnService {
         player.alive = true;
         player.spread = 0f;
         player.gunKick = 0f;
+        if (player.loadout != null) {
+            player.loadout.resetForRespawn();
+        }
         spawnService.spawn(player);
     }
 

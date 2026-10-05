@@ -111,6 +111,7 @@ public final class Interpolator {
             // visual gun kick, which is a continuous angle and reads badly if it steps.
             result.alive = p1.alive;
             result.weaponId = p1.weaponId;
+            result.loadout.set(p1.loadout);
             result.spread = Lerp.mix(p0.spread, p1.spread, alpha);
             result.gunKick = Lerp.mix(p0.gunKick, p1.gunKick, alpha);
             result.kills = p1.kills;

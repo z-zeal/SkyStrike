@@ -32,7 +32,7 @@ public final class KeyBindings {
     public int slot4 = Input.Keys.NUM_4;
     public int slot5 = Input.Keys.NUM_5;
 
-    /** Weapon cycling. Phase 4 gives these slots a real loadout; until then they walk the table. */
+    /** Slot cycling — the keyboard stand-ins for the mouse wheel (same semantics). */
     public int weaponPrev = Input.Keys.LEFT_BRACKET;
     public int weaponNext = Input.Keys.RIGHT_BRACKET;
 
@@ -82,5 +82,17 @@ public final class KeyBindings {
     /** Edge-triggered: true only on the frame the key goes down. */
     public boolean isWeaponNextJustPressed() {
         return Gdx.input.isKeyJustPressed(weaponNext);
+    }
+
+    /** Edge-triggered: true only on the frame a loadout slot key (1–5) goes down. */
+    public boolean isSlotJustPressed(int slot) {
+        return switch (slot) {
+            case 1 -> Gdx.input.isKeyJustPressed(slot1);
+            case 2 -> Gdx.input.isKeyJustPressed(slot2);
+            case 3 -> Gdx.input.isKeyJustPressed(slot3);
+            case 4 -> Gdx.input.isKeyJustPressed(slot4);
+            case 5 -> Gdx.input.isKeyJustPressed(slot5);
+            default -> false;
+        };
     }
 }

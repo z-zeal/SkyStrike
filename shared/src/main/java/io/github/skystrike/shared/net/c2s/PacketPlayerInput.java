@@ -8,11 +8,17 @@ import io.github.skystrike.shared.net.Packet;
  * <p>{@code fire} is the held trigger state. The server derives the press edge semi-automatic,
  * bolt and burst weapons need by comparing successive packets, so a tap that falls between two
  * ticks is still a shot.
+ *
+ * <p>{@code slotPress} is a loadout slot selection, as a loadout slot number (1–5). It is an
+ * <i>edge</i>, not a level: the client sets it on the sample where the key was pressed (or the
+ * wheel notched) and keeps setting it on later samples until the server acknowledges the sample
+ * that carried it, so a dropped packet cannot silently eat a switch. The server latches it like
+ * the trigger edge and applies the shared tap-swap rule exactly once per press.
  */
 public final class PacketPlayerInput implements Packet {
 
-    /** Sentinel for "keep the weapon I am holding". */
-    public static final int NO_WEAPON_CHANGE = -1;
+    /** Sentinel for "no slot press on this sample". */
+    public static final int NO_SLOT_PRESS = -1;
 
     public long sequence;
     public float moveX;
@@ -24,10 +30,18 @@ public final class PacketPlayerInput implements Packet {
     public float aimAngle;
 
     /**
-     * Requested weapon, as a {@link io.github.skystrike.shared.weapons.WeaponId} ordinal, or
-     * {@code -1} for "no change". Phase 4 replaces this with full loadout slot selection.
+     * Loadout slot selection pressed on this sample (1–5), or {@link #NO_SLOT_PRESS}. Repeated
+     * on subsequent samples until acknowledged; the server applies it once.
      */
-    public int weaponSelect = NO_WEAPON_CHANGE;
+    public int slotPress = NO_SLOT_PRESS;
+
+    /**
+     * Identity of {@link #slotPress}: the sequence number of the first packet that carried this
+     * press. The client repeats the press (with the same birth sequence) until it is
+     * acknowledged, and the server applies each birth sequence exactly once — so retransmission
+     * over lossy UDP can neither drop nor duplicate a switch. {@code -1} when no press rides.
+     */
+    public long slotPressSeq = -1L;
 
     public PacketPlayerInput() {
     }
@@ -42,7 +56,7 @@ public final class PacketPlayerInput implements Packet {
         boolean fire,
         float aimAngle
     ) {
-        this(sequence, moveX, jump, crouch, jetpack, ads, fire, aimAngle, NO_WEAPON_CHANGE);
+        this(sequence, moveX, jump, crouch, jetpack, ads, fire, aimAngle, NO_SLOT_PRESS);
     }
 
     public PacketPlayerInput(
@@ -54,7 +68,7 @@ public final class PacketPlayerInput implements Packet {
         boolean ads,
         boolean fire,
         float aimAngle,
-        int weaponSelect
+        int slotPress
     ) {
         this.sequence = sequence;
         this.moveX = moveX;
@@ -64,7 +78,7 @@ public final class PacketPlayerInput implements Packet {
         this.ads = ads;
         this.fire = fire;
         this.aimAngle = aimAngle;
-        this.weaponSelect = weaponSelect;
+        this.slotPress = slotPress;
     }
 
     @Override
@@ -77,6 +91,6 @@ public final class PacketPlayerInput implements Packet {
             + ", ads=" + ads
             + ", fire=" + fire
             + ", aim=" + aimAngle
-            + ", weaponSelect=" + weaponSelect + "]";
+            + ", slotPress=" + slotPress + "]";
     }
 }

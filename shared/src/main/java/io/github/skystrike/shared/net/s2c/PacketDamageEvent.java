@@ -3,6 +3,7 @@ package io.github.skystrike.shared.net.s2c;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 
 /**
  * One resolved damage instance.
@@ -24,7 +25,10 @@ public final class PacketDamageEvent implements Packet {
 
     public HitZone zone = HitZone.BODY;
 
-    /** Ordinal of the {@link WeaponId} responsible. */
+    /**
+     * The weapon responsible, as a wire id: a {@link WeaponId} ordinal for a gun, or a
+     * {@link io.github.skystrike.shared.weapons.MeleeId} wire id (1000 + ordinal) for melee.
+     */
     public int weaponId;
 
     /** Where the round landed, for the damage number and the impact effect. */
@@ -63,8 +67,17 @@ public final class PacketDamageEvent implements Packet {
         this.killed = killed;
     }
 
+    /**
+     * The gun responsible. Only meaningful for gun wire ids — for a melee hit use
+     * {@link #weaponDisplayName()} instead.
+     */
     public WeaponId weapon() {
         return WeaponId.fromOrdinal(weaponId);
+    }
+
+    /** Display name of the responsible weapon, gun or melee. */
+    public String weaponDisplayName() {
+        return WeaponRegistry.displayNameForWireId(weaponId);
     }
 
     public boolean isSelfInflicted() {

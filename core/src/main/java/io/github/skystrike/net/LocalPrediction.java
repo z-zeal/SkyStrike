@@ -94,9 +94,12 @@ public final class LocalPrediction {
             predicted.grounded = replayed.grounded;
             predicted.crouched = replayed.crouched;
             predicted.jetpacking = replayed.jetpacking;
-            // Combat state is never predicted: the server alone decides it.
+            // Combat state is never predicted: the server alone decides it. The loadout is the
+            // partial exception — it, too, is authoritative, but the LoadoutController re-applies
+            // an as-yet-unacknowledged slot press on top of it after every reconcile.
             predicted.alive = replayed.alive;
             predicted.weaponId = replayed.weaponId;
+            predicted.loadout.set(replayed.loadout);
             predicted.spread = replayed.spread;
             predicted.gunKick = replayed.gunKick;
             predicted.kills = replayed.kills;

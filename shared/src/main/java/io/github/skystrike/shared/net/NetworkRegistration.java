@@ -3,9 +3,12 @@ package io.github.skystrike.shared.net;
 import com.esotericsoftware.kryo.Kryo;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
+import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
@@ -54,7 +57,12 @@ public final class NetworkRegistration {
         Projectile.class,
         HitZone.class,
         PacketDamageEvent.class,
-        PacketKillEvent.class);
+        PacketKillEvent.class,
+
+        // Phase 4: Loadout — composition updates and the loadout carried inside Player (append-only)
+        PacketLoadoutUpdate.class,
+        WeaponItem.class,
+        PlayerLoadout.class);
 
     private NetworkRegistration() {
     }

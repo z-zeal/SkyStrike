@@ -8,8 +8,10 @@ import io.github.skystrike.server.net.ConnectionRegistry;
 import io.github.skystrike.server.net.NetworkEndpoint;
 import io.github.skystrike.server.net.NetworkEvent;
 import io.github.skystrike.server.net.PacketRouter;
+import io.github.skystrike.server.combat.MeleeSystem;
 import io.github.skystrike.server.net.handlers.JoinRequestHandler;
 import io.github.skystrike.server.net.handlers.LeaveRequestHandler;
+import io.github.skystrike.server.net.handlers.LoadoutUpdateHandler;
 import io.github.skystrike.server.net.handlers.PingHandler;
 import io.github.skystrike.server.net.handlers.PlayerInputHandler;
 import io.github.skystrike.server.player.PlayerRegistry;
@@ -19,9 +21,8 @@ import io.github.skystrike.server.player.SpawnService;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
-import io.github.skystrike.server.weapons.GunInstance;
+import io.github.skystrike.server.weapons.LoadoutSystem;
 import io.github.skystrike.server.weapons.RecoilService;
-import io.github.skystrike.shared.combat.SpreadMath;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
@@ -29,6 +30,7 @@ import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
+import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
@@ -36,7 +38,6 @@ import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.physics.PlayerInput;
 import io.github.skystrike.shared.physics.PlayerMotion;
-import io.github.skystrike.shared.weapons.WeaponId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,9 +72,7 @@ public final class GameServer {
     private final BulletSystem bulletSystem;
     private final KillFeedService killFeed;
     private final DamageService damageService;
-    private final RecoilService recoilService;
-    private final FireController fireController;
-    private final FireController.Volley volley = new FireController.Volley();
+    private final LoadoutSystem loadoutSystem;
 
     /** Reused per tick so the combat systems do not allocate a player list 60 times a second. */
     private final List<Player> playerStates = new ArrayList<>();
@@ -93,8 +92,9 @@ public final class GameServer {
         this.bulletSystem = new BulletSystem(this.arena);
         this.killFeed = new KillFeedService();
         this.damageService = new DamageService(this.killFeed);
-        this.recoilService = new RecoilService();
-        this.fireController = new FireController(new Random(), this.recoilService);
+        RecoilService recoilService = new RecoilService();
+        this.loadoutSystem = new LoadoutSystem(
+            new FireController(new Random(), recoilService), new MeleeSystem(), this.bulletSystem);
 
         registerHandlers();
     }
@@ -107,6 +107,7 @@ public final class GameServer {
         router.register(PacketPing.class, new PingHandler(endpoint, clock));
         router.register(PacketLeaveRequest.class, new LeaveRequestHandler(connections, players));
         router.register(PacketPlayerInput.class, new PlayerInputHandler(players));
+        router.register(PacketLoadoutUpdate.class, new LoadoutUpdateHandler(players));
     }
 
     public ServerConfig config() {
@@ -188,8 +189,15 @@ public final class GameServer {
         float dt = clock.dt();
         collectPlayerStates();
 
-        // 1. Dead players count back in.
-        respawnService.update(dt, playerStates);
+        // 1. Dead players count back in, getting their requested loadout composition and a
+        // fresh weapon state on the way.
+        respawnService.update(dt, playerStates, player -> {
+            PlayerSession session = players.byPlayerId(player.id);
+            if (session != null) {
+                session.applyRequestedLoadout();
+                loadoutSystem.resetForRespawn(session);
+            }
+        });
 
         // 2. Movement, then weapons: a round leaves the muzzle this tick's position gives it.
         for (PlayerSession session : players.all()) {
@@ -201,7 +209,7 @@ public final class GameServer {
                 // instead of banking three seconds of input for the respawn.
                 player.lastProcessedInputSequence = input.sequence;
             }
-            stepWeapon(session, dt);
+            loadoutSystem.tick(session, dt, playerStates, damageService);
         }
 
         // 3. Rounds already in the air, including the ones fired a moment ago.
@@ -220,37 +228,6 @@ public final class GameServer {
         for (PlayerSession session : players.all()) {
             playerStates.add(session.player());
         }
-    }
-
-    /**
-     * Weapon selection, spread and recoil decay, and the trigger, for one player.
-     *
-     * <p>The trigger edge is consumed whether or not the player is alive, so holding the mouse
-     * through your own death does not bank a shot for the respawn.
-     */
-    private void stepWeapon(PlayerSession session, float dt) {
-        Player player = session.player();
-        GunInstance gun = session.gun();
-        PlayerInput input = session.latestInput();
-
-        if (input != null && WeaponId.isValidOrdinal(input.weaponSelect)) {
-            gun.switchTo(WeaponId.fromOrdinal(input.weaponSelect));
-        }
-
-        gun.update(dt, SpreadMath.isMoving(player.vx), player.ads);
-
-        boolean firePressed = session.consumeFirePressed();
-        if (player.alive) {
-            int rounds = fireController.fire(player, gun, session.triggerHeld(), firePressed, volley);
-            for (int i = 0; i < rounds; i++) {
-                bulletSystem.spawn(player, gun.weaponId(), volley.angle(i));
-            }
-        }
-
-        // Mirror the authoritative gun state onto the networked player record.
-        player.weaponId = gun.weaponId().ordinal();
-        player.spread = gun.currentSpread();
-        player.gunKick = gun.visualKick();
     }
 
     /** Sends damage to the two clients it concerns and kills to everyone. */
