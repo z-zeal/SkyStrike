@@ -109,17 +109,11 @@ jobs:
           exit 0
 
       - name: Gate on real step outcomes
-        if: always()
+        if: >-
+          always() && (steps.modules.outcome != 'success'
+            || steps.shared.outcome != 'success'
+            || steps.server.outcome != 'success'
+            || steps.compileall.outcome != 'success')
         run: |
-          failed=0
-          for outcome in "${{ steps.modules.outcome }}" "${{ steps.shared.outcome }}" "${{ steps.server.outcome }}" "${{ steps.compileall.outcome }}"; do
-            echo "step outcome: $outcome"
-            if [ "$outcome" != "success" ] && [ "$outcome" != "skipped" ]; then
-              failed=1
-            fi
-          done
-          # skipped compileall is only acceptable when an earlier step already failed
-          if [ "${{ steps.compileall.outcome }}" = "skipped" ] && [ "${{ steps.server.outcome }}" = "success" ]; then
-            failed=1
-          fi
-          exit $failed
+          echo "a build step did not succeed (see diagnostics comment)"
+          exit 1

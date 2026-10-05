@@ -118,7 +118,8 @@ class LoadoutSystemTest {
         int spent = tickUntilReloadDone();
         assertTrue(spent <= 60 * 4, "reload finished in reasonable time");
         assertEquals(20, player.loadout.primary.magazine);
-        assertEquals(105, player.loadout.primary.reserve);
+        // One round left the magazine before the reload started: a full 20 is topped from 120.
+        assertEquals(100, player.loadout.primary.reserve);
 
         // And the gun can speak again at its own cadence afterwards.
         holdTrigger(88);
@@ -210,9 +211,12 @@ class LoadoutSystemTest {
         float blownSpread = session.gun().currentSpread();
         assertTrue(blownSpread > WeaponRegistry.of(WeaponId.DEFAULT).spread().baseDegrees());
 
-        // Tap into melee and back: the gun that comes out is fresh.
+        // Tap into melee and back: the gun that comes out is fresh. Zero the recoil-induced
+        // velocity first so the stance check below is not pulled toward the moving target.
         pressSlot(200, PlayerLoadout.SLOT_PRIMARY, 200L);
         tick(); // now melee
+        player.vx = 0f;
+        player.vy = 0f;
         pressSlot(201, PlayerLoadout.SLOT_PRIMARY, 201L);
         tick(); // now back on the primary
 

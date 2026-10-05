@@ -29,6 +29,14 @@ public final class MeleeSystem {
     private static final float OVERLAP_EPSILON = 1e-4f;
 
     /**
+     * Angular boundary slack. Trigonometry through float30-something degrees does not reproduce
+     * the exact half-angle at the wedge edge ({@code shortestDelta} can land a rounding hair
+     * past it), so "inclusive" is implemented with a tolerance, like every other boundary in
+     * this codebase.
+     */
+    private static final float ANGLE_BOUNDARY_EPSILON_DEGREES = 1e-3f;
+
+    /**
      * Resolves one swing.
      *
      * @param targets every candidate victim in the match (the attacker is skipped by id)
@@ -116,6 +124,6 @@ public final class MeleeSystem {
         }
         float toTarget = Angles.ofVector(dx, dy);
         float delta = Math.abs(Angles.shortestDelta(aimAngleDegrees, toTarget));
-        return delta <= WeaponConfig.MELEE_ARC_HALF_ANGLE_DEGREES;
+        return delta <= WeaponConfig.MELEE_ARC_HALF_ANGLE_DEGREES + ANGLE_BOUNDARY_EPSILON_DEGREES;
     }
 }
