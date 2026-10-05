@@ -7,6 +7,10 @@ import io.github.skystrike.server.net.PacketRouter;
 import io.github.skystrike.server.net.handlers.JoinRequestHandler;
 import io.github.skystrike.server.net.handlers.LeaveRequestHandler;
 import io.github.skystrike.server.net.handlers.PingHandler;
+import io.github.skystrike.server.net.handlers.PlayerInputHandler;
+import io.github.skystrike.server.player.PlayerRegistry;
+import io.github.skystrike.server.player.PlayerSession;
+import io.github.skystrike.server.player.SpawnService;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.shared.config.NetConfig;
@@ -14,18 +18,17 @@ import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
+import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
+import io.github.skystrike.shared.physics.PlayerMotion;
 import java.io.IOException;
 
 /**
  * Composition root for the authoritative host.
  *
- * <p>Wires the transport, the connection registry, the packet router and the tick loop together,
- * then gets out of the way. One tick is: drain the network, route what arrived, step the
- * simulation, broadcast a snapshot if one is due.
- *
- * <p>Phase 0 has no simulation to step yet — the arena is loaded and the loop runs empty, which is
- * exactly the shape the Phase 1 systems slot into.
+ * <p>Wires the transport, the connection registry, the player registry, the packet router and the
+ * tick loop together. One tick is: drain the network, route what arrived, step player physics,
+ * and broadcast a snapshot if one is due.
  */
 public final class GameServer {
 
@@ -33,6 +36,8 @@ public final class GameServer {
     private final ArenaMap arena;
     private final NetworkEndpoint endpoint;
     private final ConnectionRegistry connections;
+    private final PlayerRegistry players;
+    private final SpawnService spawnService;
     private final PacketRouter router;
     private final TickLoop loop;
     private final PacketGameState snapshot = new PacketGameState();
@@ -43,6 +48,8 @@ public final class GameServer {
         this.arena = ArenaMap.standard();
         this.endpoint = new NetworkEndpoint(config.tcpPort(), config.udpPort());
         this.connections = new ConnectionRegistry(config.maxPlayers());
+        this.players = new PlayerRegistry();
+        this.spawnService = new SpawnService(this.arena);
         this.router = new PacketRouter();
         this.loop = new TickLoop(config.tickRateHz(), config.profileIntervalSeconds(), this::tick);
         this.ticksPerSnapshot = NetConfig.ticksPerSnapshot(config.tickRateHz());
@@ -54,9 +61,10 @@ public final class GameServer {
         SimulationClock clock = loop.clock();
         router.register(
             PacketJoinRequest.class,
-            new JoinRequestHandler(endpoint, connections, clock, config.tickRateHz()));
+            new JoinRequestHandler(endpoint, connections, players, spawnService, clock, config.tickRateHz()));
         router.register(PacketPing.class, new PingHandler(endpoint, clock));
-        router.register(PacketLeaveRequest.class, new LeaveRequestHandler(connections));
+        router.register(PacketLeaveRequest.class, new LeaveRequestHandler(connections, players));
+        router.register(PacketPlayerInput.class, new PlayerInputHandler(players));
     }
 
     public ServerConfig config() {
@@ -69,6 +77,14 @@ public final class GameServer {
 
     public ConnectionRegistry connections() {
         return connections;
+    }
+
+    public PlayerRegistry players() {
+        return players;
+    }
+
+    public SpawnService spawnService() {
+        return spawnService;
     }
 
     public PacketRouter router() {
@@ -100,6 +116,7 @@ public final class GameServer {
         } finally {
             endpoint.stop();
             connections.clear();
+            players.clear();
             System.out.println("[server] stopped");
         }
     }
@@ -113,7 +130,11 @@ public final class GameServer {
     private void tick(SimulationClock clock) {
         endpoint.drain(this::applyNetworkEvent);
 
-        // Phase 1 onwards: step movement, combat and gadgets here, in that order.
+        // Step authoritative player movement
+        float dt = clock.dt();
+        for (PlayerSession session : players.all()) {
+            PlayerMotion.stepInPlace(session.player(), session.latestInput(), dt, arena);
+        }
 
         if (clock.tick() % ticksPerSnapshot == 0) {
             broadcastSnapshot(clock);
@@ -125,6 +146,7 @@ public final class GameServer {
             case CONNECTED -> System.out.printf(
                 "[net] open  connection=%d%n", event.connection().getID());
             case DISCONNECTED -> {
+                players.remove(event.connection());
                 ConnectionRegistry.Entry entry = connections.leave(event.connection());
                 if (entry == null) {
                     System.out.printf("[net] close connection=%d%n", event.connection().getID());
@@ -154,6 +176,10 @@ public final class GameServer {
         snapshot.tick = clock.tick();
         snapshot.serverTimeMillis = System.currentTimeMillis();
         snapshot.playerCount = connections.count();
+        snapshot.players.clear();
+        for (PlayerSession session : players.all()) {
+            snapshot.players.add(session.player().copy());
+        }
         endpoint.broadcastUnreliable(snapshot);
     }
 }

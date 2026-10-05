@@ -1,14 +1,14 @@
 package io.github.skystrike.shared.net.s2c;
 
+import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.Packet;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The per-snapshot state broadcast.
  *
- * <p>Phase 0 carries only the heartbeat fields — enough to prove the pipe is live and to let the
- * client show a tick counter. Players, bullets, grenades, effects, drones and cameras are added to
- * this packet as their systems land, and the server reuses one instance per broadcast rather than
- * allocating per tick.
+ * <p>Phase 1 carries the full state of all active players in the match.
  */
 public final class PacketGameState implements Packet {
 
@@ -21,6 +21,9 @@ public final class PacketGameState implements Packet {
     /** How many clients are currently joined. */
     public int playerCount;
 
+    /** Snapshot of all active player states. */
+    public List<Player> players = new ArrayList<>();
+
     public PacketGameState() {
     }
 
@@ -30,10 +33,20 @@ public final class PacketGameState implements Packet {
         this.playerCount = playerCount;
     }
 
+    public PacketGameState(long tick, long serverTimeMillis, int playerCount, List<Player> players) {
+        this.tick = tick;
+        this.serverTimeMillis = serverTimeMillis;
+        this.playerCount = playerCount;
+        if (players != null) {
+            this.players = new ArrayList<>(players);
+        }
+    }
+
     @Override
     public String toString() {
         return "PacketGameState[tick=" + tick
             + ", serverTimeMillis=" + serverTimeMillis
-            + ", playerCount=" + playerCount + "]";
+            + ", playerCount=" + playerCount
+            + ", players=" + players.size() + "]";
     }
 }
