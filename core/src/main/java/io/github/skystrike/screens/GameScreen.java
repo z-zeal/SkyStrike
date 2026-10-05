@@ -3,7 +3,8 @@ package io.github.skystrike.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.graphics.GL20;
+import io.github.skystrike.fx.FxPipeline;
+import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.InputSampler;
 import io.github.skystrike.input.KeyBindings;
@@ -15,6 +16,7 @@ import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.StatusOverlay;
 import io.github.skystrike.shared.config.PlayerConfig;
+import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
@@ -28,8 +30,8 @@ import java.util.List;
 /**
  * Composition root for a match.
  *
- * <p>Thin composition root: routes input, triggers prediction and interpolation, and dispatches
- * drawing across render layers.
+ * <p>Routes input, drives authoritative prediction/interpolation, and coordinates multi-pass
+ * rendering across terrain, entities, the occluded visibility pass and the fog composite.
  */
 public final class GameScreen implements Screen {
 
@@ -50,11 +52,15 @@ public final class GameScreen implements Screen {
     private final StateBuffer stateBuffer = new StateBuffer();
     private final Interpolator interpolator = new Interpolator(stateBuffer);
 
+    private FxPipeline pipeline;
+    private final List<ObserverState> observers = new ArrayList<>();
+
     private final String host;
     private final int tcpPort;
     private final int udpPort;
 
     private float adsAlpha;
+    private boolean showSdfDebug;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
         this.session = new ClientSession(playerName);
@@ -83,6 +89,7 @@ public final class GameScreen implements Screen {
     public void show() {
         camera.centreOn(arena.mirrorAxisX(), camera.viewportHeight() / 2f);
         Gdx.input.setInputProcessor(inputRouter.multiplexer());
+        pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         session.connect(host, tcpPort, udpPort);
     }
 
@@ -91,14 +98,18 @@ public final class GameScreen implements Screen {
         session.update(delta);
 
         Player localPlayer = prediction.predicted();
+        float visionReach = VisionConfig.REACH_HIP;
+
         if (localPlayer != null) {
             // 1. Sample input and simulate predicted local motion
             PacketPlayerInput input = inputSampler.sample(localPlayer, camera);
             localPlayer = prediction.predict(input, delta, arena);
             session.sendUnreliable(input);
 
-            // 2. Camera follow and interpolated ADS pan toward aim direction
-            adsAlpha = Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, PlayerConfig.ADS_TRANSITION_RATE, delta);
+            // 2. Camera follow and smoothly interpolated ADS pan / vision reach
+            adsAlpha = Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, VisionConfig.ADS_TRANSITION_RATE, delta);
+            visionReach = Lerp.lerp(VisionConfig.REACH_HIP, VisionConfig.REACH_ADS, adsAlpha);
+
             float panDist = PlayerConfig.ADS_CAMERA_PAN * adsAlpha;
             float aimRad = Angles.toRadians(localPlayer.aimAngle);
             float targetCamX = localPlayer.centerX() + panDist * (float) Math.cos(aimRad);
@@ -109,21 +120,39 @@ public final class GameScreen implements Screen {
             sampleCameraInput(delta);
         }
 
+        // Toggle SDF debug view with F1
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+            showSdfDebug = !showSdfDebug;
+        }
+
         // 3. Interpolate remote player states
         List<Player> remotePlayers = interpolator.interpolateRemotePlayers(session.playerId());
 
-        // 4. Render layers in order
-        Gdx.gl.glClearColor(0.035f, 0.045f, 0.07f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        // Layer: TERRAIN
+        // 4. Multi-pass rendering pipeline (effects §5)
+        // Pass 1: SCENE (Terrain + Entities into scene buffer)
+        pipeline.beginScene();
         terrain.render(camera);
+        playerRenderer.render(camera, remotePlayers, localPlayer, arena, pipeline.smokeVolumes().all());
+        pipeline.endScene();
 
-        // Layer: ENTITIES
-        playerRenderer.render(camera, remotePlayers, localPlayer);
+        // Pass 2: VISIBILITY (Observers + SDF Soft Shadows into half-res visibility buffer)
+        observers.clear();
+        if (localPlayer != null) {
+            observers.add(ObserverState.standardPlayer(
+                    localPlayer.eyeX(), localPlayer.eyeY(), localPlayer.aimAngle, visionReach));
+        }
+        pipeline.renderVisibility(camera, observers);
 
-        // Layer: HUD / OVERLAY
-        overlay.render(statusLines(localPlayer));
+        // Pass 3: COMPOSITE (scene * max(visibility, ambientFloor) + light onto backbuffer)
+        pipeline.composite();
+
+        // Pass 4: DEBUG OVERLAY
+        if (showSdfDebug) {
+            pipeline.renderSdfDebug(camera);
+        }
+
+        // Pass 5: HUD & OVERLAY (drawn unoccluded over composite)
+        overlay.render(statusLines(localPlayer, visionReach));
     }
 
     private void sampleCameraInput(float delta) {
@@ -153,24 +182,42 @@ public final class GameScreen implements Screen {
         }
     }
 
-    private List<String> statusLines(Player localPlayer) {
+    private List<String> statusLines(Player localPlayer, float visionReach) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike — Phase 1 (Movement & Aim)");
+        lines.add("SkyStrike — Phase 2 (Vision & Fog of War)");
         lines.add("server: " + session.statusLine());
         if (localPlayer != null) {
             lines.add(String.format(
-                "player: pos (%.0f, %.0f)  vel (%.0f, %.0f)  fuel %.0f  rot %.1f°  aim %.1f°  %s %s",
-                localPlayer.x, localPlayer.y, localPlayer.vx, localPlayer.vy,
-                localPlayer.fuel, localPlayer.rotation, localPlayer.aimAngle,
-                localPlayer.grounded ? "[GND]" : "[AIR]",
-                localPlayer.crouched ? "[CROUCH]" : "[STAND]"));
+                    "player: pos (%.0f, %.0f)  vel (%.0f, %.0f)  fuel %.0f  rot %.1f°  aim %.1f°  %s %s",
+                    localPlayer.x,
+                    localPlayer.y,
+                    localPlayer.vx,
+                    localPlayer.vy,
+                    localPlayer.fuel,
+                    localPlayer.rotation,
+                    localPlayer.aimAngle,
+                    localPlayer.grounded ? "[GND]" : "[AIR]",
+                    localPlayer.crouched ? "[CROUCH]" : "[STAND]"));
+            lines.add(String.format(
+                    "vision: reach %.0f u (hip %.0f / ADS %.0f)  cone %.0f°  feather %.0f°  floor %.2f  %s",
+                    visionReach,
+                    VisionConfig.REACH_HIP,
+                    VisionConfig.REACH_ADS,
+                    VisionConfig.CONE_ANGLE_DEGREES,
+                    VisionConfig.FEATHER_ANGLE_DEGREES,
+                    VisionConfig.AMBIENT_FLOOR,
+                    localPlayer.ads ? "[ADS]" : "[HIP]"));
         } else {
             lines.add(String.format(
-                "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
-                camera.x(), camera.y(), camera.viewportHeight(),
-                arena.width(), arena.height(), arena.solids().size()));
+                    "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
+                    camera.x(),
+                    camera.y(),
+                    camera.viewportHeight(),
+                    arena.width(),
+                    arena.height(),
+                    arena.solids().size()));
         }
-        lines.add("A/D move  W jump  Space jetpack  S crouch  RMB aim/ADS  LMB fire");
+        lines.add("A/D move  W jump  Space jetpack  S crouch  RMB aim/ADS  F1 SDF debug");
         return lines;
     }
 
@@ -178,6 +225,9 @@ public final class GameScreen implements Screen {
     public void resize(int width, int height) {
         camera.resize(width, height);
         overlay.resize(width, height);
+        if (pipeline != null) {
+            pipeline.resize(width, height);
+        }
     }
 
     @Override
@@ -198,5 +248,8 @@ public final class GameScreen implements Screen {
         terrain.dispose();
         playerRenderer.dispose();
         overlay.dispose();
+        if (pipeline != null) {
+            pipeline.dispose();
+        }
     }
 }
