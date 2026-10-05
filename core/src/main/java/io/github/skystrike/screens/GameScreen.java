@@ -108,7 +108,7 @@ public final class GameScreen implements Screen {
 
             // 2. Camera follow and smoothly interpolated ADS pan / vision reach
             adsAlpha = Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, VisionConfig.ADS_TRANSITION_RATE, delta);
-            visionReach = Lerp.lerp(VisionConfig.REACH_HIP, VisionConfig.REACH_ADS, adsAlpha);
+            visionReach = Lerp.mix(VisionConfig.REACH_HIP, VisionConfig.REACH_ADS, adsAlpha);
 
             float panDist = PlayerConfig.ADS_CAMERA_PAN * adsAlpha;
             float aimRad = Angles.toRadians(localPlayer.aimAngle);

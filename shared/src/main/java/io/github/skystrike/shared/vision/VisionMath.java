@@ -123,7 +123,7 @@ public final class VisionMath {
         // Smoothstep between innerAngle (1.0) and coneHalfAngleDeg (peripheralFloor)
         float t = (deltaAngle - innerAngle) / Math.max(0.001f, coneHalfAngleDeg - innerAngle);
         float smoothT = t * t * (3f - 2f * t);
-        return Lerp.lerp(1.0f, peripheralFloor, smoothT);
+        return Lerp.mix(1.0f, peripheralFloor, smoothT);
     }
 
     /**
