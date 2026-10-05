@@ -97,7 +97,7 @@ class WeaponBallisticsTest {
         assertEquals(1.8f, WeaponBallistics.of(WeaponId.THORN_DMR).gravityWeight(), EPSILON);
         assertEquals(2.5f, WeaponBallistics.of(WeaponId.IRON_CARBINE).gravityWeight(), EPSILON);
         assertEquals(3.5f, WeaponBallistics.of(WeaponId.WASP_NEST).gravityWeight(), EPSILON);
-        assertEquals(4.0f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).gravityWeight(), EPSILON);
+        assertEquals(2.0f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).gravityWeight(), EPSILON);
         assertEquals(5.0f, WeaponBallistics.of(WeaponId.SCATTER_BENCH).gravityWeight(), EPSILON);
 
         assertEquals(

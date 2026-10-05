@@ -73,7 +73,9 @@ FIRE_MODES = {
 }
 
 CLASSES = {  # catalog class -> (enum, gravityWeight)
-    "pistol": ("PISTOL", 4.0),
+    # Pistols have much lower muzzle velocities than long guns, so a rifle-like gravity weight
+    # keeps their visible trajectory usable instead of compounding flight time with heavy drop.
+    "pistol": ("PISTOL", 2.0),
     "revolver": ("REVOLVER", 3.8),
     "smg": ("SMG", 3.5),
     "pdw": ("PDW", 3.2),
