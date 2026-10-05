@@ -91,14 +91,15 @@ class LoadoutSystemTest {
         releaseTrigger(2);
 
         // Swap in a shotgun: six pellets leave, one shell is spent.
+        int roundsAlreadyLive = bulletSystem.active().size(); // the SCAR round from above
         session.player().loadout.setComposition(WeaponId.SHOTGUN, null, null);
         system.resetForRespawn(session);
         holdTrigger(10);
         tick();
         assertEquals(WeaponId.SHOTGUN, player.loadout.primary.weaponId());
         assertEquals(7, player.loadout.primary.magazine, "one shell for the whole volley");
-        assertEquals(6, bulletSystem.active().size(),
-            "six pellets are in the air for that one shell");
+        assertEquals(6, bulletSystem.active().size() - roundsAlreadyLive,
+            "six new pellets are in the air for that one shell");
     }
 
     @Test
