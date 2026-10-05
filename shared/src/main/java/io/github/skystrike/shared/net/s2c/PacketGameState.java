@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.net.s2c;
 
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.net.Packet;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +9,9 @@ import java.util.List;
 /**
  * The per-snapshot state broadcast.
  *
- * <p>Phase 1 carries the full state of all active players in the match.
+ * <p>Carries the players and the rounds in flight that this particular client is allowed to see.
+ * Both lists are culled per recipient on the server: state the viewer could not observe is never
+ * transmitted, so a client cannot read positions out of its own network traffic.
  */
 public final class PacketGameState implements Packet {
 
@@ -21,8 +24,11 @@ public final class PacketGameState implements Packet {
     /** How many clients are currently joined. */
     public int playerCount;
 
-    /** Snapshot of all active player states. */
+    /** Snapshot of the player states visible to the recipient. */
     public List<Player> players = new ArrayList<>();
+
+    /** Rounds in flight visible to the recipient. */
+    public List<Projectile> projectiles = new ArrayList<>();
 
     public PacketGameState() {
     }
@@ -34,11 +40,24 @@ public final class PacketGameState implements Packet {
     }
 
     public PacketGameState(long tick, long serverTimeMillis, int playerCount, List<Player> players) {
+        this(tick, serverTimeMillis, playerCount, players, null);
+    }
+
+    public PacketGameState(
+        long tick,
+        long serverTimeMillis,
+        int playerCount,
+        List<Player> players,
+        List<Projectile> projectiles
+    ) {
         this.tick = tick;
         this.serverTimeMillis = serverTimeMillis;
         this.playerCount = playerCount;
         if (players != null) {
             this.players = new ArrayList<>(players);
+        }
+        if (projectiles != null) {
+            this.projectiles = new ArrayList<>(projectiles);
         }
     }
 
@@ -47,6 +66,7 @@ public final class PacketGameState implements Packet {
         return "PacketGameState[tick=" + tick
             + ", serverTimeMillis=" + serverTimeMillis
             + ", playerCount=" + playerCount
-            + ", players=" + players.size() + "]";
+            + ", players=" + players.size()
+            + ", projectiles=" + projectiles.size() + "]";
     }
 }

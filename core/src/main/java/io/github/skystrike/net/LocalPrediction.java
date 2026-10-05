@@ -28,9 +28,17 @@ public final class LocalPrediction {
 
     /**
      * Steps the predicted local player state forward with a newly sampled input.
+     *
+     * <p>A dead player is not predicted. The server ignores their input, so replaying it
+     * locally would only build a queue of motion the authoritative state never performed and
+     * hand the player a rubber-band on respawn.
      */
     public Player predict(PacketPlayerInput packet, float dt, ArenaMap arena) {
         if (predicted == null || packet == null || dt <= 0f) {
+            return predicted;
+        }
+        if (!predicted.alive) {
+            pending.clear();
             return predicted;
         }
         PlayerInput input = PlayerInput.fromPacket(packet);
@@ -86,6 +94,14 @@ public final class LocalPrediction {
             predicted.grounded = replayed.grounded;
             predicted.crouched = replayed.crouched;
             predicted.jetpacking = replayed.jetpacking;
+            // Combat state is never predicted: the server alone decides it.
+            predicted.alive = replayed.alive;
+            predicted.weaponId = replayed.weaponId;
+            predicted.spread = replayed.spread;
+            predicted.gunKick = replayed.gunKick;
+            predicted.kills = replayed.kills;
+            predicted.deaths = replayed.deaths;
+            predicted.respawnTimer = replayed.respawnTimer;
         }
     }
 

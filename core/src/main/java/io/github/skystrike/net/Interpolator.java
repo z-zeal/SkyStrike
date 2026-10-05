@@ -3,13 +3,18 @@ package io.github.skystrike.net;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Projectile;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Interpolates remote players smoothly between buffered snapshots.
+ * Interpolates remote entities smoothly between buffered snapshots.
+ *
+ * <p>Players and rounds in flight are interpolated the same way and with the same delay, so a
+ * tracer and the player it came from stay in step. A round that only exists in the newer
+ * snapshot is drawn at its newer position rather than popped into being at the older one.
  */
 public final class Interpolator {
 
@@ -102,9 +107,83 @@ public final class Interpolator {
             result.grounded = p1.grounded;
             result.jetpacking = p1.jetpacking;
             result.ads = p1.ads;
+            // Combat state is authoritative and discrete: take the newer snapshot, except the
+            // visual gun kick, which is a continuous angle and reads badly if it steps.
+            result.alive = p1.alive;
+            result.weaponId = p1.weaponId;
+            result.spread = Lerp.mix(p0.spread, p1.spread, alpha);
+            result.gunKick = Lerp.mix(p0.gunKick, p1.gunKick, alpha);
+            result.kills = p1.kills;
+            result.deaths = p1.deaths;
+            result.respawnTimer = p1.respawnTimer;
             interpolated.add(result);
         }
 
         return interpolated;
+    }
+
+    /**
+     * Returns interpolated rounds in flight at the current render timestamp.
+     *
+     * <p>Rounds the server has retired simply stop appearing; the renderer notices the gap and
+     * plays the impact.
+     */
+    public List<Projectile> interpolateProjectiles() {
+        List<StateBuffer.Snapshot> snaps = buffer.snapshots();
+        if (snaps.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (snaps.size() == 1) {
+            return copyAll(snaps.get(0).projectiles());
+        }
+
+        long renderTime = System.currentTimeMillis() - delayMillis;
+        StateBuffer.Snapshot from = null;
+        StateBuffer.Snapshot to = null;
+
+        for (int i = 0; i < snaps.size() - 1; i++) {
+            if (snaps.get(i).timestampMillis() <= renderTime
+                && snaps.get(i + 1).timestampMillis() >= renderTime) {
+                from = snaps.get(i);
+                to = snaps.get(i + 1);
+                break;
+            }
+        }
+
+        if (from == null || to == null) {
+            return copyAll(snaps.get(snaps.size() - 1).projectiles());
+        }
+
+        long span = to.timestampMillis() - from.timestampMillis();
+        float alpha = span > 0 ? (float) (renderTime - from.timestampMillis()) / (float) span : 1f;
+        alpha = Lerp.clamp(alpha, 0f, 1f);
+
+        List<Projectile> interpolated = new ArrayList<>();
+        Map<Integer, Projectile> fromRounds = from.projectiles();
+        for (Map.Entry<Integer, Projectile> entry : to.projectiles().entrySet()) {
+            Projectile newer = entry.getValue();
+            Projectile older = fromRounds.get(entry.getKey());
+            if (older == null) {
+                // Fired after the older snapshot: show it where it actually is.
+                interpolated.add(newer.copy());
+                continue;
+            }
+            Projectile result = newer.copy();
+            result.x = Lerp.mix(older.x, newer.x, alpha);
+            result.y = Lerp.mix(older.y, newer.y, alpha);
+            result.vx = Lerp.mix(older.vx, newer.vx, alpha);
+            result.vy = Lerp.mix(older.vy, newer.vy, alpha);
+            interpolated.add(result);
+        }
+        return interpolated;
+    }
+
+    private static List<Projectile> copyAll(Map<Integer, Projectile> rounds) {
+        List<Projectile> list = new ArrayList<>(rounds.size());
+        for (Projectile projectile : rounds.values()) {
+            list.add(projectile.copy());
+        }
+        return list;
     }
 }

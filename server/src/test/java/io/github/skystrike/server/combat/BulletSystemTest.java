@@ -1,0 +1,248 @@
+package io.github.skystrike.server.combat;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.config.PlayerConfig;
+import io.github.skystrike.shared.config.WorldConfig;
+import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.weapons.WeaponBallistics;
+import io.github.skystrike.shared.weapons.WeaponId;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The authoritative bullet lifecycle against the real arena.
+ *
+ * <p>The important one is {@link #aRoundCannotTunnelThroughTheTunnelRoof()}: every gun in the
+ * table moves further in one tick than the 14-unit tunnel roof is thick, so point-testing the
+ * new position would let rounds pass straight through the map.
+ */
+class BulletSystemTest {
+
+    private static final float TICK = 1f / WorldConfig.TICK_RATE_HZ;
+    private static final float EPSILON = 1e-2f;
+
+    private ArenaMap arena;
+    private BulletSystem bullets;
+    private DamageService damage;
+
+    @BeforeEach
+    void setUp() {
+        arena = ArenaMap.standard();
+        bullets = new BulletSystem(arena);
+        damage = new DamageService(new KillFeedService());
+    }
+
+    private static Player shooter(float x, float y, float aimDegrees) {
+        Player p = new Player(1, "Shooter", 0, x, y);
+        p.aimAngle = aimDegrees;
+        return p;
+    }
+
+    @Test
+    @DisplayName("a round leaves the muzzle, not the eye, at the weapon's muzzle speed")
+    void spawnPlacesTheRoundAtTheMuzzle() {
+        Player player = shooter(500f, 100f, 0f);
+        WeaponBallistics ballistics = WeaponBallistics.of(WeaponId.SCAR_L);
+
+        Projectile round = bullets.spawn(player, WeaponId.SCAR_L, 0f);
+
+        assertNotNull(round);
+        assertEquals(player.eyeX() + CombatConfig.MUZZLE_OFFSET, round.x, EPSILON);
+        assertEquals(player.eyeY(), round.y, EPSILON);
+        assertEquals(ballistics.muzzleSpeed(), round.vx, EPSILON);
+        assertEquals(0f, round.vy, EPSILON);
+        assertEquals(player.id, round.ownerId);
+        assertEquals(player.teamIndex, round.teamIndex);
+        assertEquals(WeaponId.SCAR_L, round.weapon());
+        assertEquals(1, bullets.count());
+        assertEquals(1, bullets.spawnedCount());
+    }
+
+    @Test
+    @DisplayName("firing into a wall you are touching produces no round at all")
+    void muzzleInsideGeometryIsAbsorbed() {
+        // Standing on the centre room floor, right up against its west wall (x 1120..1144).
+        Player player = shooter(1100f, 300f, 0f);
+
+        assertNull(bullets.spawn(player, WeaponId.SCAR_L, 0f),
+            "the muzzle is inside the wall, so the round never exists");
+        assertEquals(0, bullets.count());
+
+        // Turning around and firing away from the wall works normally.
+        assertNotNull(bullets.spawn(player, WeaponId.SCAR_L, 180f));
+    }
+
+    @Test
+    @DisplayName("a round cannot tunnel through the 14 unit tunnel roof")
+    void aRoundCannotTunnelThroughTheTunnelRoof() {
+        // The tunnel roof slab is (1120, 190) 180x14, so it spans y 190..204.
+        // A player hovering in the tunnel fires an AWP straight up: 1950 u/s is 32.5 units per
+        // tick, more than twice the slab's thickness, so only a swept test can catch it.
+        Player player = shooter(1200f, 115.5f, 90f);
+        Projectile round = bullets.spawn(player, WeaponId.AWP, 90f);
+
+        assertNotNull(round);
+        assertTrue(round.y < 190f, "the round must start below the slab: " + round.y);
+
+        float perTick = WeaponBallistics.of(WeaponId.AWP).muzzleSpeed() * TICK;
+        assertTrue(round.y + perTick > 204f,
+            "the test is only meaningful if one tick clears the slab entirely");
+
+        bullets.step(TICK, List.of(player), damage);
+
+        assertEquals(0, bullets.count(), "the round must stop at the roof");
+        assertEquals(1, bullets.terrainImpactCount());
+        assertEquals(0, bullets.playerImpactCount());
+        assertTrue(damage.drain().isEmpty());
+    }
+
+    @Test
+    @DisplayName("a round that hits a player damages them once and disappears")
+    void aRoundHitsAPlayer() {
+        Player player = shooter(400f, 100f, 0f);
+        Player victim = new Player(2, "Victim", 1, 700f, 100f);
+
+        assertNotNull(bullets.spawn(player, WeaponId.SCAR_L, 0f));
+
+        for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player, victim), damage);
+        }
+
+        assertEquals(0, bullets.count(), "the round is consumed by the hit");
+        assertEquals(1, bullets.playerImpactCount());
+        assertTrue(victim.health < PlayerConfig.MAX_HEALTH, "the victim must have taken damage");
+
+        List<DamageService.DamageResult> results = damage.drain();
+        assertEquals(1, results.size(), "one round, one damage instance");
+        DamageService.DamageResult hit = results.get(0);
+        assertEquals(player.id, hit.attackerId());
+        assertEquals(victim.id, hit.targetId());
+        assertTrue(hit.distanceTravelled() > 250f, "the round flew the gap: " + hit.distanceTravelled());
+        assertTrue(hit.amount() > 0f);
+    }
+
+    @Test
+    @DisplayName("damage falls off with the path actually flown")
+    void distantHitsHurtLess() {
+        Player near = new Player(2, "Near", 1, 500f, 100f);
+        Player far = new Player(3, "Far", 1, 900f, 100f);
+        Player player = shooter(400f, 100f, 0f);
+
+        bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player, near), damage);
+        }
+        float nearDamage = damage.drain().get(0).amount();
+
+        bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        for (int tick = 0; tick < 60 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player, far), damage);
+        }
+        float farDamage = damage.drain().get(0).amount();
+
+        assertTrue(farDamage < nearDamage,
+            "near " + nearDamage + " should beat far " + farDamage);
+    }
+
+    @Test
+    @DisplayName("a round cannot hit the player who fired it on the way out")
+    void selfHitGraceProtectsTheShooter() {
+        // Firing straight down puts the muzzle inside your own hitbox.
+        Player player = shooter(500f, 100f, -90f);
+        Projectile round = bullets.spawn(player, WeaponId.AWP, -90f);
+
+        assertNotNull(round);
+        assertTrue(round.y > player.y && round.y < player.y + player.currentHeight(),
+            "the muzzle must start inside the shooter's own hitbox for this test to mean anything");
+
+        bullets.step(TICK, List.of(player), damage);
+
+        assertEquals(PlayerConfig.MAX_HEALTH, player.health, EPSILON, "you cannot shoot yourself in the foot");
+        assertEquals(0, bullets.playerImpactCount());
+    }
+
+    @Test
+    @DisplayName("rounds stop at terrain and leave the world")
+    void roundsAreAbsorbedByTerrain() {
+        Player player = shooter(500f, 100f, -90f);
+        bullets.spawn(player, WeaponId.SCAR_L, -90f);
+
+        for (int tick = 0; tick < 10 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player), damage);
+        }
+
+        assertEquals(0, bullets.count(), "the ground must absorb it");
+        assertEquals(1, bullets.terrainImpactCount());
+    }
+
+    @Test
+    @DisplayName("rounds expire instead of raining down somewhere else a second later")
+    void roundsExpire() {
+        // Fired straight up the middle of the arena, away from the perch and catwalk.
+        Player player = shooter(300f, 900f, 90f);
+        bullets.spawn(player, WeaponId.SMG, 90f);
+        assertEquals(1, bullets.count());
+
+        for (int tick = 0; tick < 300 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player), damage);
+        }
+        assertEquals(0, bullets.count(), "no round may live forever");
+    }
+
+    @Test
+    @DisplayName("the live round list is capped and clearable")
+    void liveRoundsAreCappedAndClearable() {
+        Player player = shooter(500f, 100f, 0f);
+
+        for (int i = 0; i < CombatConfig.MAX_ACTIVE_PROJECTILES + 20; i++) {
+            bullets.spawn(player, WeaponId.P90, 0f);
+        }
+        assertEquals(CombatConfig.MAX_ACTIVE_PROJECTILES, bullets.count());
+
+        bullets.clear();
+        assertEquals(0, bullets.count());
+        assertTrue(bullets.active().isEmpty());
+    }
+
+    @Test
+    @DisplayName("the exposed round list is a read-only view")
+    void activeListIsUnmodifiable() {
+        Player player = shooter(500f, 100f, 0f);
+        bullets.spawn(player, WeaponId.SCAR_L, 0f);
+
+        List<Projectile> active = bullets.active();
+        assertEquals(1, active.size());
+        assertThrows(UnsupportedOperationException.class, active::clear,
+            "the active list must not be mutable from outside");
+    }
+
+    @Test
+    @DisplayName("ids are unique so the client can track a round across snapshots")
+    void roundIdsAreUnique() {
+        Player player = shooter(500f, 100f, 0f);
+        Projectile first = bullets.spawn(player, WeaponId.SCAR_L, 0f);
+        Projectile second = bullets.spawn(player, WeaponId.SCAR_L, 0f);
+
+        assertNotNull(first);
+        assertNotNull(second);
+        assertTrue(second.id > first.id);
+    }
+
+    @Test
+    @DisplayName("nothing spawns without a shooter or a weapon")
+    void degenerateSpawns() {
+        assertNull(bullets.spawn(null, WeaponId.SCAR_L, 0f));
+        assertNull(bullets.spawn(shooter(500f, 100f, 0f), null, 0f));
+        assertEquals(0, bullets.count());
+    }
+}
