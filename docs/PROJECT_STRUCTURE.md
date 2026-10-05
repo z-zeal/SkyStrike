@@ -1,7 +1,7 @@
 # Project File Structure
 
 > The full layout for a new build of the game: four modules, organised by system within each.
-> Base package throughout: `io.github.ZealStyx`.
+> Base package throughout: `io.github.skystrike`.
 
 ---
 
@@ -80,7 +80,7 @@ Enforce the two that matter with a build check: `server` must fail to compile if
 Plain Java. Every type here is used by both the server and the client. If only one side uses it, it does not belong here.
 
 ```
-shared/src/main/java/io/github/ZealStyx/shared/
+shared/src/main/java/io/github/skystrike/shared/
 │
 ├── config/                      Tuning constants, split by system
 │   ├── NetConfig                Ports, tick rate, timeouts, packet caps
@@ -180,7 +180,7 @@ shared/src/main/java/io/github/ZealStyx/shared/
 Headless, plain Java. No rendering, no game framework, no physics engine for the world.
 
 ```
-server/src/main/java/io/github/ZealStyx/server/
+server/src/main/java/io/github/skystrike/server/
 │
 ├── ServerLauncher               Entry point, argument parsing, stdin forwarding
 ├── GameServer                   Composition root and tick orchestration
@@ -273,7 +273,7 @@ server/src/main/java/io/github/ZealStyx/server/
 All client logic and rendering. Imports `shared` and the game framework. Imports nothing from `server`, nothing platform-specific.
 
 ```
-core/src/main/java/io/github/ZealStyx/
+core/src/main/java/io/github/skystrike/
 │
 ├── Main                         Application root, screen switching, platform injection
 ├── Assets                       Asset manager, load groups, handles
@@ -383,7 +383,7 @@ core/src/main/java/io/github/ZealStyx/
 ## 7. LAUNCHERS
 
 ```
-lwjgl3/src/main/java/io/github/ZealStyx/lwjgl3/
+lwjgl3/src/main/java/io/github/skystrike/lwjgl3/
 ├── Lwjgl3Launcher               Window config, entry point
 ├── StartupHelper                macOS thread handling
 └── platform/                    Desktop implementations of core/platform interfaces
@@ -392,7 +392,7 @@ lwjgl3/src/main/java/io/github/ZealStyx/lwjgl3/
     ├── DesktopKeyboardProvider
     └── DesktopDeviceInfo
 
-android/src/main/java/io/github/ZealStyx/android/
+android/src/main/java/io/github/skystrike/android/
 ├── AndroidLauncher              Activity, surface config
 └── platform/                    Android implementations of the same interfaces
     ├── AndroidAuthProvider
