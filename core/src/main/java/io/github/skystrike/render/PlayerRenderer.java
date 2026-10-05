@@ -5,13 +5,19 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.shared.config.PlayerConfig;
+import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.vision.SmokeVolume;
+import io.github.skystrike.shared.vision.VisionMath;
 import java.util.List;
 
 /**
  * Renders players, body rotation, crouch posture, team tint, jetpack flames and aim direction in
  * {@link RenderLayers#ENTITIES}.
+ *
+ * <p>Enemies outside line of sight or outside vision reach are culled from rendering to ensure
+ * they remain pure black / invisible behind fog and terrain.
  */
 public final class PlayerRenderer implements Disposable {
 
@@ -31,16 +37,23 @@ public final class PlayerRenderer implements Disposable {
     }
 
     /**
-     * Renders all active players in world space.
+     * Renders all active players in world space with line-of-sight visibility culling.
      */
-    public void render(GameCamera camera, List<Player> remotePlayers, Player localPlayer) {
+    public void render(
+            GameCamera camera,
+            List<Player> remotePlayers,
+            Player localPlayer,
+            ArenaMap map,
+            List<SmokeVolume> smokeVolumes) {
         shapes.setProjectionMatrix(camera.combined());
 
         // 1. Draw solid shapes (bodies, jetpacks, health bars)
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                drawPlayerFilled(p, false);
+                if (isPlayerVisibleToLocal(p, localPlayer, map, smokeVolumes)) {
+                    drawPlayerFilled(p, false);
+                }
             }
         }
         if (localPlayer != null) {
@@ -52,13 +65,30 @@ public final class PlayerRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                drawPlayerLines(p);
+                if (isPlayerVisibleToLocal(p, localPlayer, map, smokeVolumes)) {
+                    drawPlayerLines(p);
+                }
             }
         }
         if (localPlayer != null) {
             drawPlayerLines(localPlayer);
         }
         shapes.end();
+    }
+
+    private boolean isPlayerVisibleToLocal(
+            Player remote, Player local, ArenaMap map, List<SmokeVolume> smokeVolumes) {
+        if (local == null) {
+            return true;
+        }
+        if (remote.id == local.id) {
+            return true;
+        }
+        // Teammates always visible
+        if (remote.teamIndex == local.teamIndex && remote.teamIndex != 2) {
+            return true;
+        }
+        return VisionMath.canObserverSee(local, remote, map, smokeVolumes);
     }
 
     private void drawPlayerFilled(Player p, boolean isLocal) {
@@ -86,12 +116,15 @@ public final class PlayerRenderer implements Disposable {
 
         shapes.setColor(COLOR_JETPACK);
         shapes.rect(
-            jetpackWorldX - 3f, jetpackWorldY - halfH * 0.5f,
-            3f, halfH * 0.5f,
-            6f, height * 0.6f,
-            1f, 1f,
-            p.rotation
-        );
+                jetpackWorldX - 3f,
+                jetpackWorldY - halfH * 0.5f,
+                3f,
+                halfH * 0.5f,
+                6f,
+                height * 0.6f,
+                1f,
+                1f,
+                p.rotation);
 
         // Jetpack flame
         if (p.jetpacking && p.fuel > 0f) {
@@ -100,21 +133,26 @@ public final class PlayerRenderer implements Disposable {
             float flameBottomX = jetpackWorldX - (flameLen * sinR);
             float flameBottomY = jetpackWorldY - (flameLen * cosR);
             shapes.triangle(
-                jetpackWorldX - 3f * cosR, jetpackWorldY - 3f * sinR,
-                jetpackWorldX + 3f * cosR, jetpackWorldY + 3f * sinR,
-                flameBottomX, flameBottomY
-            );
+                    jetpackWorldX - 3f * cosR,
+                    jetpackWorldY - 3f * sinR,
+                    jetpackWorldX + 3f * cosR,
+                    jetpackWorldY + 3f * sinR,
+                    flameBottomX,
+                    flameBottomY);
         }
 
         // Body rectangle rotated around its center
         shapes.setColor(teamColor);
         shapes.rect(
-            centerX - halfW, centerY - halfH,
-            halfW, halfH,
-            width, height,
-            1f, 1f,
-            p.rotation
-        );
+                centerX - halfW,
+                centerY - halfH,
+                halfW,
+                halfH,
+                width,
+                height,
+                1f,
+                1f,
+                p.rotation);
 
         // Visor in head zone
         shapes.setColor(COLOR_VISOR);
@@ -123,12 +161,15 @@ public final class PlayerRenderer implements Disposable {
         float visorWorldX = centerX + (visorLocalX * cosR - visorLocalY * sinR);
         float visorWorldY = centerY + (visorLocalX * sinR + visorLocalY * cosR);
         shapes.rect(
-            visorWorldX, visorWorldY,
-            2f, 2f,
-            halfW * 0.5f, 4f,
-            1f, 1f,
-            p.rotation
-        );
+                visorWorldX,
+                visorWorldY,
+                2f,
+                2f,
+                halfW * 0.5f,
+                4f,
+                1f,
+                1f,
+                p.rotation);
 
         // Health bar above head (unrotated for readability)
         float barY = p.y + height + 6f;
