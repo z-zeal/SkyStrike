@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WeaponConfig;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.weapons.WeaponId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +42,7 @@ class RecoilServiceTest {
     @DisplayName("movement, air and burst each bend the multiplier the documented way")
     void multiplierRespondsToStance() {
         GunInstance gun = new GunInstance(WeaponId.SCAR_L);
-        WeaponStats.RecoilProfile profile = gun.stats().recoil();
+        WeaponDefinition.RecoilProfile profile = gun.definition().recoil();
 
         player.vx = 200f;
         assertEquals(profile.movingMultiplier(), recoil.multiplier(player, gun, false), EPSILON);
@@ -66,7 +67,7 @@ class RecoilServiceTest {
     @DisplayName("firing right pushes you left")
     void linearPushOpposesTheAim() {
         GunInstance gun = new GunInstance(WeaponId.AWP);
-        float impulse = gun.stats().recoil().linearImpulse();
+        float impulse = gun.definition().recoil().linearImpulse();
 
         player.aimAngle = 0f;
         recoil.apply(player, gun, player.aimAngle, 1f);
@@ -86,7 +87,7 @@ class RecoilServiceTest {
         float multiplier = recoil.applyVolley(player, gun, player.aimAngle, false);
 
         assertEquals(WeaponConfig.AIRBORNE_RECOIL_MULTIPLIER, multiplier, EPSILON);
-        float lift = gun.stats().recoil().linearImpulse() * multiplier;
+        float lift = gun.definition().recoil().linearImpulse() * multiplier;
         assertEquals(-200f + lift, player.vy, EPSILON);
         assertTrue(lift > 0f, "firing down must add upward velocity");
 
@@ -99,7 +100,7 @@ class RecoilServiceTest {
     @DisplayName("body torque follows the aim and the visual kick stays capped")
     void torqueAndVisualKick() {
         GunInstance gun = new GunInstance(WeaponId.AWP);
-        WeaponStats.RecoilProfile profile = gun.stats().recoil();
+        WeaponDefinition.RecoilProfile profile = gun.definition().recoil();
 
         recoil.apply(player, gun, 0f, 1f);
         assertEquals(profile.angularDegreesPerSecond(), player.angularVelocity, EPSILON);
@@ -138,7 +139,7 @@ class RecoilServiceTest {
         assertTrue(Math.abs(adsPlayer.vx) < Math.abs(hipPlayer.vx),
             "ADS " + adsPlayer.vx + " should shove less than hip " + hipPlayer.vx);
         assertEquals(
-            hipPlayer.vx * adsGun.stats().recoil().adsMultiplier(),
+            hipPlayer.vx * adsGun.definition().recoil().adsMultiplier(),
             adsPlayer.vx,
             0.5f);
     }

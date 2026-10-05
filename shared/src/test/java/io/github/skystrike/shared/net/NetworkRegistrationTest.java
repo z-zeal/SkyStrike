@@ -11,9 +11,11 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
+import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
@@ -22,6 +24,7 @@ import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.HashSet;
 import java.util.List;
@@ -61,7 +64,9 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(Player.class));
         assertTrue(NetworkRegistration.isSupportType(Projectile.class));
         assertTrue(NetworkRegistration.isSupportType(HitZone.class));
+        assertTrue(NetworkRegistration.isSupportType(PlayerLoadout.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
+        assertFalse(NetworkRegistration.isSupportType(PacketLoadoutUpdate.class));
     }
 
     @Test
@@ -76,14 +81,25 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    @DisplayName("the combat types added in Phase 3 are registered, and appended at the end")
-    void phaseThreeTypesAreAppended() {
+    @DisplayName("the combat types added in Phase 3 sit at their pinned positions")
+    void phaseThreeTypesArePinned() {
+        // Registration order is the wire format: these indices can never move again.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(Projectile.class, types.get(11));
+        assertEquals(HitZone.class, types.get(12));
+        assertEquals(PacketDamageEvent.class, types.get(13));
+        assertEquals(PacketKillEvent.class, types.get(14));
+    }
+
+    @Test
+    @DisplayName("the loadout types added in Phase 4 are registered, appended after Phase 3")
+    void phaseFourTypesAreAppended() {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         int size = types.size();
-        assertEquals(Projectile.class, types.get(size - 4));
-        assertEquals(HitZone.class, types.get(size - 3));
-        assertEquals(PacketDamageEvent.class, types.get(size - 2));
-        assertEquals(PacketKillEvent.class, types.get(size - 1));
+        assertEquals(PacketLoadoutUpdate.class, types.get(size - 3));
+        assertEquals(io.github.skystrike.shared.model.WeaponItem.class, types.get(size - 2));
+        assertEquals(PlayerLoadout.class, types.get(size - 1));
+        assertTrue(size >= 18, "Phase 4 must append, never replace");
     }
 
     @Test
@@ -113,7 +129,8 @@ class NetworkRegistrationTest {
 
         PacketPlayerInput input = roundTrip(new PacketPlayerInput(10L, 1.0f, true, false, true, true, false, 45f));
         assertEquals(10L, input.sequence);
-        assertEquals(PacketPlayerInput.NO_WEAPON_CHANGE, input.weaponSelect);
+        assertEquals(PacketPlayerInput.NO_SLOT_PRESS, input.slotPress);
+        assertEquals(-1L, input.slotPressSeq);
         assertEquals(1.0f, input.moveX);
         assertTrue(input.jump);
         assertFalse(input.crouch);
@@ -122,10 +139,19 @@ class NetworkRegistrationTest {
         assertFalse(input.fire);
         assertEquals(45f, input.aimAngle);
 
-        PacketPlayerInput withWeapon = roundTrip(
-            new PacketPlayerInput(11L, 0f, false, false, false, false, true, 0f, WeaponId.AWP.ordinal()));
-        assertTrue(withWeapon.fire);
-        assertEquals(WeaponId.AWP.ordinal(), withWeapon.weaponSelect);
+        PacketPlayerInput withPress =
+            new PacketPlayerInput(11L, 0f, false, false, false, false, true, 0f, PlayerLoadout.SLOT_MELEE);
+        withPress.slotPressSeq = 11L;
+        PacketPlayerInput decodedPress = roundTrip(withPress);
+        assertTrue(decodedPress.fire);
+        assertEquals(PlayerLoadout.SLOT_MELEE, decodedPress.slotPress);
+        assertEquals(11L, decodedPress.slotPressSeq);
+
+        PacketLoadoutUpdate loadout = roundTrip(
+            new PacketLoadoutUpdate(WeaponId.AWP.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.KATANA.ordinal()));
+        assertEquals(WeaponId.AWP.ordinal(), loadout.primary);
+        assertEquals(PacketLoadoutUpdate.KEEP_CURRENT, loadout.handgun);
+        assertEquals(MeleeId.KATANA.ordinal(), loadout.melee);
     }
 
     @Test
@@ -147,13 +173,21 @@ class NetworkRegistrationTest {
         p.vx = 50f;
         p.vy = -100f;
         p.rotation = 15f;
-        p.weaponId = WeaponId.AWP.ordinal();
+        p.weaponId = MeleeId.BASEBALL_BAT.wireId();
         p.spread = 1.25f;
         p.gunKick = 4.5f;
         p.kills = 3;
         p.deaths = 1;
         p.alive = false;
         p.respawnTimer = 2.5f;
+        p.loadout.primary.magazine = 3;
+        p.loadout.primary.reserve = 17;
+        p.loadout.handgun.magazine = 4;
+        p.loadout.melee = MeleeId.BASEBALL_BAT.ordinal();
+        p.loadout.activeSlot = PlayerLoadout.SLOT_MELEE;
+        p.loadout.quickSwapOrigin = PlayerLoadout.SLOT_PRIMARY;
+        p.loadout.reloading = true;
+        p.loadout.reloadTimer = 1.25f;
 
         Projectile round = new Projectile(9, 1, 0, WeaponId.AWP.ordinal(), 300f, 400f, 1500f, 20f);
         round.age = 0.25f;
@@ -168,7 +202,16 @@ class NetworkRegistrationTest {
         assertEquals(100f, state.players.get(0).x);
         assertEquals(200f, state.players.get(0).y);
         assertEquals(15f, state.players.get(0).rotation);
-        assertEquals(WeaponId.AWP.ordinal(), state.players.get(0).weaponId);
+        assertEquals(MeleeId.BASEBALL_BAT.wireId(), state.players.get(0).weaponId);
+        PlayerLoadout decodedLoadout = state.players.get(0).loadout;
+        assertEquals(3, decodedLoadout.primary.magazine);
+        assertEquals(17, decodedLoadout.primary.reserve);
+        assertEquals(4, decodedLoadout.handgun.magazine);
+        assertEquals(MeleeId.BASEBALL_BAT, decodedLoadout.meleeId());
+        assertEquals(PlayerLoadout.SLOT_MELEE, decodedLoadout.activeSlot);
+        assertEquals(PlayerLoadout.SLOT_PRIMARY, decodedLoadout.quickSwapOrigin);
+        assertTrue(decodedLoadout.reloading);
+        assertEquals(1.25f, decodedLoadout.reloadTimer, 1e-4f);
         assertEquals(1.25f, state.players.get(0).spread);
         assertEquals(4.5f, state.players.get(0).gunKick);
         assertEquals(3, state.players.get(0).kills);

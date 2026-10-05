@@ -3,17 +3,26 @@ package io.github.skystrike.server.player;
 import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.weapons.GunInstance;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.PlayerLoadout;
+import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.physics.PlayerInput;
+import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 
 /**
  * Server-side session binding a network {@link Connection} to its authoritative {@link Player}.
  *
- * <p>Also holds the live gun state and the <b>trigger edge</b>. The edge matters: input arrives
- * unreliably at roughly the frame rate while the simulation consumes one input per tick, so a
- * semi-automatic tap that starts and ends between two ticks would otherwise be swallowed. Every
- * arriving packet that raises {@code fire} latches a pending press, and the tick consumes it.
+ * <p>Also holds the live gun state, the melee swing clock, and the two <b>input edges</b> the
+ * tick loop consumes. The edges matter: input arrives unreliably at roughly the frame rate while
+ * the simulation consumes one input per tick, so a semi-automatic tap or a slot press that starts
+ * and ends between two ticks would otherwise be swallowed. Every arriving packet that raises
+ * {@code fire} latches a pending press, and one that carries {@code slotPress} replaces the
+ * pending press; the tick consumes them.
+ *
+ * <p>The requested loadout composition lives here as three ordinals, initialised to the standard
+ * loadout. A {@link PacketLoadoutUpdate} edits them; they are applied to the player at the next
+ * respawn, the one moment a loadout is legitimately rebuilt.
  */
 public final class PlayerSession {
 
@@ -28,13 +37,39 @@ public final class PlayerSession {
     private volatile boolean triggerHeld;
     private volatile boolean firePressedPending;
 
+    /**
+     * The slot-press latch. A press is an edge the client retransmits until the server
+     * acknowledges it, so the latch deduplicates by the press's birth sequence: each birth is
+     * latched at most once before the tick consumes it, and applied at most once ever.
+     */
+    private volatile int slotPressPending = PacketPlayerInput.NO_SLOT_PRESS;
+    private volatile long slotPressSeqPending = -1L;
+    private volatile long lastSlotPressSeqApplied = -1L;
+
+    /** The slot the gun state was last aligned with, so a change forces a fresh weapon. */
+    private int lastMirroredSlot;
+
+    private float meleeCooldownRemaining;
+
+    private int requestedPrimary;
+    private int requestedHandgun;
+    private int requestedMelee;
+
     public PlayerSession(Connection connection, int playerId, String name, int teamIndex, float spawnX, float spawnY) {
         this.connection = connection;
         this.playerId = playerId;
         this.name = name;
         this.player = new Player(playerId, name, teamIndex, spawnX, spawnY);
-        this.gun = new GunInstance(WeaponId.DEFAULT);
-        this.player.weaponId = gun.weaponId().ordinal();
+
+        PlayerLoadout loadout = player.loadout;
+        this.requestedPrimary = loadout.primary == null ? PacketLoadoutUpdate.KEEP_CURRENT : loadout.primary.weapon;
+        this.requestedHandgun = loadout.handgun == null ? PacketLoadoutUpdate.KEEP_CURRENT : loadout.handgun.weapon;
+        this.requestedMelee = loadout.melee;
+
+        WeaponId held = loadout.heldGunId();
+        this.gun = new GunInstance(held == null ? WeaponId.DEFAULT : held);
+        this.lastMirroredSlot = loadout.activeSlot;
+        this.player.weaponId = loadout.heldWeaponWireId();
         this.lastInputTimeMillis = System.currentTimeMillis();
     }
 
@@ -71,11 +106,17 @@ public final class PlayerSession {
             firePressedPending = true;
         }
         triggerHeld = packet.fire;
+        if (packet.slotPress != PacketPlayerInput.NO_SLOT_PRESS
+            && packet.slotPressSeq > lastSlotPressSeqApplied
+            && packet.slotPressSeq != slotPressSeqPending) {
+            slotPressPending = packet.slotPress;
+            slotPressSeqPending = packet.slotPressSeq;
+        }
         this.latestInput = PlayerInput.fromPacket(packet);
         this.lastInputTimeMillis = System.currentTimeMillis();
     }
 
-    /** True while the trigger is down. Drives automatic weapons. */
+    /** True while the trigger is down. Drives automatic weapons and melee swinging. */
     public boolean triggerHeld() {
         return triggerHeld;
     }
@@ -93,13 +134,125 @@ public final class PlayerSession {
         return true;
     }
 
-    /** Drops a pending press, used when the player dies holding the trigger. */
+    /**
+     * Returns the latched slot press and clears it, or {@code NO_SLOT_PRESS} when none is
+     * waiting or the latch holds an already-applied retransmission. Tick thread only — the tap
+     * rule must run exactly once per press.
+     */
+    public int consumeSlotPress() {
+        int press = slotPressPending;
+        long seq = slotPressSeqPending;
+        slotPressPending = PacketPlayerInput.NO_SLOT_PRESS;
+        slotPressSeqPending = -1L;
+        if (press == PacketPlayerInput.NO_SLOT_PRESS || seq <= lastSlotPressSeqApplied) {
+            return PacketPlayerInput.NO_SLOT_PRESS;
+        }
+        lastSlotPressSeqApplied = seq;
+        return press;
+    }
+
+    /** Drops every pending edge, used when the player dies or respawns holding the mouse. */
     public void clearTrigger() {
         firePressedPending = false;
         triggerHeld = false;
+        slotPressPending = PacketPlayerInput.NO_SLOT_PRESS;
+        slotPressSeqPending = -1L;
     }
 
     public long lastInputTimeMillis() {
         return lastInputTimeMillis;
+    }
+
+    // --- Melee clock ----------------------------------------------------------------------------
+
+    /** Ticks the swing cooldown; swings are legal only when it has elapsed. */
+    public void tickMeleeCooldown(float dt) {
+        if (dt > 0f) {
+            meleeCooldownRemaining = Math.max(0f, meleeCooldownRemaining - dt);
+        }
+    }
+
+    public boolean meleeSwingReady() {
+        return meleeCooldownRemaining <= 0f;
+    }
+
+    /** Starts the weapon's swing cooldown after a swing. */
+    public void startMeleeCooldown(float seconds) {
+        meleeCooldownRemaining = Math.max(0f, seconds);
+    }
+
+    public void resetMeleeCooldown() {
+        meleeCooldownRemaining = 0f;
+    }
+
+    public float meleeCooldownRemaining() {
+        return meleeCooldownRemaining;
+    }
+
+    // --- Live-state mirroring --------------------------------------------------------------------
+
+    /** The loadout slot the gun state was last aligned with. */
+    public int lastMirroredSlot() {
+        return lastMirroredSlot;
+    }
+
+    public void setLastMirroredSlot(int slot) {
+        this.lastMirroredSlot = slot;
+    }
+
+    // --- Loadout composition ----------------------------------------------------------------------
+
+    /**
+     * Records a requested composition change. {@code KEEP_CURRENT} components are left alone.
+     * The request takes effect at the next respawn — mid-life re-arming is not a thing.
+     */
+    public void requestLoadout(int primaryOrdinal, int handgunOrdinal, int meleeOrdinal) {
+        if (primaryOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedPrimary = primaryOrdinal;
+        }
+        if (handgunOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedHandgun = handgunOrdinal;
+        }
+        if (meleeOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedMelee = meleeOrdinal;
+        }
+    }
+
+    /**
+     * Rebuilds the player's loadout from the requested composition, with full magazines. Called
+     * by the respawn flow, after the position and health reset.
+     *
+     * @return true when any component actually changed
+     */
+    public boolean applyRequestedLoadout() {
+        PlayerLoadout loadout = player.loadout;
+        WeaponId before1 = loadout.primary == null ? null : loadout.primary.weaponId();
+        WeaponId before2 = loadout.handgun == null ? null : loadout.handgun.weaponId();
+        MeleeId before3 = loadout.meleeId();
+
+        WeaponId primaryId = WeaponId.isValidOrdinal(requestedPrimary)
+            ? WeaponId.fromOrdinal(requestedPrimary) : null;
+        WeaponId handgunId = WeaponId.isValidOrdinal(requestedHandgun)
+            ? WeaponId.fromOrdinal(requestedHandgun) : null;
+        MeleeId meleeId = MeleeId.isValidOrdinal(requestedMelee)
+            ? MeleeId.fromOrdinal(requestedMelee) : null;
+        loadout.setComposition(primaryId, handgunId, meleeId);
+        loadout.resetForRespawn();
+
+        WeaponId after1 = loadout.primary == null ? null : loadout.primary.weaponId();
+        WeaponId after2 = loadout.handgun == null ? null : loadout.handgun.weaponId();
+        return before1 != after1 || before2 != after2 || before3 != loadout.meleeId();
+    }
+
+    public int requestedPrimary() {
+        return requestedPrimary;
+    }
+
+    public int requestedHandgun() {
+        return requestedHandgun;
+    }
+
+    public int requestedMelee() {
+        return requestedMelee;
     }
 }

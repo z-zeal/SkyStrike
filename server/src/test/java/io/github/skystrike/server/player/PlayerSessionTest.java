@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.weapons.WeaponId;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,16 +106,45 @@ class PlayerSessionTest {
     }
 
     @Test
-    @DisplayName("the requested weapon rides along with the input")
-    void weaponSelectionTravelsWithInput() {
+    @DisplayName("the requested slot press rides along with the input")
+    void slotPressTravelsWithInput() {
         PacketPlayerInput packet = new PacketPlayerInput(
-            1L, 0f, false, false, false, false, false, 0f, WeaponId.AWP.ordinal());
+            1L, 0f, false, false, false, false, false, 0f, PlayerLoadout.SLOT_MELEE);
+        packet.slotPressSeq = 1L; // the client stamps every press with its birth sequence
         session.setInput(packet);
 
-        assertEquals(WeaponId.AWP.ordinal(), session.latestInput().weaponSelect);
+        assertEquals(PlayerLoadout.SLOT_MELEE, session.latestInput().slotPress);
         assertEquals(
-            PacketPlayerInput.NO_WEAPON_CHANGE,
-            new PacketPlayerInput().weaponSelect,
-            "an input with no selection must not silently pick weapon zero");
+            PacketPlayerInput.NO_SLOT_PRESS,
+            new PacketPlayerInput().slotPress,
+            "an input with no press must not silently trigger slot 3 (or any slot)");
+        assertEquals(PlayerLoadout.SLOT_MELEE, session.consumeSlotPress());
+        assertEquals(PacketPlayerInput.NO_SLOT_PRESS, session.consumeSlotPress(),
+            "a press is consumed exactly once");
+    }
+
+    @Test
+    @DisplayName("a retransmitted slot press is applied exactly once, by birth sequence")
+    void retransmittedSlotPressIsDeduplicated() {
+        // The client repeats a press (same birth sequence) until it is acknowledged.
+        for (int i = 0; i < 3; i++) {
+            PacketPlayerInput packet = new PacketPlayerInput(
+                10L + i, 0f, false, false, false, false, false, 0f, PlayerLoadout.SLOT_HANDGUN);
+            packet.slotPressSeq = 10L;
+            session.setInput(packet);
+        }
+
+        assertEquals(PlayerLoadout.SLOT_HANDGUN, session.consumeSlotPress(),
+            "the press reaches the tick once");
+        assertEquals(PacketPlayerInput.NO_SLOT_PRESS, session.consumeSlotPress(),
+            "and retransmissions of the same birth never re-fire it");
+        assertEquals(PacketPlayerInput.NO_SLOT_PRESS, session.consumeSlotPress());
+
+        // A genuinely new press (new birth sequence) must latch again.
+        PacketPlayerInput next = new PacketPlayerInput(
+            20L, 0f, false, false, false, false, false, 0f, PlayerLoadout.SLOT_PRIMARY);
+        next.slotPressSeq = 20L;
+        session.setInput(next);
+        assertEquals(PlayerLoadout.SLOT_PRIMARY, session.consumeSlotPress());
     }
 }

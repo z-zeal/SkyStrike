@@ -32,6 +32,14 @@ public final class WeaponConfig {
     /** Upper bound on the rounds one trigger event can produce (6 pellets is the worst case). */
     public static final int MAX_SHOTS_PER_VOLLEY = 8;
 
+    // --- Melee (mechanics §5.2) ----------------------------------------------------------------
+    /**
+     * Half-angle of the melee arc, measured from the attacker's aim: a swing reaches
+     * ±60°, or a 120° wedge in front of the player. The per-weapon numbers (damage, cadence,
+     * range, knockback) live in {@code MeleeRegistry}.
+     */
+    public static final float MELEE_ARC_HALF_ANGLE_DEGREES = 60f;
+
     // --- Spread (mechanics §4.3) --------------------------------------------------------------
     /** Moving while aiming is less punishing than moving while hip firing. */
     public static final float MOVING_ADS_SPREAD_FACTOR = 0.6f;
