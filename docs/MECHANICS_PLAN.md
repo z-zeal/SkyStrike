@@ -86,7 +86,7 @@ Because the head zone is a fraction of *current* height, crouching lowers the he
 Bullets are physical travelling projectiles, not instant hitscan. They have muzzle speed, drop, drag and damage falloff, so leading a moving target at range is a real skill.
 
 - Each weapon has a bullet speed from 520 (snub pistols) to 1820 (the Cathedral sniper rifle), clamped to the 520–1950 band.
-- Bullets drop under a per-class gravity: snipers 1.0, DMRs 1.8, rifles 2.5, SMGs/PDWs 3.5, pistols and revolvers 4.0, shotguns 5.0. Gravity ramps in over a short time (0.5–1.8 s depending on weapon) so bullets fly flat at close range and arc at distance.
+- Bullets drop under a per-class gravity: snipers 1.0, DMRs 1.8, rifles 2.5, SMGs/PDWs 3.5, pistols and revolvers 4.0, shotguns 5.0. Gravity ramps in over a short time (0.5–1.8 s depending on weapon) so bullets fly flat at close range and arc at distance. For the big map the gravity scale is halved, and rounds past maximum range keep flying at floor damage (up to 4× range, 6 s airborne) instead of vanishing mid-air.
 - A per-shot drag coefficient (0.980 on the slowest shotguns and pistols up to 0.998 on the fastest snipers) bleeds velocity over distance.
 - **Damage falls off linearly with distance travelled**, from full damage at the muzzle down to a per-weapon minimum ratio at maximum range: sawed-off shotguns decay to 35%, SMGs to ~42–50%, pistols to ~55%, rifles to ~70%, DMRs to ~75%, snipers to 80%. A sniper keeps almost all its damage at any range; the Short Gospel is useless beyond a couple of body lengths.
 - Very fast projectiles must never tunnel through thin geometry — above roughly 100 units/s, sweep the path from the previous position to the new one each tick rather than testing a point.
