@@ -1,8 +1,12 @@
 package io.github.skystrike.server;
-
-/** Launches the server application. */
+import io.github.skystrike.server.sim.TickLoop;
 public class ServerLauncher {
-    public static void main(String[] args) {
-        // TODO Implement server application.
+    public static void main(String[] args){
+        TickLoop loop=new TickLoop(()->{
+        }
+        );
+        Runtime.getRuntime().addShutdownHook(new Thread(loop::stop));
+        System.out.println("SkyStrike server: 60 Hz authoritative tick loop");
+        loop.run();
     }
 }
