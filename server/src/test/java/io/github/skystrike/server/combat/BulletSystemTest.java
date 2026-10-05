@@ -134,24 +134,35 @@ class BulletSystemTest {
     @Test
     @DisplayName("damage falls off with the path actually flown")
     void distantHitsHurtLess() {
-        Player near = new Player(2, "Near", 1, 500f, 100f);
-        Player far = new Player(3, "Far", 1, 900f, 100f);
-        Player player = shooter(400f, 100f, 0f);
+        // Fought in open air at y = 1200: the ground lane is full of crates from x = 820 on, and
+        // a round that stops in a crate proves nothing about falloff. The shooter sits twelve
+        // units below the targets so both rounds arrive in the body zone — comparing a close
+        // headshot against a distant body shot would measure the zone multiplier instead.
+        Player near = new Player(2, "Near", 1, 500f, 1200f);
+        Player far = new Player(3, "Far", 1, 1000f, 1200f);
+        Player player = shooter(300f, 1188f, 0f);
 
         bullets.spawn(player, WeaponId.SCAR_L, 0f);
         for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player, near), damage);
         }
-        float nearDamage = damage.drain().get(0).amount();
+        List<DamageService.DamageResult> nearResults = damage.drain();
+        assertEquals(1, nearResults.size(), "the near round must connect");
+        DamageService.DamageResult nearHit = nearResults.get(0);
 
         bullets.spawn(player, WeaponId.SCAR_L, 0f);
         for (int tick = 0; tick < 60 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player, far), damage);
         }
-        float farDamage = damage.drain().get(0).amount();
+        List<DamageService.DamageResult> farResults = damage.drain();
+        assertEquals(1, farResults.size(), "the far round must connect too");
+        DamageService.DamageResult farHit = farResults.get(0);
 
-        assertTrue(farDamage < nearDamage,
-            "near " + nearDamage + " should beat far " + farDamage);
+        assertEquals(nearHit.zone(), farHit.zone(), "like for like");
+        assertTrue(farHit.distanceTravelled() > nearHit.distanceTravelled(),
+            "the far round flew further: " + farHit.distanceTravelled());
+        assertTrue(farHit.amount() < nearHit.amount(),
+            "near " + nearHit.amount() + " should beat far " + farHit.amount());
     }
 
     @Test

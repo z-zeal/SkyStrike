@@ -14,6 +14,13 @@ import java.util.Collection;
  */
 public final class RespawnService {
 
+    /**
+     * Subtracting 1/60 from 3.0 sixty times a second does not land on exactly zero — float
+     * rounding leaves a few hundred-millionths behind, which would hold a player dead for one
+     * extra tick. The timer is considered spent once it is within this much of zero.
+     */
+    private static final float TIMER_EPSILON = 1e-4f;
+
     private final SpawnService spawnService;
     private final float respawnDelaySeconds;
 
@@ -37,7 +44,7 @@ public final class RespawnService {
                 continue;
             }
             player.respawnTimer -= dt;
-            if (player.respawnTimer <= 0f) {
+            if (player.respawnTimer <= TIMER_EPSILON) {
                 respawn(player);
                 respawned++;
             }
