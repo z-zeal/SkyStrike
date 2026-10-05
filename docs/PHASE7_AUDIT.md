@@ -186,7 +186,23 @@ So the honest sequencing recommendation is:
 
 ---
 
-## 6. Verification note
+## 6. Progress since this audit
+
+| Slice | State |
+| --- | --- |
+| Console plan build-order Phase 2 — chat transport and server authority | Implemented: `ChatMessage`, `PacketChatRequest`, `PacketChatMessage`, `server/chat/{ChatService,ChatModeration,ChatHistory}`, `ChatRequestHandler`, `core/chat/{ChatClient,ChatMuteList}` |
+| Console plan build-order Phase 3 — capabilities | Implemented: `shared/command/{Permission,ConsoleAccess}`, `PacketCapabilities`, `server/command/{PermissionResolver,CapabilityBroadcaster}`, `core/command/ClientCapabilities` |
+
+`TextSanitizer` and `RateLimiter` are no longer dead code — the relay is their only caller.
+`PROTOCOL_VERSION` moved 4 → 5. §3.3 and §3.4 above describe the state *before* this work; the
+rest of §3 still stands.
+
+Still outstanding for Phase 7: the HUD in full (§3.1), the dialog in full (§3.2), and build-order
+Phases 4–9 (§3.5).
+
+---
+
+## 7. Verification note
 
 No Java was compiled or executed locally while producing this audit — there is no JDK in the
 authoring sandbox. Everything above is a source-tree and documentation comparison. Compilation and

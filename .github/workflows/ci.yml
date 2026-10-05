@@ -5,6 +5,10 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ "**" ]
+  # Hosted runner acquisition fails occasionally ("the job was not acquired by Runner of type
+  # hosted"), which is an infrastructure outcome rather than a result. Without this, re-running
+  # a build that never actually ran requires an empty commit.
+  workflow_dispatch:
 
 jobs:
   build-and-test:
