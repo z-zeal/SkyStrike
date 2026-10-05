@@ -13,7 +13,10 @@ eclipse.project.name = appName + '-server'
 
 dependencies {
   implementation project(':shared')
-  testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+  testImplementation platform('org.junit:junit-bom:5.10.2')
+  testImplementation 'org.junit.jupiter:junit-jupiter'
+  // Gradle 9 no longer leaks its own launcher onto the test runtime classpath.
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 test { useJUnitPlatform() }

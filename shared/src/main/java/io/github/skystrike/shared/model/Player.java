@@ -3,6 +3,7 @@ package io.github.skystrike.shared.model;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
+import io.github.skystrike.shared.weapons.WeaponId;
 
 /**
  * Full state record for a networked player character.
@@ -35,6 +36,26 @@ public final class Player {
 
     public float coyoteTimer;
     public long lastProcessedInputSequence;
+
+    // --- Combat state (Phase 3) ---------------------------------------------------------------
+
+    /** False between death and respawn: no input, no fire, not a valid target. */
+    public boolean alive = true;
+
+    /** Seconds left before respawn while dead. */
+    public float respawnTimer;
+
+    /** Ordinal of the held {@link io.github.skystrike.shared.weapons.WeaponId}. */
+    public int weaponId;
+
+    /** Live spread cone in degrees, for the crosshair and the debug readout. */
+    public float spread;
+
+    /** Visual gun-angle kick in degrees, decaying at 120 deg/s. Rendering only. */
+    public float gunKick;
+
+    public int kills;
+    public int deaths;
 
     public Player() {
     }
@@ -70,6 +91,13 @@ public final class Player {
         this.ads = other.ads;
         this.coyoteTimer = other.coyoteTimer;
         this.lastProcessedInputSequence = other.lastProcessedInputSequence;
+        this.alive = other.alive;
+        this.respawnTimer = other.respawnTimer;
+        this.weaponId = other.weaponId;
+        this.spread = other.spread;
+        this.gunKick = other.gunKick;
+        this.kills = other.kills;
+        this.deaths = other.deaths;
     }
 
     public Player copy() {
@@ -104,6 +132,16 @@ public final class Player {
         return Math.cos(Angles.toRadians(aimAngle)) >= 0;
     }
 
+    /** The weapon currently held. */
+    public WeaponId weapon() {
+        return WeaponId.fromOrdinal(weaponId);
+    }
+
+    /** Aim angle plus the visual recoil kick — what the gun is drawn at, not what it hits. */
+    public float renderedGunAngle() {
+        return Angles.wrap(aimAngle + gunKick);
+    }
+
     @Override
     public String toString() {
         return "Player[id=" + id
@@ -116,6 +154,8 @@ public final class Player {
             + ", fuel=" + String.format("%.1f", fuel)
             + ", health=" + String.format("%.1f", health)
             + ", grounded=" + grounded
-            + ", crouched=" + crouched + "]";
+            + ", crouched=" + crouched
+            + ", alive=" + alive
+            + ", weapon=" + weapon() + "]";
     }
 }

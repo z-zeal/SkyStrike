@@ -8,8 +8,14 @@ package io.github.skystrike.shared.config;
  */
 public final class NetConfig {
 
-    /** Bumped whenever the packet set or its registration order changes. */
-    public static final int PROTOCOL_VERSION = 2;
+    /**
+     * Bumped whenever the packet set or its registration order changes.
+     *
+     * <p>3 — Phase 3 combat: {@code Projectile}, {@code HitZone}, {@code PacketDamageEvent} and
+     * {@code PacketKillEvent} registered; rounds in flight added to the state snapshot and a
+     * weapon selection field added to the input packet.
+     */
+    public static final int PROTOCOL_VERSION = 3;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

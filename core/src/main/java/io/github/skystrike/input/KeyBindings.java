@@ -32,6 +32,10 @@ public final class KeyBindings {
     public int slot4 = Input.Keys.NUM_4;
     public int slot5 = Input.Keys.NUM_5;
 
+    /** Weapon cycling. Phase 4 gives these slots a real loadout; until then they walk the table. */
+    public int weaponPrev = Input.Keys.LEFT_BRACKET;
+    public int weaponNext = Input.Keys.RIGHT_BRACKET;
+
     public int gadgetQ = Input.Keys.Q;
     public int gadgetE = Input.Keys.E;
     public int viewCycle = Input.Keys.NUM_6;
@@ -68,5 +72,15 @@ public final class KeyBindings {
 
     public boolean isAdsPressed() {
         return Gdx.input.isButtonPressed(adsButton);
+    }
+
+    /** Edge-triggered: true only on the frame the key goes down. */
+    public boolean isWeaponPrevJustPressed() {
+        return Gdx.input.isKeyJustPressed(weaponPrev);
+    }
+
+    /** Edge-triggered: true only on the frame the key goes down. */
+    public boolean isWeaponNextJustPressed() {
+        return Gdx.input.isKeyJustPressed(weaponNext);
     }
 }

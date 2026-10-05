@@ -5,10 +5,17 @@ import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
+import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
+import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -25,6 +32,12 @@ public final class ClientSession {
 
     private static final float PING_INTERVAL_SECONDS = 1f;
 
+    /** How many kill feed entries the client keeps. The HUD shows fewer; Phase 7 owns that. */
+    private static final int KILL_FEED_CAPACITY = 8;
+
+    /** How long a hit marker stays lit, in seconds. */
+    private static final float HIT_MARKER_SECONDS = 0.35f;
+
     private final NetworkClient client = new NetworkClient();
     private final String playerName;
 
@@ -39,6 +52,15 @@ public final class ClientSession {
     private int latencyMillis = -1;
     private PacketGameState latestSnapshot;
     private Consumer<PacketGameState> snapshotListener;
+    private Consumer<PacketDamageEvent> damageListener;
+    private Consumer<PacketKillEvent> killListener;
+
+    private final Deque<PacketKillEvent> killFeed = new ArrayDeque<>();
+    private PacketDamageEvent lastDamageDealt;
+    private PacketDamageEvent lastDamageTaken;
+    private float hitMarkerTimer;
+    private boolean hitMarkerHeadshot;
+    private boolean hitMarkerLethal;
 
     private float sincePing;
 
@@ -72,6 +94,16 @@ public final class ClientSession {
         this.snapshotListener = listener;
     }
 
+    /** Called on the render thread for every damage event this client is party to. */
+    public void setDamageListener(Consumer<PacketDamageEvent> listener) {
+        this.damageListener = listener;
+    }
+
+    /** Called on the render thread for every kill in the match. */
+    public void setKillListener(Consumer<PacketKillEvent> listener) {
+        this.killListener = listener;
+    }
+
     public PacketGameState latestSnapshot() {
         return latestSnapshot;
     }
@@ -79,6 +111,10 @@ public final class ClientSession {
     /** Drains the inbound queue and keeps the latency probe ticking. Render thread only. */
     public void update(float delta) {
         client.drain(this::apply);
+
+        if (hitMarkerTimer > 0f) {
+            hitMarkerTimer = Math.max(0f, hitMarkerTimer - delta);
+        }
 
         if (state == ConnectionState.JOINED) {
             sincePing += delta;
@@ -131,10 +167,77 @@ public final class ClientSession {
             if (snapshotListener != null) {
                 snapshotListener.accept(snapshot);
             }
+        } else if (payload instanceof PacketDamageEvent damage) {
+            applyDamageEvent(damage);
+        } else if (payload instanceof PacketKillEvent kill) {
+            killFeed.addLast(kill);
+            while (killFeed.size() > KILL_FEED_CAPACITY) {
+                killFeed.removeFirst();
+            }
+            if (killListener != null) {
+                killListener.accept(kill);
+            }
         } else if (payload instanceof PacketPong pong) {
             serverTick = pong.serverTick;
             latencyMillis = (int) (System.currentTimeMillis() - pong.clientTimeMillis);
         }
+    }
+
+    /**
+     * Records a damage event.
+     *
+     * <p>The server sends each event to both parties, so the same packet can be "I hit someone"
+     * and "someone hit me" — and with self-damage on it can be both at once. The hit marker only
+     * lights for damage this client actually dealt to somebody else.
+     */
+    private void applyDamageEvent(PacketDamageEvent damage) {
+        if (damage.attackerId == playerId) {
+            lastDamageDealt = damage;
+            if (damage.targetId != playerId) {
+                hitMarkerTimer = HIT_MARKER_SECONDS;
+                hitMarkerHeadshot = damage.isHeadshot();
+                hitMarkerLethal = damage.killed;
+            }
+        }
+        if (damage.targetId == playerId) {
+            lastDamageTaken = damage;
+        }
+        if (damageListener != null) {
+            damageListener.accept(damage);
+        }
+    }
+
+    /** Most recent kills first. */
+    public List<PacketKillEvent> killFeed() {
+        List<PacketKillEvent> entries = new ArrayList<>(killFeed);
+        Collections.reverse(entries);
+        return entries;
+    }
+
+    public PacketDamageEvent lastDamageDealt() {
+        return lastDamageDealt;
+    }
+
+    public PacketDamageEvent lastDamageTaken() {
+        return lastDamageTaken;
+    }
+
+    /** True while the hit marker should be drawn. */
+    public boolean hitMarkerActive() {
+        return hitMarkerTimer > 0f;
+    }
+
+    /** Hit marker fade, 1 at the moment of the hit down to 0. */
+    public float hitMarkerAlpha() {
+        return hitMarkerTimer / HIT_MARKER_SECONDS;
+    }
+
+    public boolean hitMarkerHeadshot() {
+        return hitMarkerActive() && hitMarkerHeadshot;
+    }
+
+    public boolean hitMarkerLethal() {
+        return hitMarkerActive() && hitMarkerLethal;
     }
 
     private void resetSessionState() {
@@ -144,6 +247,12 @@ public final class ClientSession {
         latencyMillis = -1;
         latestSnapshot = null;
         sincePing = 0f;
+        killFeed.clear();
+        lastDamageDealt = null;
+        lastDamageTaken = null;
+        hitMarkerTimer = 0f;
+        hitMarkerHeadshot = false;
+        hitMarkerLethal = false;
     }
 
     /** Tells the server we are leaving, then tears the transport down. */

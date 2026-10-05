@@ -14,15 +14,19 @@ import io.github.skystrike.net.LocalPrediction;
 import io.github.skystrike.net.StateBuffer;
 import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.render.PlayerRenderer;
+import io.github.skystrike.render.ProjectileRenderer;
 import io.github.skystrike.render.StatusOverlay;
+import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
+import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.world.TerrainRenderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +46,7 @@ public final class GameScreen implements Screen {
     private final GameCamera camera = new GameCamera(arena.width(), arena.height());
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
     private final PlayerRenderer playerRenderer = new PlayerRenderer();
+    private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
     private final StatusOverlay overlay = new StatusOverlay();
     private final ClientSession session;
 
@@ -69,6 +74,7 @@ public final class GameScreen implements Screen {
         this.udpPort = udpPort;
 
         this.session.setSnapshotListener(this::onGameStateSnapshot);
+        this.session.setKillListener(this::onKillEvent);
     }
 
     private void onGameStateSnapshot(PacketGameState snapshot) {
@@ -83,6 +89,10 @@ public final class GameScreen implements Screen {
                 }
             }
         }
+    }
+
+    private void onKillEvent(PacketKillEvent kill) {
+        Gdx.app.log("SkyStrike", kill.feedLine());
     }
 
     @Override
@@ -125,14 +135,16 @@ public final class GameScreen implements Screen {
             showSdfDebug = !showSdfDebug;
         }
 
-        // 3. Interpolate remote player states
+        // 3. Interpolate remote player and projectile states
         List<Player> remotePlayers = interpolator.interpolateRemotePlayers(session.playerId());
+        List<Projectile> projectiles = interpolator.interpolateProjectiles();
 
         // 4. Multi-pass rendering pipeline (effects §5)
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
         pipeline.beginScene();
         terrain.render(camera);
         playerRenderer.render(camera, remotePlayers, localPlayer);
+        projectileRenderer.render(camera, projectiles);
         pipeline.endScene();
 
         // Pass 2: VISIBILITY (Observers + SDF Soft Shadows into half-res visibility buffer)
@@ -152,7 +164,7 @@ public final class GameScreen implements Screen {
         }
 
         // Pass 5: HUD & OVERLAY (drawn unoccluded over composite)
-        overlay.render(statusLines(localPlayer, visionReach));
+        overlay.render(statusLines(localPlayer, visionReach, projectiles.size()));
     }
 
     private void sampleCameraInput(float delta) {
@@ -182,9 +194,9 @@ public final class GameScreen implements Screen {
         }
     }
 
-    private List<String> statusLines(Player localPlayer, float visionReach) {
+    private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike — Phase 2 (Vision & Fog of War)");
+        lines.add("SkyStrike — Phase 3 (Combat Core)");
         lines.add("server: " + session.statusLine());
         if (localPlayer != null) {
             lines.add(String.format(
@@ -207,6 +219,22 @@ public final class GameScreen implements Screen {
                     VisionConfig.FEATHER_ANGLE_DEGREES,
                     VisionConfig.AMBIENT_FLOOR,
                     localPlayer.ads ? "[ADS]" : "[HIP]"));
+            lines.add(String.format(
+                    "combat: %s  hp %.0f/%.0f  spread %.2f°  kick %.1f°  %d-%d  rounds %d%s",
+                    localPlayer.weapon().displayName(),
+                    localPlayer.health,
+                    CombatConfig.MAX_HEALTH,
+                    localPlayer.spread,
+                    localPlayer.gunKick,
+                    localPlayer.kills,
+                    localPlayer.deaths,
+                    projectileCount,
+                    localPlayer.alive
+                        ? ""
+                        : String.format("  [DEAD — respawn in %.1fs]", localPlayer.respawnTimer)));
+            for (PacketKillEvent kill : session.killFeed()) {
+                lines.add("  " + kill.feedLine());
+            }
         } else {
             lines.add(String.format(
                     "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
@@ -217,7 +245,8 @@ public final class GameScreen implements Screen {
                     arena.height(),
                     arena.solids().size()));
         }
-        lines.add("A/D move  W jump  Space jetpack  S crouch  RMB aim/ADS  F1 SDF debug");
+        lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
+            + "  [ / ] weapon  F1 SDF debug");
         return lines;
     }
 
@@ -247,6 +276,7 @@ public final class GameScreen implements Screen {
         session.disconnect();
         terrain.dispose();
         playerRenderer.dispose();
+        projectileRenderer.dispose();
         overlay.dispose();
         if (pipeline != null) {
             pipeline.dispose();

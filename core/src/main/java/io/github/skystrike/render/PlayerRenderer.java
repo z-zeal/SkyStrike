@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
+import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
@@ -16,6 +17,11 @@ import java.util.List;
  * <p>Every player received in a snapshot is drawn into the scene. The lighting composite then
  * shades the complete player continuously, just like terrain, instead of abruptly adding or
  * removing the player when a visibility threshold is crossed.
+ *
+ * <p>Corpses are the one exception: a dead player is not drawn at all. Combat state reaches the
+ * renderer the same way position does — through the snapshot — so the barrel is drawn at
+ * {@link Player#renderedGunAngle()} rather than the raw aim. That is the aim plus the recoil
+ * kick, and it is what makes a burst look like it climbs.
  */
 public final class PlayerRenderer implements Disposable {
 
@@ -42,10 +48,12 @@ public final class PlayerRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                drawPlayerFilled(p);
+                if (p.alive) {
+                    drawPlayerFilled(p);
+                }
             }
         }
-        if (localPlayer != null) {
+        if (localPlayer != null && localPlayer.alive) {
             drawPlayerFilled(localPlayer);
         }
         shapes.end();
@@ -54,10 +62,12 @@ public final class PlayerRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                drawPlayerLines(p);
+                if (p.alive) {
+                    drawPlayerLines(p);
+                }
             }
         }
-        if (localPlayer != null) {
+        if (localPlayer != null && localPlayer.alive) {
             drawPlayerLines(localPlayer);
         }
         shapes.end();
@@ -158,11 +168,12 @@ public final class PlayerRenderer implements Disposable {
     private void drawPlayerLines(Player p) {
         float eyeX = p.eyeX();
         float eyeY = p.eyeY();
-        float aimRad = Angles.toRadians(p.aimAngle);
-        float barrelLen = 22f;
+        // Aim plus visual recoil: the barrel climbs, the crosshair does not.
+        float gunRad = Angles.toRadians(p.renderedGunAngle());
+        float barrelLen = CombatConfig.MUZZLE_OFFSET;
 
-        float gunEndX = eyeX + barrelLen * (float) Math.cos(aimRad);
-        float gunEndY = eyeY + barrelLen * (float) Math.sin(aimRad);
+        float gunEndX = eyeX + barrelLen * (float) Math.cos(gunRad);
+        float gunEndY = eyeY + barrelLen * (float) Math.sin(gunRad);
 
         // Gun barrel pointing at 360° aim
         shapes.setColor(COLOR_GUN);

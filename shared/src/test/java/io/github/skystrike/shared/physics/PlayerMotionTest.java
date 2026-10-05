@@ -107,7 +107,10 @@ class PlayerMotionTest {
     @Test
     @DisplayName("jetpack fuel recharges at 20/s only while grounded")
     void jetpackFuelRechargesGroundedOnly() {
-        Player airPlayer = new Player(1, "Air", 0, 500f, 500f);
+        // High enough to still be falling a second later: gravity is 800 u/s^2, so the drop over
+        // the measured second is about 400 units. Starting at y = 500 landed this player on a
+        // ramp step half way through the test, and it recharged on the way.
+        Player airPlayer = new Player(1, "Air", 0, 500f, 1500f);
         airPlayer.grounded = false;
         airPlayer.fuel = 50f;
 

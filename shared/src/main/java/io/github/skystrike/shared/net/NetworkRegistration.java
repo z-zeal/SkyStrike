@@ -1,14 +1,18 @@
 package io.github.skystrike.shared.net;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
+import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +48,13 @@ public final class NetworkRegistration {
         // Phase 1: Player input and state types (append-only)
         PacketPlayerInput.class,
         Player.class,
-        ArrayList.class);
+        ArrayList.class,
+
+        // Phase 3: Combat — rounds in flight, damage and kills (append-only)
+        Projectile.class,
+        HitZone.class,
+        PacketDamageEvent.class,
+        PacketKillEvent.class);
 
     private NetworkRegistration() {
     }
@@ -64,5 +74,16 @@ public final class NetworkRegistration {
     /** The canonical list, in registration order. Exposed so tests can assert on it. */
     public static List<Class<?>> registeredTypes() {
         return TYPES;
+    }
+
+    /**
+     * True when {@code type} is a payload carried <i>inside</i> a packet rather than a packet
+     * itself — the state records and the collection types that hold them.
+     *
+     * <p>Kryo has to know these classes too, but they are not addressed on the wire, so the
+     * tests that check packet shape skip them.
+     */
+    public static boolean isSupportType(Class<?> type) {
+        return !Packet.class.isAssignableFrom(type);
     }
 }
