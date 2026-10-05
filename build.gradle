@@ -68,3 +68,6 @@ subprojects {
 }
 
 eclipse.project.name = 'SkyStrike' + '-parent'
+
+tasks.register('checkModuleDependencies') { doLast { def forbidden=[server:['com.badlogic.gdx','io.github.skystrike.core'],core:['io.github.skystrike.server']]; forbidden.each { module, needles -> fileTree("$rootDir/$module/src").matching { include '**/*.java' }.files.each { f -> needles.each { n -> if(f.text.contains(n)) throw new GradleException("$module must not import $n: $f") } } } } }
+subprojects { tasks.matching { it.name == 'compileJava' }.configureEach { dependsOn rootProject.tasks.named('checkModuleDependencies') } }

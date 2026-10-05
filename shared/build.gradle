@@ -1,5 +1,7 @@
 eclipse.project.name = appName + '-shared'
-
 dependencies {
-
+  api "com.esotericsoftware:kryo:$kryoVersion"
+  api "com.github.crykn:kryonet:$kryoNetVersion"
+  testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
+test { useJUnitPlatform() }
