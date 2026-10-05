@@ -286,7 +286,7 @@ class PlayerLoadoutTest {
         assertEquals(WeaponId.CATHEDRAL, loadout.primary.weaponId(), "composition survives death");
         assertEquals(5, loadout.primary.magazine);
         assertEquals(25, loadout.primary.reserve);
-        assertEquals(7, loadout.handgun.magazine);
+        assertEquals(15, loadout.handgun.magazine);
         assertFalse(loadout.reloading);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
         assertEquals(PlayerLoadout.NO_QUICK_SWAP, loadout.quickSwapOrigin);
