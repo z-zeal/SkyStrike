@@ -16,23 +16,20 @@ import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.map.ArenaMap;
-import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.physics.PlayerMotion;
-import io.github.skystrike.shared.vision.VisionMath;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Composition root for the authoritative host.
  *
  * <p>Wires transport, connection and player registries, packet router and simulation tick loop.
- * Steps authoritative player physics and broadcasts visibility-culled snapshots to clients.
+ * Steps authoritative player physics and broadcasts snapshots to clients. Lighting remains a
+ * presentation effect and never removes player state from a snapshot.
  */
 public final class GameServer {
 
@@ -172,9 +169,7 @@ public final class GameServer {
         }
     }
 
-    /**
-     * Broadcasts authoritative game state snapshots with per-client line-of-sight and vision culling.
-     */
+    /** Broadcasts authoritative game state snapshots containing every active player. */
     private void broadcastSnapshot(SimulationClock clock) {
         if (connections.count() == 0) {
             return;
@@ -190,49 +185,13 @@ public final class GameServer {
                 continue;
             }
 
-            PlayerSession session = players.byConnection(conn);
-            if (session == null) {
-                // Spectator / pre-spawn: transmit unculled list
-                PacketGameState spectatorSnapshot = new PacketGameState(tick, now, totalJoined);
-                for (PlayerSession s : players.all()) {
-                    spectatorSnapshot.players.add(s.player().copy());
-                }
-                endpoint.sendUnreliable(conn, spectatorSnapshot);
-                continue;
-            }
-
-            Player observer = session.player();
-            PacketGameState clientSnapshot = new PacketGameState(tick, now, totalJoined);
-
-            // Collect teammates for shared vision
-            List<Player> teammates = new ArrayList<>();
+            // Flashlight visibility is visual only. Every client receives a stable player list so
+            // crossing the cone edge cannot despawn and respawn an enemy between snapshots.
+            PacketGameState snapshot = new PacketGameState(tick, now, totalJoined);
             for (PlayerSession s : players.all()) {
-                Player p = s.player();
-                if (p.teamIndex == observer.teamIndex && observer.teamIndex != 2) {
-                    teammates.add(p);
-                }
+                snapshot.players.add(s.player().copy());
             }
-
-            for (PlayerSession s : players.all()) {
-                Player target = s.player();
-                if (target.id == observer.id) {
-                    clientSnapshot.players.add(target.copy());
-                } else if (target.teamIndex == observer.teamIndex && observer.teamIndex != 2) {
-                    // Teammates are always visible to each other
-                    clientSnapshot.players.add(target.copy());
-                } else {
-                    // Check if observer or any teammate can see the target
-                    boolean canSee = VisionMath.canObserverSee(observer, target, arena);
-                    if (!canSee && !teammates.isEmpty()) {
-                        canSee = VisionMath.canTeamSee(teammates, target, arena, null);
-                    }
-                    if (canSee) {
-                        clientSnapshot.players.add(target.copy());
-                    }
-                }
-            }
-
-            endpoint.sendUnreliable(conn, clientSnapshot);
+            endpoint.sendUnreliable(conn, snapshot);
         }
     }
 }
