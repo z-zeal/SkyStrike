@@ -7,4 +7,11 @@ dependencies {
   // Gradle 9 no longer leaks its own launcher onto the test runtime classpath.
   testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-test { useJUnitPlatform() }
+test {
+  useJUnitPlatform()
+  testLogging {
+    events 'failed'
+    exceptionFormat 'full'
+    showStackTraces true
+  }
+}
