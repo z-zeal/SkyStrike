@@ -13,13 +13,13 @@ public enum WeaponClass {
 
     SNIPER(1.0f),
     DMR(1.8f),
+    PISTOL(2.0f),
     BATTLE_RIFLE(2.2f),
     LMG(2.4f),
     ASSAULT_RIFLE(2.5f),
     PDW(3.2f),
     SMG(3.5f),
     REVOLVER(3.8f),
-    PISTOL(4.0f),
     SHOTGUN(5.0f);
 
     private final float gravityWeight;

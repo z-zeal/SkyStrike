@@ -24,7 +24,7 @@ SIGMA_DIVISOR = 2.5
 MOVING_ADS_SPREAD_FACTOR = 0.6
 ADS_RECOVERY_MULTIPLIER = 1.5
 
-CLASS_GRAVITY = {"sniper": 1.0, "rifle": 2.5, "smg": 3.5, "pistol": 4.0, "shotgun": 5.0}
+CLASS_GRAVITY = {"sniper": 1.0, "rifle": 2.5, "smg": 3.5, "pistol": 2.0, "shotgun": 5.0}
 
 # id, class, muzzle, drag, ramp, range, damage, floor, rate/s, spread, adsRatio,
 # movingMul, kick, ceilMul, recovery
