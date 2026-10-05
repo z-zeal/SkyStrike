@@ -1,6 +1,5 @@
 package io.github.skystrike.ui.text;
 
-import com.badlogic.gdx.Files.FileType;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
@@ -29,6 +28,7 @@ public final class FontManager implements Disposable {
     private static final String DIALOG_CHARACTERS = latin1AndUiCharacters();
 
     private final FileHandle source;
+    private final String internalFontPath;
     private BitmapFont font;
     private int generatedPhysicalPixels = -1;
 
@@ -40,7 +40,8 @@ public final class FontManager implements Disposable {
         if (internalFontPath == null || internalFontPath.isBlank()) {
             throw new IllegalArgumentException("internal font path is required");
         }
-        this.source = new FileHandle(internalFontPath, FileType.Internal);
+        this.source = null;
+        this.internalFontPath = internalFontPath;
     }
 
     /**
@@ -49,6 +50,7 @@ public final class FontManager implements Disposable {
      */
     public FontManager(FileHandle source) {
         this.source = Objects.requireNonNull(source, "source");
+        this.internalFontPath = null;
     }
 
     /**
@@ -115,10 +117,13 @@ public final class FontManager implements Disposable {
     }
 
     private FileHandle resolveSource() {
-        // An internal FileHandle created directly is portable, but resolving through Gdx once it
-        // exists also supports Android's asset packaging conventions.
-        if (Gdx.files != null && source.type() == FileType.Internal) {
-            return Gdx.files.internal(source.path());
+        // Resolve internal assets only once a libGDX Files service exists. Calling resize before
+        // application startup is an integration error; construction itself remains safe.
+        if (internalFontPath != null) {
+            if (Gdx.files == null) {
+                throw new IllegalStateException("cannot resolve an internal font before libGDX starts");
+            }
+            return Gdx.files.internal(internalFontPath);
         }
         return source;
     }
