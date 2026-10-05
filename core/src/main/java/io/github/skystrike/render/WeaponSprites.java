@@ -19,7 +19,7 @@ import java.util.Map;
  * so drawing without the catalog's scale would hand every gun the same silhouette size. The
  * scale files quote a stylised multiplier against the reference carbine (readable, not 1:1
  * real-world, where a pistol would be a speck); this class turns that multiplier into world
- * units against {@link #GUN_FRAME_UNITS}.
+ * units against {@link #GUN_FRAME_UNITS} and the global {@link #WEAPON_SIZE_MULTIPLIER}.
  *
  * <p>Textures load lazily by wire id and are cached, including failures (a missing file is
  * remembered as {@code null} so the renderer can fall back to the plain barrel line instead of
@@ -28,13 +28,27 @@ import java.util.Map;
 public final class WeaponSprites implements Disposable {
 
     /**
-     * World size of a scale-1.0 gun frame (the reference carbine, 840 mm). Against the 50-unit
-     * player this draws the readable, deliberately oversized silhouette the scale catalog is
-     * tuned for: a carbine roughly body-height long, a compact pistol under half of that.
+     * TUNE HERE — global readability multiplier applied to every held weapon, on top of the
+     * per-weapon catalog scale. Guns and melee scale together, so relative sizes are preserved
+     * (a zweihänder still dwarfs a pocket knife), and since the grip anchor is a fraction of the
+     * frame the grip stays on the hand at any value. 1.0 is the catalog-neutral size; 1.5 draws
+     * the reference carbine about 69 units long against the 50-unit player, a compact pistol
+     * about 30, and the largest anti-materiel rifle about 104.
+     */
+    public static final float WEAPON_SIZE_MULTIPLIER = 1.5f;
+
+    /**
+     * World size of a scale-1.0 gun frame (the reference carbine, 840 mm), before
+     * {@link #WEAPON_SIZE_MULTIPLIER}. Against the 50-unit player this draws the readable,
+     * deliberately oversized silhouette the scale catalog is tuned for: a carbine roughly
+     * body-height long, a compact pistol under half of that.
      */
     public static final float GUN_FRAME_UNITS = 46f;
 
-    /** World size of a scale-1.0 melee frame. Its catalog reference is 900 mm, not 840 mm. */
+    /**
+     * World size of a scale-1.0 melee frame, before {@link #WEAPON_SIZE_MULTIPLIER}. Its
+     * catalog reference is 900 mm, not 840 mm.
+     */
     public static final float MELEE_FRAME_UNITS = 49f;
 
     /** Grip anchor as a fraction of frame width — guns pivot near the trigger, not the centre. */
@@ -62,14 +76,16 @@ public final class WeaponSprites implements Disposable {
         return load(path(wireId)) != null;
     }
 
-    /** Frame size in world units for {@code wireId}, scale catalog applied. */
+    /** Frame size in world units for {@code wireId}, scale catalog and global size applied. */
     public float frameSize(int wireId) {
         if (MeleeId.isMeleeWireId(wireId)) {
             MeleeId id = MeleeId.fromWireId(wireId);
-            return MELEE_FRAME_UNITS * meleeScales.getOrDefault(id.assetId(), 1f);
+            return MELEE_FRAME_UNITS * meleeScales.getOrDefault(id.assetId(), 1f)
+                * WEAPON_SIZE_MULTIPLIER;
         }
         WeaponId id = WeaponId.fromOrdinal(wireId);
-        return GUN_FRAME_UNITS * gunScales.getOrDefault(id.assetId(), 1f);
+        return GUN_FRAME_UNITS * gunScales.getOrDefault(id.assetId(), 1f)
+            * WEAPON_SIZE_MULTIPLIER;
     }
 
     /** Grip anchor for {@code wireId}, as a fraction of the frame width. */
