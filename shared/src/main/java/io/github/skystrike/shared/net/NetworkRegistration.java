@@ -1,13 +1,16 @@
 package io.github.skystrike.shared.net;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
+import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,7 +39,12 @@ public final class NetworkRegistration {
         PacketJoinAccept.class,
         PacketJoinReject.class,
         PacketPong.class,
-        PacketGameState.class);
+        PacketGameState.class,
+
+        // Phase 1: Player input and state types (append-only)
+        PacketPlayerInput.class,
+        Player.class,
+        ArrayList.class);
 
     private NetworkRegistration() {
     }

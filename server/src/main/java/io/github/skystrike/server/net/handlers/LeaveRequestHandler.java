@@ -3,6 +3,7 @@ package io.github.skystrike.server.net.handlers;
 import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.net.ConnectionRegistry;
 import io.github.skystrike.server.net.PacketHandler;
+import io.github.skystrike.server.player.PlayerRegistry;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 
 /**
@@ -14,13 +15,22 @@ import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 public final class LeaveRequestHandler implements PacketHandler<PacketLeaveRequest> {
 
     private final ConnectionRegistry connections;
+    private final PlayerRegistry players;
 
     public LeaveRequestHandler(ConnectionRegistry connections) {
+        this(connections, null);
+    }
+
+    public LeaveRequestHandler(ConnectionRegistry connections, PlayerRegistry players) {
         this.connections = connections;
+        this.players = players;
     }
 
     @Override
     public void handle(Connection connection, PacketLeaveRequest packet) {
+        if (players != null) {
+            players.remove(connection);
+        }
         ConnectionRegistry.Entry entry = connections.leave(connection);
         if (entry != null) {
             System.out.printf(

@@ -4,22 +4,32 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
+import io.github.skystrike.input.InputRouter;
+import io.github.skystrike.input.InputSampler;
+import io.github.skystrike.input.KeyBindings;
 import io.github.skystrike.net.ClientSession;
+import io.github.skystrike.net.Interpolator;
+import io.github.skystrike.net.LocalPrediction;
+import io.github.skystrike.net.StateBuffer;
 import io.github.skystrike.render.GameCamera;
+import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.StatusOverlay;
+import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.math.Angles;
+import io.github.skystrike.shared.math.Lerp;
+import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.world.TerrainRenderer;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Composition root for a match.
  *
- * <p>Thin on purpose: it constructs the pieces, forwards the frame to them in layer order, and
- * owns nothing else. No gameplay decisions are made here and none ever will be — the server is
- * the authority and the systems that mirror it get their own classes.
- *
- * <p>Phase 0 draws the arena and a connection readout. Arrow keys pan the camera and the minus and
- * equals keys zoom.
+ * <p>Thin composition root: routes input, triggers prediction and interpolation, and dispatches
+ * drawing across render layers.
  */
 public final class GameScreen implements Screen {
 
@@ -29,44 +39,93 @@ public final class GameScreen implements Screen {
     private final ArenaMap arena = ArenaMap.standard();
     private final GameCamera camera = new GameCamera(arena.width(), arena.height());
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
+    private final PlayerRenderer playerRenderer = new PlayerRenderer();
     private final StatusOverlay overlay = new StatusOverlay();
     private final ClientSession session;
+
+    private final KeyBindings bindings = new KeyBindings();
+    private final InputRouter inputRouter = new InputRouter();
+    private final InputSampler inputSampler = new InputSampler(bindings, inputRouter);
+    private final LocalPrediction prediction = new LocalPrediction();
+    private final StateBuffer stateBuffer = new StateBuffer();
+    private final Interpolator interpolator = new Interpolator(stateBuffer);
 
     private final String host;
     private final int tcpPort;
     private final int udpPort;
+
+    private float adsAlpha;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
         this.session = new ClientSession(playerName);
         this.host = host;
         this.tcpPort = tcpPort;
         this.udpPort = udpPort;
+
+        this.session.setSnapshotListener(this::onGameStateSnapshot);
+    }
+
+    private void onGameStateSnapshot(PacketGameState snapshot) {
+        stateBuffer.addSnapshot(snapshot);
+
+        int localId = session.playerId();
+        if (localId >= 0 && snapshot.players != null) {
+            for (Player p : snapshot.players) {
+                if (p.id == localId) {
+                    prediction.reconcile(p, arena);
+                    break;
+                }
+            }
+        }
     }
 
     @Override
     public void show() {
-        // Start on the mirror axis, bottom-aligned: all the playable geometry sits in the lower
-        // half of the arena, so centring on the arena's middle would open on empty sky.
         camera.centreOn(arena.mirrorAxisX(), camera.viewportHeight() / 2f);
+        Gdx.input.setInputProcessor(inputRouter.multiplexer());
         session.connect(host, tcpPort, udpPort);
     }
 
     @Override
     public void render(float delta) {
         session.update(delta);
-        sampleCameraInput(delta);
 
+        Player localPlayer = prediction.predicted();
+        if (localPlayer != null) {
+            // 1. Sample input and simulate predicted local motion
+            PacketPlayerInput input = inputSampler.sample(localPlayer, camera);
+            localPlayer = prediction.predict(input, delta, arena);
+            session.sendUnreliable(input);
+
+            // 2. Camera follow and interpolated ADS pan toward aim direction
+            adsAlpha = Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, PlayerConfig.ADS_TRANSITION_RATE, delta);
+            float panDist = PlayerConfig.ADS_CAMERA_PAN * adsAlpha;
+            float aimRad = Angles.toRadians(localPlayer.aimAngle);
+            float targetCamX = localPlayer.centerX() + panDist * (float) Math.cos(aimRad);
+            float targetCamY = localPlayer.centerY() + panDist * (float) Math.sin(aimRad);
+            camera.centreOn(targetCamX, targetCamY);
+        } else {
+            // Fallback manual camera pan while waiting for join/spawn
+            sampleCameraInput(delta);
+        }
+
+        // 3. Interpolate remote player states
+        List<Player> remotePlayers = interpolator.interpolateRemotePlayers(session.playerId());
+
+        // 4. Render layers in order
         Gdx.gl.glClearColor(0.035f, 0.045f, 0.07f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // Layer: TERRAIN
         terrain.render(camera);
-        overlay.render(statusLines());
+
+        // Layer: ENTITIES
+        playerRenderer.render(camera, remotePlayers, localPlayer);
+
+        // Layer: HUD / OVERLAY
+        overlay.render(statusLines(localPlayer));
     }
 
-    /**
-     * The only input Phase 0 samples. Player input moves into {@code core/input} in Phase 1 so the
-     * UI can consume it before gameplay sees it.
-     */
     private void sampleCameraInput(float delta) {
         float dx = 0f;
         float dy = 0f;
@@ -94,15 +153,25 @@ public final class GameScreen implements Screen {
         }
     }
 
-    private List<String> statusLines() {
-        return List.of(
-            "SkyStrike — Phase 0",
-            "server: " + session.statusLine(),
-            String.format(
+    private List<String> statusLines(Player localPlayer) {
+        List<String> lines = new ArrayList<>();
+        lines.add("SkyStrike — Phase 1 (Movement & Aim)");
+        lines.add("server: " + session.statusLine());
+        if (localPlayer != null) {
+            lines.add(String.format(
+                "player: pos (%.0f, %.0f)  vel (%.0f, %.0f)  fuel %.0f  rot %.1f°  aim %.1f°  %s %s",
+                localPlayer.x, localPlayer.y, localPlayer.vx, localPlayer.vy,
+                localPlayer.fuel, localPlayer.rotation, localPlayer.aimAngle,
+                localPlayer.grounded ? "[GND]" : "[AIR]",
+                localPlayer.crouched ? "[CROUCH]" : "[STAND]"));
+        } else {
+            lines.add(String.format(
                 "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
                 camera.x(), camera.y(), camera.viewportHeight(),
-                arena.width(), arena.height(), arena.solids().size()),
-            "arrows pan  -/= zoom");
+                arena.width(), arena.height(), arena.solids().size()));
+        }
+        lines.add("A/D move  W jump  Space jetpack  S crouch  RMB aim/ADS  LMB fire");
+        return lines;
     }
 
     @Override
@@ -127,6 +196,7 @@ public final class GameScreen implements Screen {
     public void dispose() {
         session.disconnect();
         terrain.dispose();
+        playerRenderer.dispose();
         overlay.dispose();
     }
 }

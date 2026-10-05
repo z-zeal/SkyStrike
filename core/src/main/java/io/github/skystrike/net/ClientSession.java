@@ -1,6 +1,7 @@
 package io.github.skystrike.net;
 
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
@@ -8,6 +9,7 @@ import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import java.util.function.Consumer;
 
 /**
  * The connect-and-join state machine, driven from the render thread.
@@ -35,6 +37,8 @@ public final class ClientSession {
     private int serverPlayerCount;
     private long snapshotsReceived;
     private int latencyMillis = -1;
+    private PacketGameState latestSnapshot;
+    private Consumer<PacketGameState> snapshotListener;
 
     private float sincePing;
 
@@ -52,6 +56,24 @@ public final class ClientSession {
         state = ConnectionState.CONNECTING;
         statusDetail = host + ":" + tcpPort;
         client.connect(host, tcpPort, udpPort);
+    }
+
+    /** Sends a packet reliably over TCP. */
+    public void sendReliable(Packet packet) {
+        client.sendReliable(packet);
+    }
+
+    /** Sends a packet unreliably over UDP. */
+    public void sendUnreliable(Packet packet) {
+        client.sendUnreliable(packet);
+    }
+
+    public void setSnapshotListener(Consumer<PacketGameState> listener) {
+        this.snapshotListener = listener;
+    }
+
+    public PacketGameState latestSnapshot() {
+        return latestSnapshot;
     }
 
     /** Drains the inbound queue and keeps the latency probe ticking. Render thread only. */
@@ -105,11 +127,14 @@ public final class ClientSession {
             serverTick = snapshot.tick;
             serverPlayerCount = snapshot.playerCount;
             snapshotsReceived++;
+            latestSnapshot = snapshot;
+            if (snapshotListener != null) {
+                snapshotListener.accept(snapshot);
+            }
         } else if (payload instanceof PacketPong pong) {
             serverTick = pong.serverTick;
             latencyMillis = (int) (System.currentTimeMillis() - pong.clientTimeMillis);
         }
-        // Anything else is a packet this build does not understand yet; ignoring it is correct.
     }
 
     private void resetSessionState() {
@@ -117,6 +142,7 @@ public final class ClientSession {
         acceptedName = "";
         serverPlayerCount = 0;
         latencyMillis = -1;
+        latestSnapshot = null;
         sincePing = 0f;
     }
 

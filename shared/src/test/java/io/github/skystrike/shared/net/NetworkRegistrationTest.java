@@ -80,6 +80,16 @@ class NetworkRegistrationTest {
         assertEquals(1234L, ping.clientTimeMillis);
 
         assertInstanceOf(PacketLeaveRequest.class, roundTrip(new PacketLeaveRequest()));
+
+        PacketPlayerInput input = roundTrip(new PacketPlayerInput(10L, 1.0f, true, false, true, true, false, 45f));
+        assertEquals(10L, input.sequence);
+        assertEquals(1.0f, input.moveX);
+        assertTrue(input.jump);
+        assertFalse(input.crouch);
+        assertTrue(input.jetpack);
+        assertTrue(input.ads);
+        assertFalse(input.fire);
+        assertEquals(45f, input.aimAngle);
     }
 
     @Test
@@ -97,10 +107,19 @@ class NetworkRegistrationTest {
         assertEquals(11L, pong.clientTimeMillis);
         assertEquals(22L, pong.serverTick);
 
-        PacketGameState state = roundTrip(new PacketGameState(4242L, 99L, 2));
+        io.github.skystrike.shared.model.Player p = new io.github.skystrike.shared.model.Player(1, "Nova", 0, 100f, 200f);
+        p.vx = 50f;
+        p.vy = -100f;
+        p.rotation = 15f;
+        PacketGameState state = roundTrip(new PacketGameState(4242L, 99L, 1, List.of(p)));
         assertEquals(4242L, state.tick);
         assertEquals(99L, state.serverTimeMillis);
-        assertEquals(2, state.playerCount);
+        assertEquals(1, state.playerCount);
+        assertEquals(1, state.players.size());
+        assertEquals("Nova", state.players.get(0).name);
+        assertEquals(100f, state.players.get(0).x);
+        assertEquals(200f, state.players.get(0).y);
+        assertEquals(15f, state.players.get(0).rotation);
     }
 
     @Test

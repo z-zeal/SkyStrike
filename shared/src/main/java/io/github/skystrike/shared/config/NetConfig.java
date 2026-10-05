@@ -9,7 +9,7 @@ package io.github.skystrike.shared.config;
 public final class NetConfig {
 
     /** Bumped whenever the packet set or its registration order changes. */
-    public static final int PROTOCOL_VERSION = 1;
+    public static final int PROTOCOL_VERSION = 2;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;
