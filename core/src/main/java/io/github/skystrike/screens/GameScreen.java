@@ -143,7 +143,7 @@ public final class GameScreen implements Screen {
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
         pipeline.beginScene();
         terrain.render(camera);
-        playerRenderer.render(camera, remotePlayers, localPlayer, arena, pipeline.smokeVolumes().all());
+        playerRenderer.render(camera, remotePlayers, localPlayer);
         projectileRenderer.render(camera, projectiles);
         pipeline.endScene();
 

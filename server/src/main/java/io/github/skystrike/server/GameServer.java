@@ -23,7 +23,6 @@ import io.github.skystrike.server.weapons.GunInstance;
 import io.github.skystrike.server.weapons.RecoilService;
 import io.github.skystrike.shared.combat.SpreadMath;
 import io.github.skystrike.shared.config.NetConfig;
-import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
@@ -37,7 +36,6 @@ import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.physics.PlayerInput;
 import io.github.skystrike.shared.physics.PlayerMotion;
-import io.github.skystrike.shared.vision.VisionMath;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +46,8 @@ import java.util.Random;
  * Composition root for the authoritative host.
  *
  * <p>Wires transport, connection and player registries, packet router and simulation tick loop.
- * Steps authoritative player physics and combat, then broadcasts visibility-culled snapshots.
+ * Steps authoritative player physics and combat, then broadcasts snapshots to clients. Lighting
+ * remains a presentation effect and never removes player state from a snapshot.
  *
  * <p>The tick runs in a fixed order and the order is load-bearing: respawns before movement so a
  * returning player moves on the tick they come back; movement before firing so a round leaves
@@ -329,10 +328,12 @@ public final class GameServer {
     }
 
     /**
-     * Broadcasts authoritative game state snapshots with per-client line-of-sight and vision culling.
+     * Broadcasts authoritative game state snapshots: every active player, and every round
+     * currently in the air.
      *
-     * <p>Rounds in flight are culled the same way players are: you always see your own tracers,
-     * and someone else's only while the round is inside your cone with a clear line to it.
+     * <p>Neither list is culled by the flashlight cone. Visibility is a presentation effect —
+     * culling it server-side made enemies despawn and respawn as they crossed the cone edge, and
+     * a tracer flickering in and out mid-flight would be the same bug with a shorter lifetime.
      */
     private void broadcastSnapshot(SimulationClock clock) {
         if (connections.count() == 0) {
@@ -350,79 +351,14 @@ public final class GameServer {
                 continue;
             }
 
-            PlayerSession session = players.byConnection(conn);
-            if (session == null) {
-                // Spectator / pre-spawn: transmit unculled list
-                PacketGameState spectatorSnapshot = new PacketGameState(tick, now, totalJoined);
-                for (PlayerSession s : players.all()) {
-                    spectatorSnapshot.players.add(s.player().copy());
-                }
-                for (Projectile projectile : liveRounds) {
-                    spectatorSnapshot.projectiles.add(projectile.copy());
-                }
-                endpoint.sendUnreliable(conn, spectatorSnapshot);
-                continue;
-            }
-
-            Player observer = session.player();
-            PacketGameState clientSnapshot = new PacketGameState(tick, now, totalJoined);
-
-            // Collect teammates for shared vision
-            List<Player> teammates = new ArrayList<>();
+            PacketGameState snapshot = new PacketGameState(tick, now, totalJoined);
             for (PlayerSession s : players.all()) {
-                Player p = s.player();
-                if (p.teamIndex == observer.teamIndex && observer.teamIndex != 2) {
-                    teammates.add(p);
-                }
+                snapshot.players.add(s.player().copy());
             }
-
-            for (PlayerSession s : players.all()) {
-                Player target = s.player();
-                if (target.id == observer.id) {
-                    clientSnapshot.players.add(target.copy());
-                } else if (target.teamIndex == observer.teamIndex && observer.teamIndex != 2) {
-                    // Teammates are always visible to each other
-                    clientSnapshot.players.add(target.copy());
-                } else {
-                    // Check if observer or any teammate can see the target
-                    boolean canSee = VisionMath.canObserverSee(observer, target, arena);
-                    if (!canSee && !teammates.isEmpty()) {
-                        canSee = VisionMath.canTeamSee(teammates, target, arena, null);
-                    }
-                    if (canSee) {
-                        clientSnapshot.players.add(target.copy());
-                    }
-                }
-            }
-
             for (Projectile projectile : liveRounds) {
-                if (projectile.ownerId == observer.id || canSeeProjectile(observer, projectile)) {
-                    clientSnapshot.projectiles.add(projectile.copy());
-                }
+                snapshot.projectiles.add(projectile.copy());
             }
-
-            endpoint.sendUnreliable(conn, clientSnapshot);
+            endpoint.sendUnreliable(conn, snapshot);
         }
-    }
-
-    /**
-     * Whether a round is inside the observer's cone with a clear line to it.
-     *
-     * <p>{@code calculateVisibility} rejects on distance before it ever walks the geometry, so
-     * the common case — a tracer on the far side of the arena — costs a subtraction and a
-     * comparison.
-     */
-    private boolean canSeeProjectile(Player observer, Projectile projectile) {
-        float reach = observer.ads ? VisionConfig.REACH_ADS : VisionConfig.REACH_HIP;
-        float visibility = VisionMath.calculateVisibility(
-            observer.eyeX(),
-            observer.eyeY(),
-            observer.aimAngle,
-            reach,
-            projectile.x,
-            projectile.y,
-            arena,
-            null);
-        return visibility >= VisionConfig.VISIBILITY_THRESHOLD;
     }
 }

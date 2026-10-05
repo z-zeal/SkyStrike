@@ -6,24 +6,22 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
-import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
-import io.github.skystrike.shared.vision.SmokeVolume;
-import io.github.skystrike.shared.vision.VisionMath;
 import java.util.List;
 
 /**
  * Renders players, body rotation, crouch posture, team tint, jetpack flames and aim direction in
  * {@link RenderLayers#ENTITIES}.
  *
- * <p>Enemies outside line of sight or outside vision reach are culled from rendering to ensure
- * they remain pure black / invisible behind fog and terrain.
+ * <p>Every player received in a snapshot is drawn into the scene. The lighting composite then
+ * shades the complete player continuously, just like terrain, instead of abruptly adding or
+ * removing the player when a visibility threshold is crossed.
  *
- * <p>Dead players are not drawn at all. Combat state reaches the renderer the same way position
- * does — through the snapshot — so the barrel is drawn at {@link Player#renderedGunAngle()}
- * rather than the raw aim: that is the aim plus the recoil kick, which is what makes a burst
- * look like it climbs.
+ * <p>Corpses are the one exception: a dead player is not drawn at all. Combat state reaches the
+ * renderer the same way position does — through the snapshot — so the barrel is drawn at
+ * {@link Player#renderedGunAngle()} rather than the raw aim. That is the aim plus the recoil
+ * kick, and it is what makes a burst look like it climbs.
  */
 public final class PlayerRenderer implements Disposable {
 
@@ -42,28 +40,21 @@ public final class PlayerRenderer implements Disposable {
     public PlayerRenderer() {
     }
 
-    /**
-     * Renders all active players in world space with line-of-sight visibility culling.
-     */
-    public void render(
-            GameCamera camera,
-            List<Player> remotePlayers,
-            Player localPlayer,
-            ArenaMap map,
-            List<SmokeVolume> smokeVolumes) {
+    /** Renders all active players in world space; the composite pass supplies illumination. */
+    public void render(GameCamera camera, List<Player> remotePlayers, Player localPlayer) {
         shapes.setProjectionMatrix(camera.combined());
 
         // 1. Draw solid shapes (bodies, jetpacks, health bars)
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive && isPlayerVisibleToLocal(p, localPlayer, map, smokeVolumes)) {
-                    drawPlayerFilled(p, false);
+                if (p.alive) {
+                    drawPlayerFilled(p);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
-            drawPlayerFilled(localPlayer, true);
+            drawPlayerFilled(localPlayer);
         }
         shapes.end();
 
@@ -71,7 +62,7 @@ public final class PlayerRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive && isPlayerVisibleToLocal(p, localPlayer, map, smokeVolumes)) {
+                if (p.alive) {
                     drawPlayerLines(p);
                 }
             }
@@ -82,22 +73,7 @@ public final class PlayerRenderer implements Disposable {
         shapes.end();
     }
 
-    private boolean isPlayerVisibleToLocal(
-            Player remote, Player local, ArenaMap map, List<SmokeVolume> smokeVolumes) {
-        if (local == null) {
-            return true;
-        }
-        if (remote.id == local.id) {
-            return true;
-        }
-        // Teammates always visible
-        if (remote.teamIndex == local.teamIndex && remote.teamIndex != 2) {
-            return true;
-        }
-        return VisionMath.canObserverSee(local, remote, map, smokeVolumes);
-    }
-
-    private void drawPlayerFilled(Player p, boolean isLocal) {
+    private void drawPlayerFilled(Player p) {
         float width = PlayerConfig.WIDTH;
         float height = p.currentHeight();
         float halfW = width / 2f;
