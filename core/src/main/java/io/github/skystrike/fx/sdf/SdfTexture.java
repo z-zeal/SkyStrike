@@ -30,10 +30,14 @@ public final class SdfTexture implements Disposable {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int val = raw[y * width + x] & 0xFF;
-                // Pack into RGBA (r = val, g = val, b = val, a = 255)
+                // Pack into RGBA (r = val, g = val, b = val, a = 255).
                 int rgba = (val << 24) | (val << 16) | (val << 8) | 0xFF;
-                // Pixmap y=0 is top in libGDX Pixmap coordinate space; invert y for standard GL texture coordinates
-                pixmap.drawPixel(x, height - 1 - y, rgba);
+
+                // SdfField row zero and OpenGL texture v=0 both represent the bottom of the
+                // world. Pixmap's first stored row is uploaded as v=0, despite its drawing API
+                // describing y=0 as the top of an image, so flipping here mirrors occluders and
+                // makes their shadows appear on the opposite side of the arena.
+                pixmap.drawPixel(x, y, rgba);
             }
         }
 
