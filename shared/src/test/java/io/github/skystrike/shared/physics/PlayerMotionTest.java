@@ -131,7 +131,7 @@ class PlayerMotionTest {
         ordinary.grounded = false;
         tanked.grounded = false;
         ordinary.fuel = 150f;
-        tanked.fuel = 150f;
+        tanked.fuel = PlayerConfig.MAX_FUEL * GadgetConfig.FUEL_TANK_CAPACITY_MULTIPLIER;
 
         PlayerInput idle = new PlayerInput(1L, 0f, false, false, false, false, false, 90f);
         ordinary = PlayerMotion.step(ordinary, idle, 1f / 60f, map);
