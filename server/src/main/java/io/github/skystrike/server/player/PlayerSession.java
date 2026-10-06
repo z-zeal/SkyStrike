@@ -7,6 +7,7 @@ import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.physics.PlayerInput;
+import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 
@@ -20,9 +21,9 @@ import io.github.skystrike.shared.weapons.WeaponId;
  * {@code fire} latches a pending press, and one that carries {@code slotPress} replaces the
  * pending press; the tick consumes them.
  *
- * <p>The requested loadout composition lives here as three ordinals, initialised to the standard
- * loadout. A {@link PacketLoadoutUpdate} edits them; they are applied to the player at the next
- * respawn, the one moment a loadout is legitimately rebuilt.
+ * <p>The requested five-slot loadout composition lives here as ordinals, initialised to the
+ * standard loadout. A {@link PacketLoadoutUpdate} edits them; they are applied to the player at
+ * the next respawn, the one moment a loadout is legitimately rebuilt.
  */
 public final class PlayerSession {
 
@@ -54,6 +55,8 @@ public final class PlayerSession {
     private int requestedPrimary;
     private int requestedHandgun;
     private int requestedMelee;
+    private int requestedUtilityA;
+    private int requestedUtilityB;
 
     public PlayerSession(Connection connection, int playerId, String name, int teamIndex, float spawnX, float spawnY) {
         this.connection = connection;
@@ -65,6 +68,8 @@ public final class PlayerSession {
         this.requestedPrimary = loadout.primary == null ? PacketLoadoutUpdate.KEEP_CURRENT : loadout.primary.weapon;
         this.requestedHandgun = loadout.handgun == null ? PacketLoadoutUpdate.KEEP_CURRENT : loadout.handgun.weapon;
         this.requestedMelee = loadout.melee;
+        this.requestedUtilityA = loadout.utilityA;
+        this.requestedUtilityB = loadout.utilityB;
 
         WeaponId held = loadout.heldGunId();
         this.gun = new GunInstance(held == null ? WeaponId.DEFAULT : held);
@@ -207,6 +212,17 @@ public final class PlayerSession {
      * The request takes effect at the next respawn — mid-life re-arming is not a thing.
      */
     public void requestLoadout(int primaryOrdinal, int handgunOrdinal, int meleeOrdinal) {
+        requestLoadout(primaryOrdinal, handgunOrdinal, meleeOrdinal,
+            PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT);
+    }
+
+    public void requestLoadout(
+        int primaryOrdinal,
+        int handgunOrdinal,
+        int meleeOrdinal,
+        int utilityAOrdinal,
+        int utilityBOrdinal
+    ) {
         if (primaryOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
             this.requestedPrimary = primaryOrdinal;
         }
@@ -215,6 +231,12 @@ public final class PlayerSession {
         }
         if (meleeOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
             this.requestedMelee = meleeOrdinal;
+        }
+        if (utilityAOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedUtilityA = utilityAOrdinal;
+        }
+        if (utilityBOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedUtilityB = utilityBOrdinal;
         }
     }
 
@@ -229,6 +251,8 @@ public final class PlayerSession {
         WeaponId before1 = loadout.primary == null ? null : loadout.primary.weaponId();
         WeaponId before2 = loadout.handgun == null ? null : loadout.handgun.weaponId();
         MeleeId before3 = loadout.meleeId();
+        UtilityId before4 = loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A);
+        UtilityId before5 = loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B);
 
         WeaponId primaryId = WeaponId.isValidOrdinal(requestedPrimary)
             ? WeaponId.fromOrdinal(requestedPrimary) : null;
@@ -236,12 +260,20 @@ public final class PlayerSession {
             ? WeaponId.fromOrdinal(requestedHandgun) : null;
         MeleeId meleeId = MeleeId.isValidOrdinal(requestedMelee)
             ? MeleeId.fromOrdinal(requestedMelee) : null;
-        loadout.setComposition(primaryId, handgunId, meleeId);
+        UtilityId utilityAId = UtilityId.isValidOrdinal(requestedUtilityA)
+            ? UtilityId.fromOrdinal(requestedUtilityA) : null;
+        UtilityId utilityBId = UtilityId.isValidOrdinal(requestedUtilityB)
+            ? UtilityId.fromOrdinal(requestedUtilityB) : null;
+        loadout.setComposition(primaryId, handgunId, meleeId, utilityAId, utilityBId);
         loadout.resetForRespawn();
 
         WeaponId after1 = loadout.primary == null ? null : loadout.primary.weaponId();
         WeaponId after2 = loadout.handgun == null ? null : loadout.handgun.weaponId();
-        return before1 != after1 || before2 != after2 || before3 != loadout.meleeId();
+        return before1 != after1
+            || before2 != after2
+            || before3 != loadout.meleeId()
+            || before4 != loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A)
+            || before5 != loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B);
     }
 
     public int requestedPrimary() {
@@ -254,5 +286,13 @@ public final class PlayerSession {
 
     public int requestedMelee() {
         return requestedMelee;
+    }
+
+    public int requestedUtilityA() {
+        return requestedUtilityA;
+    }
+
+    public int requestedUtilityB() {
+        return requestedUtilityB;
     }
 }

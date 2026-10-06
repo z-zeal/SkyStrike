@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.map.Rect;
+import io.github.skystrike.shared.utility.UtilityId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +58,14 @@ class PlayerTest {
 
         player.aimAngle = -135f; // Down-Left
         assertFalse(player.isFacingRight());
+    }
+
+    @Test
+    void utilityWireIdsHaveUtilityDisplayNames() {
+        Player player = new Player(1, "Hero", 0, 100f, 100f);
+        player.weaponId = UtilityId.MOLOTOV.wireId();
+
+        assertEquals("Molotov", player.heldWeaponDisplayName());
     }
 
     @Test

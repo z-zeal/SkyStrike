@@ -268,12 +268,13 @@ class LoadoutSystemTest {
     }
 
     @Test
-    @DisplayName("empty slots cannot be selected, even by packet")
+    @DisplayName("depleted utility slots cannot be selected, even by packet")
     void emptySlotsAreRejected() {
+        player.loadout.utilityACount = 0;
         pressSlot(1, PlayerLoadout.SLOT_UTILITY_A, 100L);
         tick();
         assertEquals(PlayerLoadout.SLOT_PRIMARY, player.loadout.activeSlot,
-            "slot 4 holds nothing yet: the press is ignored");
+            "slot 4 is depleted: the press is ignored");
     }
 
     // --- Melee --------------------------------------------------------------------------------------

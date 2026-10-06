@@ -5,6 +5,7 @@ import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
@@ -78,7 +79,10 @@ public final class NetworkRegistration {
         Permission.class,
         PacketChatRequest.class,
         PacketChatMessage.class,
-        PacketCapabilities.class);
+        PacketCapabilities.class,
+
+        // Phase 5: throwable state carried inside snapshots (append-only)
+        ThrownUtility.class);
 
     private NetworkRegistration() {
     }

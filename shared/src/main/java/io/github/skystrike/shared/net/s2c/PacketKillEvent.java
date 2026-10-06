@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.net.s2c;
 
 import io.github.skystrike.shared.net.Packet;
+import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 
@@ -19,8 +20,8 @@ public final class PacketKillEvent implements Packet {
     public String victimName = "";
 
     /**
-     * The weapon responsible, as a wire id: a {@link WeaponId} ordinal for a gun, or a
-     * {@link io.github.skystrike.shared.weapons.MeleeId} wire id (1000 + ordinal) for melee.
+     * The weapon responsible, as a wire id: a {@link WeaponId} ordinal for a gun,
+     * 1000 + ordinal for melee, or 2000 + ordinal for a utility.
      */
     public int weaponId;
 
@@ -52,16 +53,17 @@ public final class PacketKillEvent implements Packet {
     }
 
     /**
-     * The gun responsible. Only meaningful for gun wire ids — for a melee kill use
+     * The gun responsible. Only meaningful for gun wire ids — for melee or a utility use
      * {@link #weaponDisplayName()} instead.
      */
     public WeaponId weapon() {
         return WeaponId.fromOrdinal(weaponId);
     }
 
-    /** Display name of the responsible weapon, gun or melee. */
+    /** Display name of the responsible gun, melee weapon or utility. */
     public String weaponDisplayName() {
-        return WeaponRegistry.displayNameForWireId(weaponId);
+        String utility = UtilityRegistry.displayNameForWireId(weaponId);
+        return utility.isEmpty() ? WeaponRegistry.displayNameForWireId(weaponId) : utility;
     }
 
     /** One line suitable for the kill feed. */

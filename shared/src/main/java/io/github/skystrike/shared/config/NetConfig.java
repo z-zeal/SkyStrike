@@ -22,8 +22,11 @@ public final class NetConfig {
      * <p>5 — Phase 7 chat and capabilities: {@code ChatChannel}, {@code ChatTarget},
      * {@code ChatMessage} and {@code Permission} registered as payload types, plus
      * {@code PacketChatRequest}, {@code PacketChatMessage} and {@code PacketCapabilities}.
+     *
+     * <p>6 — Phase 5 throwable contract: {@code ThrownUtility} registered as snapshot state;
+     * utility composition and carried counts added to the loadout contract.
      */
-    public static final int PROTOCOL_VERSION = 5;
+    public static final int PROTOCOL_VERSION = 6;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

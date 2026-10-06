@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.player.PlayerRegistry;
 import io.github.skystrike.server.player.PlayerSession;
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
+import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,11 +51,17 @@ class LoadoutUpdateHandlerTest {
     @DisplayName("a valid request is recorded, per field, and applied at respawn time")
     void validRequestIsRecorded() {
         handler.handle(connection, new PacketLoadoutUpdate(
-            WeaponId.CATHEDRAL.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.WINTER_KATANA.ordinal()));
+            WeaponId.CATHEDRAL.ordinal(),
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            MeleeId.WINTER_KATANA.ordinal(),
+            UtilityId.CLAYMORE.ordinal(),
+            UtilityId.POISON_SMOKE.ordinal()));
 
         assertEquals(WeaponId.CATHEDRAL.ordinal(), session.requestedPrimary());
         assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), session.requestedHandgun(), "untouched");
         assertEquals(MeleeId.WINTER_KATANA.ordinal(), session.requestedMelee());
+        assertEquals(UtilityId.CLAYMORE.ordinal(), session.requestedUtilityA());
+        assertEquals(UtilityId.POISON_SMOKE.ordinal(), session.requestedUtilityB());
 
         // The live loadout is untouched until the respawn flow applies the request.
         assertEquals(WeaponId.DEFAULT, session.player().loadout.primary.weaponId());
@@ -62,6 +70,26 @@ class LoadoutUpdateHandlerTest {
         assertEquals(WeaponId.CATHEDRAL, session.player().loadout.primary.weaponId());
         assertEquals(5, session.player().loadout.primary.magazine, "a fresh weapon comes full");
         assertEquals(MeleeId.WINTER_KATANA, session.player().loadout.meleeId());
+        assertEquals(UtilityId.CLAYMORE,
+            session.player().loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A));
+        assertEquals(1, session.player().loadout.utilityACount);
+        assertEquals(UtilityId.POISON_SMOKE,
+            session.player().loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B));
+    }
+
+    @Test
+    @DisplayName("a utility-only request is not mistaken for an empty packet")
+    void utilityOnlyRequestIsRecorded() {
+        handler.handle(connection, new PacketLoadoutUpdate(
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            UtilityId.STUN.ordinal(),
+            UtilityId.FLASHBANG.ordinal()));
+
+        assertEquals(UtilityId.STUN.ordinal(), session.requestedUtilityA());
+        assertEquals(UtilityId.FLASHBANG.ordinal(), session.requestedUtilityB());
+        assertEquals(WeaponId.DEFAULT.ordinal(), session.requestedPrimary(), "untouched");
     }
 
     @Test
@@ -83,11 +111,13 @@ class LoadoutUpdateHandlerTest {
     @Test
     @DisplayName("garbage ordinals and empty packets change nothing")
     void invalidOrdinalsAreDropped() {
-        handler.handle(connection, new PacketLoadoutUpdate(999, -7, 42)); // 42 >= 21 melee ids
+        handler.handle(connection, new PacketLoadoutUpdate(999, -7, 42, 99, -8));
 
         assertEquals(WeaponId.DEFAULT.ordinal(), session.requestedPrimary());
         assertEquals(WeaponId.DEFAULT_SIDEARM.ordinal(), session.requestedHandgun());
         assertEquals(MeleeId.DEFAULT.ordinal(), session.requestedMelee());
+        assertEquals(UtilityId.DEFAULT_PRIMARY.ordinal(), session.requestedUtilityA());
+        assertEquals(UtilityId.DEFAULT_SECONDARY.ordinal(), session.requestedUtilityB());
 
         handler.handle(connection, new PacketLoadoutUpdate()); // all KEEP_CURRENT
         handler.handle(connection, null);
