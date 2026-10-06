@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.MeleeId;
@@ -374,5 +376,131 @@ class PlayerLoadoutTest {
         assertEquals(0, loadout.utilityBCount);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
         assertFalse(loadout.consumeActiveUtility(), "only an active utility can be consumed");
+    }
+
+    // --- Gadget slots (mechanics §7, §8) --------------------------------------------------------
+
+    @Test
+    @DisplayName("gadget slots default to empty and sit outside the 1–5 selection system")
+    void gadgetSlotsDefaultEmpty() {
+        assertTrue(loadout.gadgetQ.isEmpty(), "the plan names no default gadget");
+        assertTrue(loadout.gadgetE.isEmpty());
+        assertFalse(loadout.hasFuelTank());
+        assertNull(loadout.shieldState());
+        assertSame(loadout.gadgetQ, loadout.gadgetSlot(0));
+        assertSame(loadout.gadgetE, loadout.gadgetSlot(1));
+
+        // Equipping gadgets never disturbs the main slots or the hands.
+        loadout.setGadgets(GadgetId.DRONE, GadgetId.SHIELD);
+        assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
+        assertTrue(loadout.isFilled(PlayerLoadout.SLOT_PRIMARY));
+        assertEquals(WeaponId.DEFAULT.ordinal(), loadout.heldWeaponWireId());
+    }
+
+    @Test
+    @DisplayName("setGadgets: null keeps, NONE empties, change equips fresh, same keeps state")
+    void gadgetComposition() {
+        loadout.setGadgets(GadgetId.SHIELD, GadgetId.FUEL_TANK);
+        assertTrue(loadout.gadgetQ.holds(GadgetId.SHIELD));
+        assertTrue(loadout.gadgetE.holds(GadgetId.FUEL_TANK));
+        assertTrue(loadout.hasFuelTank());
+        assertSame(ShieldState.STOWED, loadout.shieldState());
+
+        // Re-assigning the same gadget keeps its live state, like an unchanged gun's ammo.
+        loadout.gadgetQ.applyDurabilityDamage(50f);
+        loadout.setGadgets(GadgetId.SHIELD, null);
+        assertEquals(100f, loadout.gadgetQ.durability, 1e-4f);
+
+        // An actual change equips fresh.
+        loadout.setGadgets(GadgetId.DRONE, null);
+        assertTrue(loadout.gadgetQ.holds(GadgetId.DRONE));
+        assertEquals(30f, loadout.gadgetQ.durability, 1e-4f);
+
+        // Null keeps; NONE explicitly empties.
+        loadout.setGadgets(null, GadgetId.NONE);
+        assertTrue(loadout.gadgetQ.holds(GadgetId.DRONE));
+        assertTrue(loadout.gadgetE.isEmpty());
+        assertFalse(loadout.hasFuelTank());
+    }
+
+    @Test
+    @DisplayName("duplicate gadgets are rejected per slot, Q applying before E")
+    void gadgetDuplicatesRejected() {
+        loadout.setGadgets(GadgetId.SHIELD, GadgetId.SHIELD);
+        assertTrue(loadout.gadgetQ.holds(GadgetId.SHIELD), "Q wins the race");
+        assertTrue(loadout.gadgetE.isEmpty(), "the duplicate E request is dropped");
+
+        // Asking Q for what E already holds is dropped too.
+        loadout.setGadgets(null, GadgetId.FUEL_TANK);
+        loadout.setGadgets(GadgetId.FUEL_TANK, null);
+        assertTrue(loadout.gadgetQ.holds(GadgetId.SHIELD));
+        assertTrue(loadout.gadgetE.holds(GadgetId.FUEL_TANK));
+
+        // Because Q applies first, one request can hand Q's gadget down to E…
+        loadout.setGadgets(GadgetId.NONE, GadgetId.SHIELD);
+        assertTrue(loadout.gadgetQ.isEmpty());
+        assertTrue(loadout.gadgetE.holds(GadgetId.SHIELD));
+
+        // …while moving E's gadget up to Q needs E emptied in an earlier request.
+        loadout.setGadgets(GadgetId.SHIELD, null);
+        assertTrue(loadout.gadgetQ.isEmpty(), "E still holds the shield: Q's request drops");
+        loadout.setGadgets(null, GadgetId.NONE);
+        loadout.setGadgets(GadgetId.SHIELD, null);
+        assertTrue(loadout.gadgetQ.holds(GadgetId.SHIELD));
+        assertTrue(loadout.gadgetE.isEmpty());
+    }
+
+    @Test
+    @DisplayName("the seven-component composition drives gadgets and main slots together")
+    void sevenComponentComposition() {
+        loadout.setComposition(WeaponId.CATHEDRAL, null, MeleeId.WINTER_KATANA,
+            UtilityId.CLAYMORE, null, GadgetId.DRONE, GadgetId.CAMERA);
+        assertEquals(WeaponId.CATHEDRAL, loadout.primary.weaponId());
+        assertEquals(MeleeId.WINTER_KATANA, loadout.meleeId());
+        assertEquals(UtilityId.CLAYMORE, loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A));
+        assertTrue(loadout.gadgetQ.holds(GadgetId.DRONE));
+        assertTrue(loadout.gadgetE.holds(GadgetId.CAMERA));
+        assertTrue(loadout.hasUsableGadget(GadgetId.CAMERA));
+        assertFalse(loadout.hasUsableGadget(GadgetId.SHIELD));
+    }
+
+    @Test
+    @DisplayName("respawn keeps gadget choices and clears their state (mechanics §10)")
+    void gadgetRespawnReset() {
+        loadout.setGadgets(GadgetId.SHIELD, GadgetId.DRONE);
+        loadout.gadgetQ.active = true;
+        loadout.gadgetQ.applyDurabilityDamage(150f); // breaks the shield
+        loadout.gadgetE.cooldownRemaining = 4f;
+        assertSame(ShieldState.BROKEN, loadout.shieldState());
+        assertFalse(loadout.hasUsableGadget(GadgetId.SHIELD));
+
+        loadout.resetForRespawn();
+
+        assertTrue(loadout.gadgetQ.holds(GadgetId.SHIELD), "a death does not steal a gadget");
+        assertEquals(150f, loadout.gadgetQ.durability, 1e-4f);
+        assertSame(ShieldState.STOWED, loadout.shieldState());
+        assertTrue(loadout.hasUsableGadget(GadgetId.SHIELD));
+        assertEquals(0f, loadout.gadgetE.cooldownRemaining);
+        assertFalse(loadout.gadgetE.active);
+    }
+
+    @Test
+    @DisplayName("gadget state copies deeply: a twin's broken shield is not mine")
+    void gadgetCopiesAreDeep() {
+        loadout.setGadgets(GadgetId.SHIELD, GadgetId.FUEL_TANK);
+        PlayerLoadout twin = loadout.copy();
+        assertNotSame(loadout.gadgetQ, twin.gadgetQ);
+        assertNotSame(loadout.gadgetE, twin.gadgetE);
+
+        twin.gadgetQ.applyDurabilityDamage(150f);
+        twin.gadgetE.broken = true;
+        assertEquals(150f, loadout.gadgetQ.durability, 1e-4f);
+        assertFalse(loadout.gadgetQ.broken);
+        assertTrue(loadout.hasFuelTank(), "the twin's detonated tank is not mine");
+
+        PlayerLoadout third = new PlayerLoadout();
+        third.set(loadout);
+        third.gadgetQ.active = true;
+        assertFalse(loadout.gadgetQ.active);
     }
 }

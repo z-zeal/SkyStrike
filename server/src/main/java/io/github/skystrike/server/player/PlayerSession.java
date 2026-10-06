@@ -2,6 +2,7 @@ package io.github.skystrike.server.player;
 
 import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.weapons.GunInstance;
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
@@ -60,6 +61,8 @@ public final class PlayerSession {
     private int requestedMelee;
     private int requestedUtilityA;
     private int requestedUtilityB;
+    private int requestedGadgetQ;
+    private int requestedGadgetE;
 
     public PlayerSession(Connection connection, int playerId, String name, int teamIndex, float spawnX, float spawnY) {
         this.connection = connection;
@@ -73,6 +76,8 @@ public final class PlayerSession {
         this.requestedMelee = loadout.melee;
         this.requestedUtilityA = loadout.utilityA;
         this.requestedUtilityB = loadout.utilityB;
+        this.requestedGadgetQ = loadout.gadgetQ.gadget;
+        this.requestedGadgetE = loadout.gadgetE.gadget;
 
         WeaponId held = loadout.heldGunId();
         this.gun = new GunInstance(held == null ? WeaponId.DEFAULT : held);
@@ -260,6 +265,19 @@ public final class PlayerSession {
         int utilityAOrdinal,
         int utilityBOrdinal
     ) {
+        requestLoadout(primaryOrdinal, handgunOrdinal, meleeOrdinal, utilityAOrdinal, utilityBOrdinal,
+            PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT);
+    }
+
+    public void requestLoadout(
+        int primaryOrdinal,
+        int handgunOrdinal,
+        int meleeOrdinal,
+        int utilityAOrdinal,
+        int utilityBOrdinal,
+        int gadgetQOrdinal,
+        int gadgetEOrdinal
+    ) {
         if (primaryOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
             this.requestedPrimary = primaryOrdinal;
         }
@@ -274,6 +292,12 @@ public final class PlayerSession {
         }
         if (utilityBOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
             this.requestedUtilityB = utilityBOrdinal;
+        }
+        if (gadgetQOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedGadgetQ = gadgetQOrdinal;
+        }
+        if (gadgetEOrdinal != PacketLoadoutUpdate.KEEP_CURRENT) {
+            this.requestedGadgetE = gadgetEOrdinal;
         }
     }
 
@@ -290,6 +314,8 @@ public final class PlayerSession {
         MeleeId before3 = loadout.meleeId();
         UtilityId before4 = loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A);
         UtilityId before5 = loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B);
+        GadgetId beforeQ = loadout.gadgetQ.gadgetId();
+        GadgetId beforeE = loadout.gadgetE.gadgetId();
 
         WeaponId primaryId = WeaponId.isValidOrdinal(requestedPrimary)
             ? WeaponId.fromOrdinal(requestedPrimary) : null;
@@ -301,7 +327,12 @@ public final class PlayerSession {
             ? UtilityId.fromOrdinal(requestedUtilityA) : null;
         UtilityId utilityBId = UtilityId.isValidOrdinal(requestedUtilityB)
             ? UtilityId.fromOrdinal(requestedUtilityB) : null;
-        loadout.setComposition(primaryId, handgunId, meleeId, utilityAId, utilityBId);
+        GadgetId gadgetQId = GadgetId.isValidOrdinal(requestedGadgetQ)
+            ? GadgetId.fromOrdinal(requestedGadgetQ) : null;
+        GadgetId gadgetEId = GadgetId.isValidOrdinal(requestedGadgetE)
+            ? GadgetId.fromOrdinal(requestedGadgetE) : null;
+        loadout.setComposition(primaryId, handgunId, meleeId, utilityAId, utilityBId,
+            gadgetQId, gadgetEId);
         loadout.resetForRespawn();
 
         WeaponId after1 = loadout.primary == null ? null : loadout.primary.weaponId();
@@ -310,7 +341,9 @@ public final class PlayerSession {
             || before2 != after2
             || before3 != loadout.meleeId()
             || before4 != loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A)
-            || before5 != loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B);
+            || before5 != loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B)
+            || beforeQ != loadout.gadgetQ.gadgetId()
+            || beforeE != loadout.gadgetE.gadgetId();
     }
 
     public int requestedPrimary() {
@@ -331,5 +364,13 @@ public final class PlayerSession {
 
     public int requestedUtilityB() {
         return requestedUtilityB;
+    }
+
+    public int requestedGadgetQ() {
+        return requestedGadgetQ;
+    }
+
+    public int requestedGadgetE() {
+        return requestedGadgetE;
     }
 }

@@ -11,6 +11,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.gadget.GadgetId;
+import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
@@ -79,6 +81,7 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(UtilityZone.class));
         assertTrue(NetworkRegistration.isSupportType(HitZone.class));
         assertTrue(NetworkRegistration.isSupportType(PlayerLoadout.class));
+        assertTrue(NetworkRegistration.isSupportType(GadgetSlot.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
         assertFalse(NetworkRegistration.isSupportType(PacketLoadoutUpdate.class));
     }
@@ -137,8 +140,15 @@ class NetworkRegistrationTest {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(ThrownUtility.class, types.get(25));
         assertEquals(UtilityZone.class, types.get(26));
-        assertEquals(27, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(7, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("the Phase 6 gadget slot is appended last; the list and protocol are frozen")
+    void phaseSixGadgetSlotIsAppended() {
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(GadgetSlot.class, types.get(27));
+        assertEquals(28, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(8, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -223,6 +233,22 @@ class NetworkRegistrationTest {
         assertEquals(MeleeId.WINTER_KATANA.ordinal(), loadout.melee);
         assertEquals(UtilityId.CLAYMORE.ordinal(), loadout.utilityA);
         assertEquals(UtilityId.POISON_SMOKE.ordinal(), loadout.utilityB);
+        assertEquals(PacketLoadoutUpdate.KEEP_CURRENT, loadout.gadgetQ,
+            "the five-slot constructor keeps both gadget slots");
+        assertEquals(PacketLoadoutUpdate.KEEP_CURRENT, loadout.gadgetE);
+
+        PacketLoadoutUpdate gadgets = roundTrip(new PacketLoadoutUpdate(
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            GadgetId.SHIELD.ordinal(),
+            GadgetId.NONE.ordinal()));
+        assertEquals(GadgetId.SHIELD.ordinal(), gadgets.gadgetQ);
+        assertEquals(GadgetId.NONE.ordinal(), gadgets.gadgetE,
+            "the explicit NONE request survives the wire distinctly from KEEP_CURRENT");
+        assertFalse(gadgets.isEmpty());
     }
 
     @Test
@@ -266,6 +292,11 @@ class NetworkRegistrationTest {
         p.loadout.utilityBCount = 2;
         p.loadout.reloading = true;
         p.loadout.reloadTimer = 1.25f;
+        p.loadout.setGadgets(GadgetId.SHIELD, GadgetId.FUEL_TANK);
+        p.loadout.gadgetQ.active = true;
+        p.loadout.gadgetQ.durability = 85.5f;
+        p.loadout.gadgetQ.cooldownRemaining = 0.75f;
+        p.loadout.gadgetE.broken = true;
 
         Projectile round = new Projectile(9, 1, 0, WeaponId.CATHEDRAL.ordinal(), 300f, 400f, 1500f, 20f);
         round.age = 0.25f;
@@ -312,6 +343,13 @@ class NetworkRegistrationTest {
         assertEquals(2, decodedLoadout.utilityBCount);
         assertTrue(decodedLoadout.reloading);
         assertEquals(1.25f, decodedLoadout.reloadTimer, 1e-4f);
+        assertTrue(decodedLoadout.gadgetQ.holds(GadgetId.SHIELD));
+        assertTrue(decodedLoadout.gadgetQ.active);
+        assertEquals(85.5f, decodedLoadout.gadgetQ.durability, 1e-4f);
+        assertEquals(0.75f, decodedLoadout.gadgetQ.cooldownRemaining, 1e-4f);
+        assertTrue(decodedLoadout.gadgetE.holds(GadgetId.FUEL_TANK));
+        assertTrue(decodedLoadout.gadgetE.broken);
+        assertFalse(decodedLoadout.hasFuelTank(), "a detonated tank stays detonated on the wire");
         assertEquals(1.25f, state.players.get(0).spread);
         assertEquals(4.5f, state.players.get(0).gunKick);
         assertEquals(3, state.players.get(0).kills);

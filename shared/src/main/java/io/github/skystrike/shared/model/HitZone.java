@@ -6,8 +6,9 @@ import io.github.skystrike.shared.config.CombatConfig;
  * Where a round landed on a player (mechanics §4.1).
  *
  * <p>The multiplier lives on the zone so there is one place that answers "what is a headshot
- * worth". {@link #FUEL_TANK} is reserved for the Phase 6 rear gadget: until that system exists no
- * player carries a tank and the zone is never resolved.
+ * worth". {@link #FUEL_TANK} resolves only while the target's loadout carries a worn, intact
+ * fuel tank (Phase 6); its detonation is applied by the server's gadget system, not by the
+ * multiplier here.
  */
 public enum HitZone {
 
@@ -17,7 +18,7 @@ public enum HitZone {
     /** Everything below the head zone. */
     BODY(CombatConfig.BODY_DAMAGE_MULTIPLIER, "body"),
 
-    /** Rear-mounted fuel tank. Detonates instead of taking normal damage — Phase 6. */
+    /** Rear-mounted fuel tank gadget. Detonates instead of taking normal damage. */
     FUEL_TANK(CombatConfig.FUEL_TANK_DAMAGE_MULTIPLIER, "fuel tank");
 
     private final float damageMultiplier;

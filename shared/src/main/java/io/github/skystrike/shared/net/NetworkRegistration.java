@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.net;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
@@ -86,7 +87,10 @@ public final class NetworkRegistration {
         ThrownUtility.class,
 
         // Phase 5 lifecycle: persistent smoke, poison and fire zones (append-only)
-        UtilityZone.class);
+        UtilityZone.class,
+
+        // Phase 6: the Q/E gadget slots carried inside PlayerLoadout (append-only)
+        GadgetSlot.class);
 
     private NetworkRegistration() {
     }

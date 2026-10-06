@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import org.junit.jupiter.api.DisplayName;
@@ -108,5 +109,70 @@ class HitZoneMathTest {
         assertSame(
             HitZone.HEAD,
             HitZoneMath.resolveWithGadget(rearX, headY, footY, centreX, height, true, true));
+    }
+
+    @Test
+    @DisplayName("the Player overload reads the fuel tank from the loadout's gadget slots")
+    void playerOverloadFollowsGadgetState() {
+        Player p = standing();
+        p.aimAngle = 0f; // facing right: the tank strip is the left edge of the hitbox
+        float rearX = p.x - PlayerConfig.WIDTH / 2f + 1f;
+        float impactY = p.y + p.currentHeight() * 0.5f;
+
+        // No gadgets equipped: plain body resolution, identical to the Phase 3 path.
+        assertSame(HitZone.BODY, HitZoneMath.resolve(rearX, impactY, p));
+
+        // A worn, intact tank exposes the rear zone.
+        p.loadout.setGadgets(GadgetId.FUEL_TANK, null);
+        assertSame(HitZone.FUEL_TANK, HitZoneMath.resolve(rearX, impactY, p));
+
+        // The front of the hitbox is never the tank.
+        float frontX = p.x + PlayerConfig.WIDTH / 2f - 1f;
+        assertSame(HitZone.BODY, HitZoneMath.resolve(frontX, impactY, p));
+
+        // A detonated (broken) tank is gone for the rest of the life.
+        p.loadout.gadgetQ.broken = true;
+        assertSame(HitZone.BODY, HitZoneMath.resolve(rearX, impactY, p));
+    }
+
+    @Test
+    @DisplayName("the rear-facing condition flips with the aim: the tank sits behind the player")
+    void rearFacingConditionFlips() {
+        Player p = standing();
+        p.loadout.setGadgets(null, GadgetId.FUEL_TANK); // E slot works identically to Q
+        float impactY = p.y + p.currentHeight() * 0.5f;
+        float leftEdge = p.x - PlayerConfig.WIDTH / 2f + 1f;
+        float rightEdge = p.x + PlayerConfig.WIDTH / 2f - 1f;
+
+        p.aimAngle = 0f; // aiming right → tank on the left
+        assertTrue(p.isFacingRight());
+        assertSame(HitZone.FUEL_TANK, HitZoneMath.resolve(leftEdge, impactY, p));
+        assertSame(HitZone.BODY, HitZoneMath.resolve(rightEdge, impactY, p));
+
+        p.aimAngle = 180f; // aiming left → tank on the right
+        assertSame(HitZone.BODY, HitZoneMath.resolve(leftEdge, impactY, p));
+        assertSame(HitZone.FUEL_TANK, HitZoneMath.resolve(rightEdge, impactY, p));
+    }
+
+    @Test
+    @DisplayName("the tank band respects its 30%–72% height limits and the head wins above them")
+    void tankBandLimits() {
+        Player p = standing();
+        p.aimAngle = 0f;
+        p.loadout.setGadgets(GadgetId.FUEL_TANK, null);
+        float rearX = p.x - PlayerConfig.WIDTH / 2f + 1f;
+        float height = p.currentHeight();
+
+        assertSame(HitZone.BODY, HitZoneMath.resolve(
+            rearX, p.y + height * (CombatConfig.FUEL_TANK_BOTTOM_FRACTION - 0.02f), p),
+            "below the band is body");
+        assertSame(HitZone.FUEL_TANK, HitZoneMath.resolve(
+            rearX, p.y + height * CombatConfig.FUEL_TANK_BOTTOM_FRACTION, p));
+        assertSame(HitZone.FUEL_TANK, HitZoneMath.resolve(
+            rearX, p.y + height * (CombatConfig.FUEL_TANK_TOP_FRACTION - 0.01f), p));
+        // The tank band tops out exactly where the head zone begins (0.72 of current height),
+        // and the inclusive head boundary wins there: a head hit always stays a head hit.
+        assertSame(HitZone.HEAD, HitZoneMath.resolve(
+            rearX, p.y + height * CombatConfig.HEAD_ZONE_START_FRACTION, p));
     }
 }

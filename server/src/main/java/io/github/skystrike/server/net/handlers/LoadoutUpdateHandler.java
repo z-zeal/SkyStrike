@@ -4,6 +4,7 @@ import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.net.PacketHandler;
 import io.github.skystrike.server.player.PlayerRegistry;
 import io.github.skystrike.server.player.PlayerSession;
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.weapons.MeleeId;
@@ -17,8 +18,11 @@ import io.github.skystrike.shared.weapons.WeaponRegistry;
  * at the next respawn — nothing here touches the live loadout mid-life.
  *
  * <p>Validation is the whole point of the packet existing server-side: slot 1 takes any gun,
- * slot 2 takes sidearms only — pistols and revolvers — slot 3 takes any melee weapon, and slots
- * 4–5 take utility ordinals. Anything else is dropped field by field, not trusted field by field.
+ * slot 2 takes sidearms only — pistols and revolvers — slot 3 takes any melee weapon, slots
+ * 4–5 take utility ordinals, and the Q/E slots take gadget ordinals ({@code NONE} included, so
+ * a gadget can be explicitly dropped). Anything else is dropped field by field, not trusted
+ * field by field. The duplicate-gadget rule lives with the composition in
+ * {@code PlayerLoadout.setGadgets}, so client prediction and the server share it.
  */
 public final class LoadoutUpdateHandler implements PacketHandler<PacketLoadoutUpdate> {
 
@@ -44,12 +48,16 @@ public final class LoadoutUpdateHandler implements PacketHandler<PacketLoadoutUp
             ? packet.utilityA : PacketLoadoutUpdate.KEEP_CURRENT;
         int utilityB = isValidUtility(packet.utilityB)
             ? packet.utilityB : PacketLoadoutUpdate.KEEP_CURRENT;
+        int gadgetQ = isValidGadget(packet.gadgetQ)
+            ? packet.gadgetQ : PacketLoadoutUpdate.KEEP_CURRENT;
+        int gadgetE = isValidGadget(packet.gadgetE)
+            ? packet.gadgetE : PacketLoadoutUpdate.KEEP_CURRENT;
 
-        session.requestLoadout(primary, handgun, melee, utilityA, utilityB);
+        session.requestLoadout(primary, handgun, melee, utilityA, utilityB, gadgetQ, gadgetE);
         System.out.printf(
             "[loadout] player=%d requested primary=%d handgun=%d melee=%d utilityA=%d utilityB=%d"
-                + " (applies at respawn)%n",
-            session.playerId(), primary, handgun, melee, utilityA, utilityB);
+                + " gadgetQ=%d gadgetE=%d (applies at respawn)%n",
+            session.playerId(), primary, handgun, melee, utilityA, utilityB, gadgetQ, gadgetE);
     }
 
     private static boolean isValidGun(int ordinal) {
@@ -58,6 +66,11 @@ public final class LoadoutUpdateHandler implements PacketHandler<PacketLoadoutUp
 
     private static boolean isValidUtility(int ordinal) {
         return ordinal == PacketLoadoutUpdate.KEEP_CURRENT || UtilityId.isValidOrdinal(ordinal);
+    }
+
+    /** Gadget slots accept any real gadget and the explicit NONE (ordinal 0, "carry nothing"). */
+    private static boolean isValidGadget(int ordinal) {
+        return ordinal == PacketLoadoutUpdate.KEEP_CURRENT || GadgetId.isValidOrdinal(ordinal);
     }
 
     private static boolean isValidPistol(int ordinal) {
