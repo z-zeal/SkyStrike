@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.server.chat.ChatHistoryTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:52.270Z" hostname="runnervmmprz5" time="0.009">
-  <properties/>
-  <testcase name="the transcript is bounded and evicts oldest first" classname="io.github.skystrike.server.chat.ChatHistoryTest" time="0.003"/>
-  <testcase name="the transcript stores a copy, so a later edit cannot rewrite history" classname="io.github.skystrike.server.chat.ChatHistoryTest" time="0.001"/>
-  <testcase name="nullsAreIgnoredAndCapacityMustBePositive()" classname="io.github.skystrike.server.chat.ChatHistoryTest" time="0.002"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>
