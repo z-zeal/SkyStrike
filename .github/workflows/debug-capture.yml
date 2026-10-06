@@ -10,6 +10,9 @@ on:
     branches: [ "arena/b01210ce-skystrike" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   capture:
     runs-on: ubuntu-24.04
@@ -48,4 +51,4 @@ jobs:
           git config user.email "arena-ci-debug-bot@users.noreply.github.com"
           git add -f ci-capture
           git diff --cached --quiet || git commit -m "ci debug capture (temporary; do not merge)"
-          git push
+          git push origin HEAD:arena/b01210ce-skystrike
