@@ -88,6 +88,15 @@ public final class WeaponConfig {
     public static final float MUZZLE_SPEED_MIN = 520f;
     public static final float MUZZLE_SPEED_MAX = 1950f;
 
+    /**
+     * Handgun floor in units/s: four times ground run speed and 1.2 times the absolute player
+     * velocity cap, so a pistol round cannot be outrun by jumping or sustained jetpack movement.
+     */
+    public static final float SIDEARM_MUZZLE_SPEED_MIN = 1200f;
+
+    /** Handguns retain at least this fraction of velocity per 60 Hz simulation tick. */
+    public static final float SIDEARM_DRAG_MIN = 0.995f;
+
     /** Per-shot drag coefficient bounds, quoted per simulation tick. */
     public static final float DRAG_MIN = 0.980f;
     public static final float DRAG_MAX = 0.998f;

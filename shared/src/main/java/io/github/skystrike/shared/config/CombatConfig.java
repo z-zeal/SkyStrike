@@ -48,11 +48,10 @@ public final class CombatConfig {
     /**
      * Units/s² of bullet drop per unit of per-class gravity. The mechanics plan quotes the class
      * numbers as relative weights (sniper 1.0 → shotgun 5.0); this is the scale that turns them
-     * into an acceleration. Halved for the big map: every class drops half as hard, but the
-     * class differences intact, except pistols use a flatter 2.0 weight to compensate for their
-     * much lower muzzle velocity. Verified in {@code tools/scratch/phase3_ballistics.py}: flat
-     * inside half of a weapon's
-     * range, 1.5–15 units of drop at maximum range.
+     * into an acceleration. Halved for the big map: every class drops half as hard while class
+     * differences remain intact. Sidearms use modest 1.5/2.0 weights alongside their dedicated
+     * speed and drag conversion, keeping normal-range handgun drop below two world units without
+     * turning rifles and snipers into hitscan weapons.
      */
     public static final float BULLET_GRAVITY_BASE = 150f;
 

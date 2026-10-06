@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.weapons.WeaponBallistics;
@@ -127,6 +128,32 @@ class BallisticsMathTest {
         assertTrue(dropAtHalfRange < 2f, "half range should look flat, was " + dropAtHalfRange);
         assertTrue(dropAtFullRange > dropAtHalfRange * 3f,
             "drop must accelerate: half " + dropAtHalfRange + " full " + dropAtFullRange);
+    }
+
+    @Test
+    @DisplayName("sidearms stay faster than players and drop less than two units at effective range")
+    void sidearmTrajectoriesStayUsefulAcrossEffectiveRange() {
+        float dt = 1f / WorldConfig.TICK_RATE_HZ;
+        for (WeaponId id : WeaponId.values()) {
+            WeaponBallistics ballistics = WeaponBallistics.of(id);
+            if (!ballistics.weaponClass().isSidearm()) {
+                continue;
+            }
+
+            Projectile round = new Projectile(
+                1, 1, 0, id.ordinal(), 0f, 1000f, ballistics.muzzleSpeed(), 0f);
+            while (round.distanceTravelled < ballistics.maxRange() && round.age < 2f) {
+                BallisticsMath.step(round, ballistics, dt);
+            }
+
+            float drop = 1000f - round.y;
+            assertTrue(round.distanceTravelled >= ballistics.maxRange(),
+                id + " failed to reach effective range in two seconds");
+            assertTrue(drop < 2f,
+                id + " dropped too far at effective range: " + drop);
+            assertTrue(round.vx > PlayerConfig.MAX_VERTICAL_SPEED,
+                id + " slowed below the absolute player speed cap at effective range: " + round.vx);
+        }
     }
 
     @Test

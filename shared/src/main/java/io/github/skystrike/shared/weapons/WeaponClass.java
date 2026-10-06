@@ -12,14 +12,14 @@ package io.github.skystrike.shared.weapons;
 public enum WeaponClass {
 
     SNIPER(1.0f),
+    PISTOL(1.5f),
     DMR(1.8f),
-    PISTOL(2.0f),
+    REVOLVER(2.0f),
     BATTLE_RIFLE(2.2f),
     LMG(2.4f),
     ASSAULT_RIFLE(2.5f),
     PDW(3.2f),
     SMG(3.5f),
-    REVOLVER(3.8f),
     SHOTGUN(5.0f);
 
     private final float gravityWeight;

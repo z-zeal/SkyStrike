@@ -167,9 +167,10 @@ extends sight, and the server never transmits hidden players.
 ## PHASE 3 — Combat core
 
 ### 3.1 Ballistics (`shared/combat/BallisticsMath`, `shared/weapons/WeaponBallistics`)
-Travelling projectiles, never hitscan. Per-weapon muzzle speed 520–1950; per-class drop
-(sniper 1.0 → shotgun 5.0) ramping in over 0.5–1.8 s; per-shot drag 0.980–0.998;
-linear damage falloff to a per-weapon floor (sawed-off shotguns 35% → snipers 80%).
+Travelling projectiles, never hitscan. Long-gun muzzle speed uses the 520–1950 tuning band;
+sidearms have a dedicated 1200–1550 band and at least 0.995 drag retention per tick. Per-class drop
+(sniper 1.0 → shotgun 5.0, with pistols/revolvers at 1.5/2.0) ramps in over 0.5–1.8 s;
+linear damage falloff reaches a per-weapon floor (sawed-off shotguns 35% → snipers 80%).
 **Above ~100 u/s, sweep previous→current position each tick.** Fast bullets tunnelling through the 14-unit
 tunnel roof is the bug you will otherwise spend a week finding.
 
