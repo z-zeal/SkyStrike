@@ -1,8 +1,10 @@
 package io.github.skystrike.server.player;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esotericsoftware.kryonet.Connection;
 import org.junit.jupiter.api.DisplayName;
@@ -60,5 +62,28 @@ class PlayerRegistryTest {
         assertEquals(0, registry.count());
         assertNull(registry.byPlayerId(1));
         assertNull(registry.byConnection(conn));
+    }
+
+    @Test
+    @DisplayName("anyCheatActive reflects any session's noclip, godmode or infinite-ammo flag")
+    void anyCheatActiveReflectsAnySessionFlag() {
+        PlayerRegistry registry = new PlayerRegistry();
+        PlayerSession alice = registry.register(new FakeConnection(1), 1, "Alice", 0, 100f, 100f);
+        registry.register(new FakeConnection(2), 2, "Bob", 1, 200f, 100f);
+
+        assertFalse(registry.anyCheatActive(), "no session has a toggle on yet");
+
+        alice.setInfiniteAmmo(true);
+        assertTrue(registry.anyCheatActive());
+
+        alice.setInfiniteAmmo(false);
+        assertFalse(registry.anyCheatActive());
+
+        alice.setNoclip(true);
+        assertTrue(registry.anyCheatActive());
+        alice.setNoclip(false);
+
+        alice.setGodmode(true);
+        assertTrue(registry.anyCheatActive());
     }
 }

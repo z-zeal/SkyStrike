@@ -16,6 +16,8 @@ import io.github.skystrike.shared.command.CommandSide;
 import io.github.skystrike.shared.command.CommandSpec;
 import io.github.skystrike.shared.command.PlayerRef;
 import io.github.skystrike.shared.command.ServerCommandCatalog;
+import io.github.skystrike.shared.config.DebugFlags;
+import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Team;
 import io.github.skystrike.shared.model.WeaponItem;
@@ -55,11 +57,13 @@ public final class ServerCommandModule {
         ChatService chat,
         Dispatch dispatch,
         /** The respawn-time preparation the tick hook applies; commands reuse it verbatim. */
-        Consumer<PlayerSession> prepareForLife
+        Consumer<PlayerSession> prepareForLife,
+        /** The global (non-per-player) debug state {@code timescale} and {@code dumpstate} read. */
+        DebugState debugState
     ) {
         public Deps {
             if (players == null || respawnService == null || loadoutSystem == null
-                || chat == null || dispatch == null || prepareForLife == null) {
+                || chat == null || dispatch == null || prepareForLife == null || debugState == null) {
                 throw new IllegalArgumentException("all deps are required");
             }
         }
@@ -80,7 +84,13 @@ public final class ServerCommandModule {
      */
     public static void registerAll(CommandRegistry registry, Deps deps) {
         Map<String, CommandHandler> handlers = handlers(deps);
+        boolean debugEnabled = DebugFlags.enabled();
         for (CommandSpec metadata : ServerCommandCatalog.metadata()) {
+            if (ServerCommandCatalog.isDebugOnly(metadata.name()) && !debugEnabled) {
+                // Build plan M3 §4: with the master switch off, these are invisible, not
+                // refused — never registered, so dispatch reports them exactly like a typo.
+                continue;
+            }
             CommandHandler handler = handlers.get(metadata.name());
             if (handler == null) {
                 throw new IllegalStateException(
@@ -115,7 +125,36 @@ public final class ServerCommandModule {
             @Override public boolean get(PlayerSession s) { return s.infiniteAmmo(); }
             @Override public void set(PlayerSession s, boolean v) { s.setInfiniteAmmo(v); }
         }));
+        handlers.put("timescale", (ctx, args) -> timescaleCommand(deps, args));
+        handlers.put("dumpstate", (ctx, args) -> dumpStateCommand(deps));
         return handlers;
+    }
+
+    private static CommandResult timescaleCommand(Deps deps, Arguments args) {
+        if (!args.contains("multiplier")) {
+            return CommandResult.info("timescale = " + deps.debugState().timescale());
+        }
+        float multiplier = args.getFloat("multiplier");
+        deps.debugState().setTimescale(multiplier);
+        return CommandResult.success("timescale set to " + deps.debugState().timescale() + ".");
+    }
+
+    private static CommandResult dumpStateCommand(Deps deps) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        Runtime runtime = Runtime.getRuntime();
+        long usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024L * 1024L);
+        long maxMb = runtime.maxMemory() / (1024L * 1024L);
+        lines.add("players: " + deps.players().count());
+        lines.add("memory: " + usedMb + "/" + maxMb + " MB used/max");
+        lines.add("timescale: " + deps.debugState().timescale());
+        for (PlayerSession session : deps.players().all()) {
+            Player p = session.player();
+            lines.add(String.format(
+                "  #%d %s pos(%.0f,%.0f) hp=%.0f alive=%s noclip=%s godmode=%s infiniteAmmo=%s",
+                session.playerId(), session.name(), p.x, p.y, p.health, p.alive,
+                session.noclip(), session.godmode(), session.infiniteAmmo()));
+        }
+        return CommandResult.info(lines);
     }
 
     private static CommandHandler cheat(Deps deps, String name, SessionFlag flag) {

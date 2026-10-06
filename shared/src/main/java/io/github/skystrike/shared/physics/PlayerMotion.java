@@ -25,8 +25,16 @@ public final class PlayerMotion {
      * <p>Pure function: leaves {@code state} untouched and returns a newly stepped instance.
      */
     public static Player step(Player state, PlayerInput input, float dt, ArenaMap map) {
+        return step(state, input, dt, map, false);
+    }
+
+    /**
+     * {@code noclip} variant (build plan M3 §4, {@code sv_noclip}): skips gravity and the swept
+     * AABB collision sweep entirely, flying freely within the arena bounds instead.
+     */
+    public static Player step(Player state, PlayerInput input, float dt, ArenaMap map, boolean noclip) {
         Player next = state.copy();
-        stepInPlace(next, input, dt, map);
+        stepInPlace(next, input, dt, map, noclip);
         return next;
     }
 
@@ -34,6 +42,15 @@ public final class PlayerMotion {
      * In-place variant for performance-sensitive loops where allocation is avoided.
      */
     public static void stepInPlace(Player p, PlayerInput input, float dt, ArenaMap map) {
+        stepInPlace(p, input, dt, map, false);
+    }
+
+    /**
+     * {@code noclip} variant of {@link #stepInPlace(Player, PlayerInput, float, ArenaMap)} (build
+     * plan M3 §4): the one place {@code sv_noclip} actually changes simulation behaviour, per the
+     * gate — a server command toggles a session flag, and this is where the flag is honoured.
+     */
+    public static void stepInPlace(Player p, PlayerInput input, float dt, ArenaMap map, boolean noclip) {
         if (dt <= 0f) {
             return;
         }
@@ -97,11 +114,17 @@ public final class PlayerMotion {
             p.jetpacking = false;
         }
 
-        p.vy += PlayerConfig.GRAVITY * dt;
+        if (!noclip) {
+            p.vy += PlayerConfig.GRAVITY * dt;
+        }
         p.vy = Lerp.clamp(p.vy, -PlayerConfig.MAX_VERTICAL_SPEED, PlayerConfig.MAX_VERTICAL_SPEED);
 
-        // 5. Swept AABB collision & Integration
-        integrateAndCollide(p, dt, map);
+        // 5. Swept AABB collision & Integration, or a free fly through everything when noclip.
+        if (noclip) {
+            flyFreely(p, dt);
+        } else {
+            integrateAndCollide(p, dt, map);
+        }
 
         // 6. Grounded state recharge and coyote timer
         if (p.grounded) {
@@ -132,6 +155,17 @@ public final class PlayerMotion {
                 p.crouched = false;
             }
         }
+    }
+
+    /** {@code sv_noclip}: straight-line integration, no solids, never grounded. */
+    private static void flyFreely(Player p, float dt) {
+        float width = PlayerConfig.WIDTH;
+        float height = p.currentHeight();
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.x = Lerp.clamp(p.x, width / 2f, WorldConfig.ARENA_WIDTH - width / 2f);
+        p.y = Lerp.clamp(p.y, 0f, WorldConfig.ARENA_HEIGHT - height);
+        p.grounded = false;
     }
 
     private static void integrateAndCollide(Player p, float dt, ArenaMap map) {

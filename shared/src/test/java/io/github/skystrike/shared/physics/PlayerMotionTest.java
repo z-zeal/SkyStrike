@@ -197,6 +197,28 @@ class PlayerMotionTest {
     }
 
     @Test
+    @DisplayName("sv_noclip skips the swept collision and gravity, passing straight through a wall")
+    void noclipPassesThroughWallsAndIgnoresGravity() {
+        // Same lane pillar and approach as sweptCollisionStopsAtWall, but with noclip on: the
+        // player must sail through instead of stopping, and never pick up downward gravity speed.
+        Player player = new Player(1, "Ghost", 0, 980f, WorldConfig.GROUND_HEIGHT);
+        player.vx = 200f;
+        player.grounded = false;
+        PlayerInput input = new PlayerInput(1L, 1.0f, false, false, false, false, false, 0f);
+
+        for (int i = 0; i < 30; i++) {
+            player = PlayerMotion.step(player, input, 1f / 60f, map, true);
+        }
+
+        // 30 ticks at 1/60s and 200 u/s cover 100 units: 980 + 100 = 1080, well past the pillar
+        // spanning x=[1010, 1034].
+        assertEquals(1080f, player.x, 1e-2f, "noclip must not be stopped by the pillar");
+        assertEquals(200f, player.vx, 1e-3f, "noclip never zeroes velocity on contact");
+        assertEquals(0f, player.vy, 1e-3f, "noclip never accumulates gravity");
+        assertFalse(player.grounded, "noclip never reports grounded");
+    }
+
+    @Test
     @DisplayName("coyote time keeps body upright for 0.10s after leaving ground")
     void coyoteTimeMaintainsUprightLock() {
         Player player = new Player(1, "Coyote", 0, 500f, 300f);

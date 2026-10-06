@@ -1,18 +1,11 @@
 package io.github.skystrike.gameplay;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.KeyBindings;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.Packet;
-import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
-import io.github.skystrike.shared.weapons.MeleeId;
-import io.github.skystrike.shared.weapons.WeaponClass;
-import io.github.skystrike.shared.weapons.WeaponId;
-import io.github.skystrike.shared.weapons.WeaponRegistry;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.function.Consumer;
@@ -36,9 +29,9 @@ import java.util.function.Consumer;
  * <p>The same shared {@code tapSlot}/{@code cycle} code runs here and on the server, so the two
  * cannot disagree about what a press means — only about whether it has arrived yet.
  *
- * <p>F2/F3/F4 are a stopgap for loadout editing until the Phase 7 menu owns it: they cycle the
- * primary, handgun and melee choices and send a {@link PacketLoadoutUpdate}. The server applies
- * the composition at the next respawn.
+ * <p>F2/F3/F4 used to be a composition-editing stopgap here; build plan M3 deleted it — F2 is now
+ * {@code cl_freecam} and owned by {@link io.github.skystrike.command.DebugKeyController}, and
+ * composition editing moves to the M5 loadout menu. Two owners of F2 is exactly what M3 forbids.
  */
 public final class LoadoutController {
 
@@ -70,17 +63,16 @@ public final class LoadoutController {
     private final Deque<PendingGadgetPress> outstandingGadgets = new ArrayDeque<>();
     private int pendingScrollNotches;
 
-    // Stopgap composition editing, replaced by the loadout menu in a later phase.
-    private int debugPrimaryIndex = WeaponId.DEFAULT.ordinal();
-    private int debugHandgunIndex = firstPistolOrdinal();
-    private int debugMeleeIndex = MeleeId.DEFAULT.ordinal();
-
     public LoadoutController(KeyBindings bindings, InputRouter router) {
         this.bindings = bindings;
         this.router = router;
     }
 
-    /** Where debug composition packets go. Optional; without it the F-keys do nothing. */
+    /**
+     * Where a loadout composition change packet would be sent. Unused since build plan M3
+     * deleted the F2/F3/F4 composition stopgap; kept wired for the M5 loadout menu, which reuses
+     * this same sender rather than inventing a second one.
+     */
     public void setPacketSender(Consumer<Packet> packetSender) {
         this.packetSender = packetSender;
     }
@@ -127,8 +119,6 @@ public final class LoadoutController {
         if (bindings.isGadgetEJustPressed()) {
             pressGadget(PacketPlayerInput.GADGET_E_PRESS, localPlayer);
         }
-
-        pollDebugLoadoutKeys();
     }
 
     /**
@@ -220,11 +210,7 @@ public final class LoadoutController {
             line.append("gadget ").append(oldest.gadget() == PacketPlayerInput.GADGET_Q_PRESS ? "Q" : "E")
                 .append(" awaiting ack  ");
         }
-        return line.append("loadout edit (next respawn): F2 ")
-            .append(WeaponId.fromOrdinal(debugPrimaryIndex).displayName())
-            .append("  F3 ").append(MeleeId.fromOrdinal(debugMeleeIndex).displayName())
-            .append("  F4 ").append(WeaponId.fromOrdinal(debugHandgunIndex).displayName())
-            .toString();
+        return line.toString();
     }
 
     private void press(int slot, Player localPlayer) {
@@ -267,52 +253,6 @@ public final class LoadoutController {
         while (outstanding.size() > MAX_OUTSTANDING_PRESSES) {
             outstanding.pollFirst();
         }
-    }
-
-    // --- Stopgap composition editing (until the menu owns it) ------------------------------------
-
-    private void pollDebugLoadoutKeys() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
-            debugPrimaryIndex = (debugPrimaryIndex + 1) % WeaponId.values().length;
-            sendLoadoutUpdate(new PacketLoadoutUpdate(
-                debugPrimaryIndex, PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT));
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
-            debugMeleeIndex = (debugMeleeIndex + 1) % MeleeId.values().length;
-            sendLoadoutUpdate(new PacketLoadoutUpdate(
-                PacketLoadoutUpdate.KEEP_CURRENT, PacketLoadoutUpdate.KEEP_CURRENT, debugMeleeIndex));
-        }
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F4)) {
-            debugHandgunIndex = nextPistolOrdinal(debugHandgunIndex);
-            sendLoadoutUpdate(new PacketLoadoutUpdate(
-                PacketLoadoutUpdate.KEEP_CURRENT, debugHandgunIndex, PacketLoadoutUpdate.KEEP_CURRENT));
-        }
-    }
-
-    private void sendLoadoutUpdate(Packet packet) {
-        if (packetSender != null) {
-            packetSender.accept(packet);
-        }
-    }
-
-    private static int firstPistolOrdinal() {
-        for (WeaponId id : WeaponId.values()) {
-            if (WeaponRegistry.of(id).ballistics().weaponClass().isSidearm()) {
-                return id.ordinal();
-            }
-        }
-        return WeaponId.DEFAULT_SIDEARM.ordinal();
-    }
-
-    private static int nextPistolOrdinal(int current) {
-        WeaponId[] ids = WeaponId.values();
-        for (int i = 1; i <= ids.length; i++) {
-            int ordinal = (current + i) % ids.length;
-            if (WeaponRegistry.of(ids[ordinal]).ballistics().weaponClass().isSidearm()) {
-                return ordinal;
-            }
-        }
-        return current;
     }
 
     private static int clamp(int value, int min, int max) {

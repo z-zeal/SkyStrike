@@ -12,6 +12,8 @@ import io.github.skystrike.shared.command.CommandSpec;
 import io.github.skystrike.shared.command.Cvar;
 import io.github.skystrike.shared.command.CvarRegistry;
 import io.github.skystrike.shared.command.ServerCommandCatalog;
+import io.github.skystrike.shared.config.DebugFlags;
+import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.ui.text.MessageBuffer;
 import java.util.List;
 import java.util.function.IntSupplier;
@@ -39,7 +41,9 @@ public final class ClientCommandModule {
         NameResolver findPlayerId,
         IntSupplier fps,
         Supplier<Float> lastFrameMillis,
-        Runnable disconnectAction
+        Runnable disconnectAction,
+        /** Where the debug-toolkit cvars (build plan M3 §4) write their mirrored read site. */
+        DebugState debugState
     ) {
         /** -1 for "no such name", -2 for "ambiguous prefix". */
         @FunctionalInterface
@@ -54,7 +58,13 @@ public final class ClientCommandModule {
     public static void registerAll(CommandRegistry registry, CvarRegistry cvars, Deps deps) {
         // The shared server-command metadata: registered handler-less, which is what makes the
         // client forward those lines after hinting and completing them. One table, two sides.
+        // Debug-toolkit commands (build plan M3 §4) stay unregistered — invisible, not refused —
+        // while the master switch is off, matching the server's own gate on the same names.
+        boolean debugEnabled = DebugFlags.enabled();
         for (CommandSpec metadata : ServerCommandCatalog.metadata()) {
+            if (ServerCommandCatalog.isDebugOnly(metadata.name()) && !debugEnabled) {
+                continue;
+            }
             registry.register(metadata);
         }
 
@@ -150,6 +160,63 @@ public final class ClientCommandModule {
         // it from milestone M7.
         cvars.register(Cvar.builder("quality", ArgTypes.ENUM(QualityTier.class), "mid")
             .description("effects quality tier; respected by the FX budget when it lands (M7)")
+            .build());
+
+        registerDebugToolkitCvars(cvars, deps);
+    }
+
+    /**
+     * The nine debug-toolkit cvars (build plan M3 §4). Eight are invisible — not refused, never
+     * even registered — while the master switch is off, exactly like the server's own gate on
+     * {@code noclip} et al. (console plan §4.2's pattern: an unauthorised feature has no trace,
+     * not a disabled one). Those eight also mirror into {@link DebugState}, whose master-gated
+     * reads make a stray local toggle inert even if the registration gate were bypassed.
+     *
+     * <p>{@code r_shadows} is the one exception on both counts: it is a real graphics setting,
+     * not a debug one, so it stays registered regardless of the master switch and defaults to
+     * {@code true} (today's shipped soft-shadow look) rather than going through
+     * {@code DebugState}'s off-by-default, master-gated reads.
+     */
+    private static void registerDebugToolkitCvars(CvarRegistry cvars, Deps deps) {
+        cvars.register(Cvar.builder("r_shadows", ArgTypes.BOOL, "true")
+            .description("SDF soft shadows; off falls back to hard edges, as the low tier does (F3)")
+            .build());
+
+        if (!DebugFlags.enabled()) {
+            return;
+        }
+        cvars.register(Cvar.builder("cl_debug_overlay", ArgTypes.BOOL, "false")
+            .description("toggleable status readout, off by default (F1)")
+            .onChange((prev, next) -> deps.debugState().setOverlay(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("cl_freecam", ArgTypes.BOOL, "false")
+            .description("detach the camera; WASD/arrows pan, -/= zoom (F2)")
+            .onChange((prev, next) -> deps.debugState().setFreecam(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("r_show_sdf", ArgTypes.BOOL, "false")
+            .description("the raw SDF debug view, moved off F1 (F6)")
+            .onChange((prev, next) -> deps.debugState().setSdfView(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("r_show_hitboxes", ArgTypes.BOOL, "false")
+            .description("body/head/fuel-tank hit zones from HitZoneMath (F9)")
+            .onChange((prev, next) -> deps.debugState().setHitboxes(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("r_player_light", ArgTypes.BOOL, "false")
+            .description("the player light pass (M6); wired ahead of the pipeline (F10)")
+            .onChange((prev, next) -> deps.debugState().setPlayerLight(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("r_player_light_shadows", ArgTypes.BOOL, "false")
+            .description("shadows cast by the player light (M6); console-only, no key")
+            .onChange(
+                (prev, next) -> deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("fx_debug", ArgTypes.BOOL, "false")
+            .description("pass timings, particle/light counts, draw calls (M7); wired ahead (F11)")
+            .onChange((prev, next) -> deps.debugState().setFxDebug(Boolean.parseBoolean(next)))
+            .build());
+        cvars.register(Cvar.builder("ui_contrast_test", ArgTypes.BOOL, "false")
+            .description("four-background text legibility check (console plan §5.2) (F12)")
+            .onChange((prev, next) -> deps.debugState().setContrastTest(Boolean.parseBoolean(next)))
             .build());
     }
 

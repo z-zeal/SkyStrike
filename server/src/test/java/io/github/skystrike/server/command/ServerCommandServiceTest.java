@@ -19,6 +19,8 @@ import io.github.skystrike.server.weapons.LoadoutSystem;
 import io.github.skystrike.server.weapons.RecoilService;
 import io.github.skystrike.shared.command.CommandResult;
 import io.github.skystrike.shared.command.Permission;
+import io.github.skystrike.shared.config.DebugFlags;
+import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
@@ -28,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -98,6 +101,12 @@ class ServerCommandServiceTest {
 
     @BeforeEach
     void setUp() {
+        // The M3 debug toolkit (noclip/godmode/infiniteammo/timescale/dumpstate) is only
+        // registered with the master switch on; this file exercises those commands, so it turns
+        // the switch on for itself and tearDown() below always hands it back.
+        DebugFlags.resetForTests();
+        System.setProperty("skystrike.debug", "true");
+
         ArenaMap arena = ArenaMap.standard();
         players = new PlayerRegistry();
         resolver = new PermissionResolver();
@@ -126,11 +135,18 @@ class ServerCommandServiceTest {
                 session -> {
                     session.applyRequestedLoadout();
                     loadoutSystem.resetForRespawn(session);
-                }));
+                },
+                new DebugState(DebugFlags.enabled())));
 
         rookConnection = new FakeConnection(2);
         players.register(new FakeConnection(1), 1, "Nova", 0, 100f, 200f);
         players.register(rookConnection, 2, "Rook", 1, 200f, 200f);
+    }
+
+    @AfterEach
+    void tearDown() {
+        System.clearProperty("skystrike.debug");
+        DebugFlags.resetForTests();
     }
 
     private CommandResult run(int playerId, String name, String line) {
@@ -185,6 +201,83 @@ class ServerCommandServiceTest {
         assertTrue(other.ok());
         assertTrue(players.byPlayerId(2).infiniteAmmo());
         assertFalse(players.byPlayerId(1).infiniteAmmo());
+    }
+
+    @Test
+    @DisplayName("timescale reads and writes the shared debug state, clamped to its declared range")
+    void timescaleGetsAndSetsWithinRange() {
+        resolver.grant("Nova", Permission.ADMIN);
+
+        CommandResult info = service.execute(1, "Nova", "timescale", 1_000L);
+        assertTrue(info.ok(), info.lines().toString());
+        assertTrue(info.lines().get(0).contains("1.0"), info.lines().get(0));
+
+        CommandResult set = service.execute(1, "Nova", "timescale 2.5", 1_500L);
+        assertTrue(set.ok(), set.lines().toString());
+        assertTrue(set.lines().get(0).contains("2.5"), set.lines().get(0));
+
+        CommandResult outOfRange = service.execute(1, "Nova", "timescale 10", 2_000L);
+        assertFalse(outOfRange.ok(), outOfRange.lines().toString());
+    }
+
+    @Test
+    @DisplayName("dumpstate reports a non-empty diagnostic snapshot of the joined players")
+    void dumpstateReportsSnapshot() {
+        resolver.grant("Nova", Permission.ADMIN);
+
+        CommandResult dump = service.execute(1, "Nova", "dumpstate", 1_000L);
+        assertTrue(dump.ok(), dump.lines().toString());
+        assertEquals("players: 2", dump.lines().get(0));
+        String joined = String.join("\n", dump.lines());
+        assertTrue(joined.contains("Nova"), joined);
+        assertTrue(joined.contains("Rook"), joined);
+    }
+
+    @Test
+    @DisplayName("with the master switch off, the debug toolkit commands are not registered at all")
+    void debugGatedCommandsAreInvisibleWithMasterSwitchOff() {
+        System.clearProperty("skystrike.debug");
+        DebugFlags.resetForTests();
+
+        ArenaMap arena = ArenaMap.standard();
+        PlayerRegistry offPlayers = new PlayerRegistry();
+        offPlayers.register(new FakeConnection(5), 5, "Zed", 0, 100f, 200f);
+        PermissionResolver offResolver = new PermissionResolver();
+        offResolver.grant("Zed", Permission.ADMIN);
+        LoadoutSystem offLoadout = new LoadoutSystem(
+            new FireController(new Random(), new RecoilService()),
+            new MeleeSystem(),
+            new BulletSystem(arena),
+            new UtilitySystem(arena),
+            new ShieldSystem());
+        ServerCommandService offService = new ServerCommandService(
+            offPlayers,
+            offResolver,
+            new ServerCommandModule.Deps(
+                offPlayers,
+                new RespawnService(new SpawnService(arena)),
+                offLoadout,
+                new ChatService(new RegistryRoster(offPlayers)),
+                (playerId, packet) -> { },
+                session -> { },
+                new DebugState(DebugFlags.enabled())));
+
+        CommandResult noclip = offService.execute(5, "Zed", "noclip on", 1_000L);
+        assertFalse(noclip.ok());
+        assertTrue(noclip.lines().get(0).startsWith("Unknown command 'noclip'"), noclip.lines().get(0));
+        assertFalse(offPlayers.byPlayerId(5).noclip());
+
+        CommandResult timescale = offService.execute(5, "Zed", "timescale 2", 1_500L);
+        assertFalse(timescale.ok());
+        assertTrue(timescale.lines().get(0).startsWith("Unknown command 'timescale'"),
+            timescale.lines().get(0));
+
+        CommandResult dump = offService.execute(5, "Zed", "dumpstate", 2_000L);
+        assertFalse(dump.ok());
+        assertTrue(dump.lines().get(0).startsWith("Unknown command 'dumpstate'"), dump.lines().get(0));
+
+        // Ordinary admin commands are unaffected by the master switch.
+        assertTrue(offService.execute(5, "Zed", "players", 2_500L).ok());
     }
 
     @Test

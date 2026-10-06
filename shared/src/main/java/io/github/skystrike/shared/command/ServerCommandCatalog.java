@@ -2,6 +2,7 @@ package io.github.skystrike.shared.command;
 
 import io.github.skystrike.shared.config.PlayerConfig;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The declarative half of the server's command set: names, aliases, descriptions, arguments and
@@ -16,7 +17,20 @@ import java.util.List;
  */
 public final class ServerCommandCatalog {
 
+    /**
+     * The debug-toolkit commands (build plan M3 §4): invisible rather than refused while the
+     * master debug switch is off, so neither side ever registers them — {@code /noclip} reads as
+     * an unknown command exactly like a typo, not a permission refusal.
+     */
+    private static final Set<String> DEBUG_GATED = Set.of(
+        "noclip", "godmode", "infiniteammo", "timescale", "dumpstate");
+
     private ServerCommandCatalog() {
+    }
+
+    /** Whether {@code name} is part of the debug toolkit and must be hidden with the master off. */
+    public static boolean isDebugOnly(String name) {
+        return name != null && DEBUG_GATED.contains(name.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
     /** Every server-executable command's metadata, in stable order. */
@@ -109,6 +123,17 @@ public final class ServerCommandCatalog {
                 .side(CommandSide.SERVER)
                 .optionalArg("state", ArgTypes.BOOL, "on/off; omitted toggles")
                 .optionalArg("player", ArgTypes.PLAYER, "defaults to you")
+                .build(),
+            CommandSpec.builder("timescale")
+                .description("scale the simulation tick rate; no value prints the current factor")
+                .permission(Permission.ADMIN)
+                .side(CommandSide.SERVER)
+                .optionalArg("multiplier", ArgTypes.FLOAT(0.1f, 4f), "0.1 to 4.0, default 1.0")
+                .build(),
+            CommandSpec.builder("dumpstate")
+                .description("print a diagnostic snapshot of the server's internal state")
+                .permission(Permission.ADMIN)
+                .side(CommandSide.SERVER)
                 .build());
     }
 }

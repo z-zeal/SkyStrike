@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.IntPredicate;
 
 /**
  * Applies damage: falloff, hit zone, friendly fire, death (mechanics §4.1, §4.2, §4.6).
@@ -57,6 +58,9 @@ public final class DamageService {
     private final FuelTankSystem fuelTankSystem;
     private final Deque<DamageResult> pending = new ArrayDeque<>();
 
+    /** {@code sv_godmode} (build plan M3 §4): true for a target id makes every hit on it a no-op. */
+    private IntPredicate godmode = id -> false;
+
     public DamageService(KillFeedService killFeed) {
         this(killFeed, null);
     }
@@ -65,6 +69,14 @@ public final class DamageService {
     public DamageService(KillFeedService killFeed, FuelTankSystem fuelTankSystem) {
         this.killFeed = killFeed == null ? new KillFeedService() : killFeed;
         this.fuelTankSystem = fuelTankSystem;
+    }
+
+    /**
+     * Wires the per-player {@code sv_godmode} flag in. Defaults to "nobody", so tests and legacy
+     * call sites that never call this see unchanged behaviour.
+     */
+    public void setGodmodePredicate(IntPredicate godmode) {
+        this.godmode = godmode == null ? id -> false : godmode;
     }
 
     /**
@@ -259,7 +271,7 @@ public final class DamageService {
             float x,
             float y,
             float distanceTravelled) {
-        if (target == null || !target.alive || damage <= 0f) {
+        if (target == null || !target.alive || damage <= 0f || godmode.test(target.id)) {
             return null;
         }
 
