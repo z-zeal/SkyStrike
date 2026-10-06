@@ -157,7 +157,8 @@ public final class BulletSystem {
             stats,
             hit.x(),
             hit.y(),
-            projectile.distanceTravelled);
+            projectile.distanceTravelled,
+            targets);
     }
 
     private static Player findById(Collection<Player> players, int id) {

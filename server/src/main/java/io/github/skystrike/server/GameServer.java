@@ -12,6 +12,8 @@ import io.github.skystrike.server.net.NetworkEndpoint;
 import io.github.skystrike.server.net.NetworkEvent;
 import io.github.skystrike.server.net.PacketRouter;
 import io.github.skystrike.server.combat.MeleeSystem;
+import io.github.skystrike.server.gadget.FuelTankSystem;
+import io.github.skystrike.server.gadget.ShieldSystem;
 import io.github.skystrike.server.net.handlers.ChatRequestHandler;
 import io.github.skystrike.server.net.handlers.JoinRequestHandler;
 import io.github.skystrike.server.net.handlers.LeaveRequestHandler;
@@ -80,6 +82,8 @@ public final class GameServer {
 
     private final BulletSystem bulletSystem;
     private final UtilitySystem utilitySystem;
+    private final ShieldSystem shieldSystem;
+    private final FuelTankSystem fuelTankSystem;
     private final KillFeedService killFeed;
     private final DamageService damageService;
     private final LoadoutSystem loadoutSystem;
@@ -104,11 +108,17 @@ public final class GameServer {
 
         this.bulletSystem = new BulletSystem(this.arena);
         this.utilitySystem = new UtilitySystem(this.arena);
+        this.shieldSystem = new ShieldSystem();
+        this.fuelTankSystem = new FuelTankSystem(this.arena);
         this.killFeed = new KillFeedService();
-        this.damageService = new DamageService(this.killFeed);
+        this.damageService = new DamageService(this.killFeed, this.fuelTankSystem);
         RecoilService recoilService = new RecoilService();
         this.loadoutSystem = new LoadoutSystem(
-            new FireController(new Random(), recoilService), new MeleeSystem(), this.bulletSystem, this.utilitySystem);
+            new FireController(new Random(), recoilService),
+            new MeleeSystem(),
+            this.bulletSystem,
+            this.utilitySystem,
+            this.shieldSystem);
 
         // Chat identity and team scoping come from the authoritative registry, never the packet.
         this.chatService = new ChatService(new RegistryRoster(this.players));
@@ -188,6 +198,14 @@ public final class GameServer {
 
     public UtilitySystem utilitySystem() {
         return utilitySystem;
+    }
+
+    public ShieldSystem shieldSystem() {
+        return shieldSystem;
+    }
+
+    public FuelTankSystem fuelTankSystem() {
+        return fuelTankSystem;
     }
 
     public DamageService damageService() {
@@ -278,6 +296,14 @@ public final class GameServer {
         // 3. Rounds and utilities already in the world, including anything thrown this tick.
         bulletSystem.step(dt, playerStates, damageService);
         utilitySystem.step(dt, playerStates, damageService);
+
+        // A hit can kill a player after their input was already latched this tick. Drop every
+        // remaining edge now, not only at the eventual respawn, so death cannot bank Q/E or fire.
+        for (PlayerSession session : players.all()) {
+            if (!session.player().alive) {
+                session.clearTrigger();
+            }
+        }
 
         // 4. Tell the clients what happened to them.
         dispatchCombatEvents();

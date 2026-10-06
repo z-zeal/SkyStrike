@@ -32,8 +32,11 @@ public final class NetConfig {
      * <p>8 — Phase 6 gadget contract: {@code GadgetSlot} appended as a payload type; the two
      * Q/E gadget slots now ride inside {@code PlayerLoadout}, and gadget choices were added to
      * {@code PacketLoadoutUpdate}.
+     *
+     * <p>9 — Phase 6 increment 2: Q/E gadget press edges and their birth-sequence fields were
+     * appended to {@code PacketPlayerInput}. No Kryo registration was reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 8;
+    public static final int PROTOCOL_VERSION = 9;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

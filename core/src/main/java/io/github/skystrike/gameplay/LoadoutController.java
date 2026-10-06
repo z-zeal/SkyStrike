@@ -59,11 +59,15 @@ public final class LoadoutController {
     private record PendingPress(int slot, long birthSequence) {
     }
 
+    private record PendingGadgetPress(int gadget, long birthSequence) {
+    }
+
     private final KeyBindings bindings;
     private final InputRouter router;
     private Consumer<Packet> packetSender;
 
     private final Deque<PendingPress> outstanding = new ArrayDeque<>();
+    private final Deque<PendingGadgetPress> outstandingGadgets = new ArrayDeque<>();
     private int pendingScrollNotches;
 
     // Stopgap composition editing, replaced by the loadout menu in a later phase.
@@ -117,6 +121,13 @@ public final class LoadoutController {
             pendingScrollNotches -= pendingScrollNotches > 0 ? 1 : -1;
         }
 
+        if (bindings.isGadgetQJustPressed()) {
+            pressGadget(PacketPlayerInput.GADGET_Q_PRESS, localPlayer);
+        }
+        if (bindings.isGadgetEJustPressed()) {
+            pressGadget(PacketPlayerInput.GADGET_E_PRESS, localPlayer);
+        }
+
         pollDebugLoadoutKeys();
     }
 
@@ -127,20 +138,33 @@ public final class LoadoutController {
      * birth sequence here, from the first packet that carries it.
      */
     public void stampPacket(PacketPlayerInput packet) {
+        packet.slotPress = PacketPlayerInput.NO_SLOT_PRESS;
+        packet.slotPressSeq = -1L;
         PendingPress oldest = outstanding.peekFirst();
-        if (oldest == null) {
-            packet.slotPress = PacketPlayerInput.NO_SLOT_PRESS;
-            packet.slotPressSeq = -1L;
-            return;
+        if (oldest != null) {
+            long birth = oldest.birthSequence();
+            if (birth < 0L) {
+                birth = packet.sequence;
+                outstanding.pollFirst();
+                outstanding.addFirst(new PendingPress(oldest.slot(), birth));
+            }
+            packet.slotPress = oldest.slot();
+            packet.slotPressSeq = birth;
         }
-        long birth = oldest.birthSequence();
-        if (birth < 0L) {
-            birth = packet.sequence;
-            outstanding.pollFirst();
-            outstanding.addFirst(new PendingPress(oldest.slot(), birth));
+
+        packet.gadgetPress = PacketPlayerInput.NO_GADGET_PRESS;
+        packet.gadgetPressSeq = -1L;
+        PendingGadgetPress oldestGadget = outstandingGadgets.peekFirst();
+        if (oldestGadget != null) {
+            long birth = oldestGadget.birthSequence();
+            if (birth < 0L) {
+                birth = packet.sequence;
+                outstandingGadgets.pollFirst();
+                outstandingGadgets.addFirst(new PendingGadgetPress(oldestGadget.gadget(), birth));
+            }
+            packet.gadgetPress = oldestGadget.gadget();
+            packet.gadgetPressSeq = birth;
         }
-        packet.slotPress = oldest.slot();
-        packet.slotPressSeq = birth;
     }
 
     /**
@@ -161,12 +185,27 @@ public final class LoadoutController {
             }
             outstanding.pollFirst();
         }
+        while (!outstandingGadgets.isEmpty()) {
+            PendingGadgetPress oldest = outstandingGadgets.peekFirst();
+            if (oldest.birthSequence() < 0L || oldest.birthSequence() > acked) {
+                break;
+            }
+            outstandingGadgets.pollFirst();
+        }
         if (predicted == null || predicted.loadout == null) {
             return;
+        }
+        if (!authoritative.alive || authoritative.isSlowed()) {
+            // Authority consumed and rejected these edges; never replay them across death/stun.
+            outstandingGadgets.clear();
         }
         for (PendingPress press : outstanding) {
             predicted.loadout.tapSlot(press.slot());
         }
+        for (PendingGadgetPress press : outstandingGadgets) {
+            predicted.loadout.toggleGadget(press.gadget() == PacketPlayerInput.GADGET_Q_PRESS ? 0 : 1);
+        }
+        predicted.loadout.enforceShieldHandgunLock();
     }
 
     /** One-line readout for the debug overlay. */
@@ -175,6 +214,11 @@ public final class LoadoutController {
         if (!outstanding.isEmpty()) {
             PendingPress oldest = outstanding.peekFirst();
             line.append("press slot ").append(oldest.slot()).append(" awaiting ack  ");
+        }
+        if (!outstandingGadgets.isEmpty()) {
+            PendingGadgetPress oldest = outstandingGadgets.peekFirst();
+            line.append("gadget ").append(oldest.gadget() == PacketPlayerInput.GADGET_Q_PRESS ? "Q" : "E")
+                .append(" awaiting ack  ");
         }
         return line.append("loadout edit (next respawn): F2 ")
             .append(WeaponId.fromOrdinal(debugPrimaryIndex).displayName())
@@ -186,6 +230,7 @@ public final class LoadoutController {
     private void press(int slot, Player localPlayer) {
         if (localPlayer != null && localPlayer.loadout != null) {
             localPlayer.loadout.tapSlot(slot);
+            localPlayer.loadout.enforceShieldHandgunLock();
         }
         queuePress(slot);
     }
@@ -196,8 +241,24 @@ public final class LoadoutController {
         }
         int before = localPlayer.loadout.activeSlot;
         int after = localPlayer.loadout.cycle(direction);
+        localPlayer.loadout.enforceShieldHandgunLock();
         if (after != before) {
             queuePress(after);
+        }
+    }
+
+    private void pressGadget(int gadgetPress, Player localPlayer) {
+        if (localPlayer == null || localPlayer.loadout == null || !localPlayer.alive || localPlayer.isSlowed()) {
+            return;
+        }
+        int index = gadgetPress == PacketPlayerInput.GADGET_Q_PRESS ? 0 : 1;
+        if (!localPlayer.loadout.toggleGadget(index)) {
+            return;
+        }
+        localPlayer.loadout.enforceShieldHandgunLock();
+        outstandingGadgets.addLast(new PendingGadgetPress(gadgetPress, -1L));
+        while (outstandingGadgets.size() > MAX_OUTSTANDING_PRESSES) {
+            outstandingGadgets.pollFirst();
         }
     }
 

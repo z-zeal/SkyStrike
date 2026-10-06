@@ -1,5 +1,6 @@
 package io.github.skystrike.shared.net.s2c;
 
+import io.github.skystrike.shared.gadget.GadgetRegistry;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.utility.UtilityRegistry;
@@ -28,7 +29,7 @@ public final class PacketDamageEvent implements Packet {
 
     /**
      * The weapon responsible, as a wire id: a {@link WeaponId} ordinal for a gun,
-     * 1000 + ordinal for melee, or 2000 + ordinal for a utility.
+     * 1000 + ordinal for melee, 2000 + ordinal for a utility, or 3000 + ordinal for a gadget.
      */
     public int weaponId;
 
@@ -78,6 +79,10 @@ public final class PacketDamageEvent implements Packet {
 
     /** Display name of the responsible gun, melee weapon or utility. */
     public String weaponDisplayName() {
+        String gadget = GadgetRegistry.displayNameForWireId(weaponId);
+        if (!gadget.isEmpty()) {
+            return gadget;
+        }
         String utility = UtilityRegistry.displayNameForWireId(weaponId);
         return utility.isEmpty() ? WeaponRegistry.displayNameForWireId(weaponId) : utility;
     }

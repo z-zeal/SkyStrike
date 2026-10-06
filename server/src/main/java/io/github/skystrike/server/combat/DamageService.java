@@ -1,13 +1,19 @@
 package io.github.skystrike.server.combat;
 
+import io.github.skystrike.server.gadget.FuelTankSystem;
 import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.combat.BallisticsMath;
+import io.github.skystrike.shared.combat.ShieldArcMath;
+import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.combat.HitZoneMath;
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.ShieldState;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
@@ -48,10 +54,17 @@ public final class DamageService {
     }
 
     private final KillFeedService killFeed;
+    private final FuelTankSystem fuelTankSystem;
     private final Deque<DamageResult> pending = new ArrayDeque<>();
 
     public DamageService(KillFeedService killFeed) {
+        this(killFeed, null);
+    }
+
+    /** Production constructor; the optional system keeps legacy combat tests tank-free. */
+    public DamageService(KillFeedService killFeed, FuelTankSystem fuelTankSystem) {
         this.killFeed = killFeed == null ? new KillFeedService() : killFeed;
+        this.fuelTankSystem = fuelTankSystem;
     }
 
     /**
@@ -99,27 +112,52 @@ public final class DamageService {
             float impactX,
             float impactY,
             float distanceTravelled) {
+        return applyBulletDamage(
+            attacker, attackerId, target, stats, impactX, impactY, distanceTravelled,
+            target == null ? Collections.emptyList() : Collections.singletonList(target));
+    }
+
+    /**
+     * Bullet entry point used by the authoritative projectile system. Hit-zone resolution happens
+     * once here; a fuel-tank result is handed to {@link FuelTankSystem} without resolving the
+     * zone a second time.
+     */
+    public DamageResult applyBulletDamage(
+            Player attacker,
+            int attackerId,
+            Player target,
+            WeaponDefinition stats,
+            float impactX,
+            float impactY,
+            float distanceTravelled,
+            Collection<Player> candidates) {
 
         if (stats == null || !canDamage(attacker, target)) {
             return null;
         }
 
-        // Gadget-aware resolution: the rear fuel-tank zone exists only while the target's
-        // loadout carries a worn, intact tank. Its multiplier is 1.0, so until the authoritative
-        // detonation lands in the server gadget increment, a tank hit deals plain body damage —
-        // the zone is reported, nothing regresses.
         HitZone zone = HitZoneMath.resolve(impactX, impactY, target);
         float afterFalloff =
             BallisticsMath.damageAfterFalloff(stats.damage(), distanceTravelled, stats.ballistics());
         float damage = HitZoneMath.applyZone(afterFalloff, zone);
+        float healthDamage = passThroughShield(
+            attacker, target, damage, impactX, impactY);
+        if (healthDamage <= 0f) {
+            return null;
+        }
 
-        return apply(attacker, attackerId, target, damage, zone, stats.id().ordinal(),
+        if (zone == HitZone.FUEL_TANK && fuelTankSystem != null) {
+            return fuelTankSystem.detonate(
+                target, attacker, attackerId, impactX, impactY, candidates, this);
+        }
+        return applyHealth(
+            attacker, attackerId, target, healthDamage, zone, stats.id().ordinal(),
             impactX, impactY, distanceTravelled);
     }
 
     /**
-     * Applies an already-resolved amount. Explosions and melee (Phases 4 and 5) come through
-     * here too, so death handling exists exactly once.
+     * Applies an already-resolved amount. Explosions, melee and utility damage come through here
+     * too, so the shield and death handling exist exactly once.
      */
     public DamageResult apply(
             Player attacker,
@@ -131,7 +169,96 @@ public final class DamageService {
             float x,
             float y,
             float distanceTravelled) {
+        return applyWithSource(
+            attacker, attackerId, target, damage, zone, weaponId, x, y, distanceTravelled, x, y);
+    }
 
+    /**
+     * Applies damage whose event position differs from its source direction, as with melee: the
+     * event belongs at the victim while the shield must face the attacker.
+     */
+    public DamageResult applyWithSource(
+            Player attacker,
+            int attackerId,
+            Player target,
+            float damage,
+            HitZone zone,
+            int weaponId,
+            float x,
+            float y,
+            float distanceTravelled,
+            float sourceX,
+            float sourceY) {
+        if (target == null || !target.alive || damage <= 0f) {
+            return null;
+        }
+        float healthDamage = passThroughShield(attacker, target, damage, sourceX, sourceY);
+        if (healthDamage <= 0f) {
+            return null;
+        }
+        return applyHealth(
+            attacker, attackerId, target, healthDamage, zone, weaponId, x, y, distanceTravelled);
+    }
+
+    /** Applies lethal/direct damage without a shield interception (the tank wearer rule). */
+    public DamageResult applyUnshielded(
+            Player attacker,
+            int attackerId,
+            Player target,
+            float damage,
+            HitZone zone,
+            int weaponId,
+            float x,
+            float y,
+            float distanceTravelled) {
+        return applyHealth(
+            attacker, attackerId, target, damage, zone, weaponId, x, y, distanceTravelled);
+    }
+
+    /**
+     * Resolves the wearer's shield once for one incoming damage instance. A complete absorption
+     * produces no health event; partial absorption continues through the one normal health path.
+     * The source point is the blast, attacker, melee origin or bullet impact supplied by callers.
+     */
+    private float passThroughShield(Player attacker, Player target, float damage, float x, float y) {
+        if (target.loadout == null) {
+            return damage;
+        }
+        GadgetSlot shield = target.loadout.shieldSlot();
+        if (shield == null) {
+            return damage;
+        }
+        ShieldState state = shield.shieldState();
+        float sourceX = x;
+        float sourceY = y;
+        float dx = sourceX - target.centerX();
+        float dy = sourceY - target.centerY();
+        if (dx * dx + dy * dy <= 1e-8f && attacker != null && attacker.id != target.id) {
+            sourceX = attacker.centerX();
+            sourceY = attacker.centerY();
+            dx = sourceX - target.centerX();
+            dy = sourceY - target.centerY();
+        }
+        float incoming = Angles.ofVector(dx, dy);
+        ShieldArcMath.Absorption absorption = ShieldArcMath.resolve(
+            state, target.aimAngle, incoming, damage, shield.durability);
+        if (absorption.absorbed() > 0f) {
+            shield.applyDurabilityDamage(absorption.absorbed());
+        }
+        return absorption.healthDamage();
+    }
+
+    /** The one health/death bookkeeping path. */
+    private DamageResult applyHealth(
+            Player attacker,
+            int attackerId,
+            Player target,
+            float damage,
+            HitZone zone,
+            int weaponId,
+            float x,
+            float y,
+            float distanceTravelled) {
         if (target == null || !target.alive || damage <= 0f) {
             return null;
         }

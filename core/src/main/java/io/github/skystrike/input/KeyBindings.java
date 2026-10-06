@@ -84,6 +84,16 @@ public final class KeyBindings {
         return Gdx.input.isKeyJustPressed(weaponNext);
     }
 
+    /** Edge-triggered: true only on the frame Q goes down. */
+    public boolean isGadgetQJustPressed() {
+        return Gdx.input.isKeyJustPressed(gadgetQ);
+    }
+
+    /** Edge-triggered: true only on the frame E goes down. */
+    public boolean isGadgetEJustPressed() {
+        return Gdx.input.isKeyJustPressed(gadgetE);
+    }
+
     /** Edge-triggered: true only on the frame a loadout slot key (1–5) goes down. */
     public boolean isSlotJustPressed(int slot) {
         return switch (slot) {
