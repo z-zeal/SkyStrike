@@ -129,6 +129,7 @@ public final class GameScreen implements Screen {
         this.session.setKillListener(this::onKillEvent);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
+        this.session.setSessionResetListener(capabilities::reset);
         this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
 

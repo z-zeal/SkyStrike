@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.utility.DirectionalBlastMathTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:36.784Z" hostname="runnervm8df0l" time="0.009">
-  <properties/>
-  <testcase name="a directional blast reaches only targets in its forward cone, once each" classname="io.github.skystrike.shared.utility.DirectionalBlastMathTest" time="0.007"/>
-  <testcase name="a target directly on the charge gets a safe upward impulse" classname="io.github.skystrike.shared.utility.DirectionalBlastMathTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

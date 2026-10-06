@@ -58,6 +58,13 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
     private record CharColor(char c, Color color) {
     }
 
+    /** Pointer hit target for one currently drawn completion row. */
+    private record CompletionHit(int index, float x, float y, float width, float height) {
+        boolean contains(float px, float py) {
+            return px >= x && px <= x + width && py >= y && py <= y + height;
+        }
+    }
+
     private final ClientCommandService commands;
     private final ChatClient chatClient;
     private final MessageBuffer messages;
@@ -69,6 +76,7 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
     private final ConsoleCompletionPopup completion;
     private final ConsoleHintLine hintLine;
     private final MessageFormatter formatter = new MessageFormatter();
+    private final List<CompletionHit> completionHits = new ArrayList<>();
 
     private final SpriteBatch batch = new SpriteBatch();
     private final ShapeRenderer shapes = new ShapeRenderer();
@@ -172,6 +180,7 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
         keptDraft = field.text();
         focus.release();
         completion.clear();
+        completionHits.clear();
         if (closeListener != null) {
             closeListener.run();
         }
@@ -272,7 +281,17 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
             return false;
         }
         // Input arrives y-down against this dialog's y-up projection.
-        targetButton.touchDown(screenX, measuredHeight - screenY);
+        float y = measuredHeight - screenY;
+        if (targetButton.touchDown(screenX, y)) {
+            return true;
+        }
+        for (CompletionHit hit : completionHits) {
+            if (hit.contains(screenX, y)) {
+                completion.select(hit.index());
+                acceptCompletion();
+                return true;
+            }
+        }
         return true;
     }
 
@@ -561,6 +580,8 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
         float age = 0f;
         float y = margin;
         int shown = 0;
+        batch.setProjectionMatrix(projection);
+        batch.begin();
         for (int i = wrapped.size() - 1; i >= 0 && shown < theme.passiveLines; i--, shown++) {
             VisualLine visual = wrapped.get(i);
             age = Math.max(0f, (nowMillis - visual.timestampMillis()) / 1000f);
@@ -571,6 +592,8 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
             y += lineHeight + theme.lineGap * scale;
             drawRunLine(font, visual.runs(), margin, y, alpha);
         }
+        batch.end();
+        font.setColor(Color.WHITE);
     }
 
     private float passiveAlpha(float ageSeconds) {
@@ -639,19 +662,28 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
                 font.draw(batch, hint, fieldX, panelBottom + panelHeight + lineHeight * 0.75f);
             }
             List<String> candidates = currentCandidates();
+            completionHits.clear();
             if (!candidates.isEmpty()) {
                 int rows = ConsoleCompletionPopup.visibleCount(
                     candidates, theme.completionMaxRows);
+                int first = Math.max(0, Math.min(
+                    completion.selected() - rows + 1, candidates.size() - rows));
                 for (int r = 0; r < rows; r++) {
-                    int index = r < candidates.size() ? r : candidates.size() - 1;
+                    int index = first + r;
+                    String candidate = candidates.get(index);
                     Color c = index == completion.selected()
                         ? theme.clampedText(theme.inputTextCommand)
                         : theme.clampedText(theme.hintText);
                     font.setColor(c);
-                    font.draw(batch, candidates.get(index), fieldX,
-                        panelBottom + panelHeight + lineHeight * (r + 1.75f));
+                    float baseline = panelBottom + panelHeight + lineHeight * (r + 1.75f);
+                    font.draw(batch, candidate, fieldX, baseline);
+                    measurer.setText(font, candidate);
+                    completionHits.add(new CompletionHit(
+                        index, fieldX, baseline - lineHeight, measurer.width, lineHeight));
                 }
             }
+        } else {
+            completionHits.clear();
         }
 
         // The ALL/TEAM label.

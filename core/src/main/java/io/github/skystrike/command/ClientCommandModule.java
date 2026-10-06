@@ -139,7 +139,9 @@ public final class ClientCommandModule {
             .side(CommandSide.CLIENT)
             .handler((ctx, args) -> {
                 deps.disconnectAction().run();
-                return CommandResult.info("Disconnected.");
+                // The action files the visible SYSTEM notice after revoking the old server's
+                // capability; returning another CONSOLE line would duplicate it in dev mode.
+                return CommandResult.info();
             })
             .build());
 

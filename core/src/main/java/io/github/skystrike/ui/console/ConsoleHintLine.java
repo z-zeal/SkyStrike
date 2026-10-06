@@ -7,7 +7,6 @@ import io.github.skystrike.shared.command.CommandParser;
 import io.github.skystrike.shared.command.CommandSpec;
 import io.github.skystrike.shared.command.Cvar;
 import io.github.skystrike.shared.command.Permission;
-import io.github.skystrike.shared.config.DebugFlags;
 
 /**
  * The live one-liner above the input strip that restates whatever the player is typing
@@ -21,7 +20,6 @@ import io.github.skystrike.shared.config.DebugFlags;
 public final class ConsoleHintLine {
 
     private final ClientCommandService commands;
-    private final ClientCapabilities capabilities;
 
     /** The text the current hint was computed for, so unchanged input repays nothing. */
     private String computedFor = "\u0000";
@@ -32,15 +30,16 @@ public final class ConsoleHintLine {
             throw new IllegalArgumentException("commands and capabilities are required");
         }
         this.commands = commands;
-        this.capabilities = capabilities;
     }
 
     /** The hint for the field's current full text (including any leading slash). */
     public String hintFor(String fieldText) {
-        String key = fieldText == null ? "" : fieldText;
+        String text = fieldText == null ? "" : fieldText;
+        // Capability changes must refresh a hint even if the player has not typed another key.
+        String key = text + '\u0000' + commands.localPermission().name();
         if (!key.equals(computedFor)) {
             computedFor = key;
-            hint = compute(key);
+            hint = compute(text);
         }
         return hint;
     }
@@ -60,8 +59,7 @@ public final class ConsoleHintLine {
         if (name.isEmpty()) {
             return "";
         }
-        Permission level = DebugFlags.enabled() && !capabilities.consoleAccess()
-            ? Permission.ADMIN : capabilities.level();
+        Permission level = commands.localPermission();
         CommandSpec spec = commands.registry().find(name);
         if (spec != null && level.atLeast(spec.permission())) {
             StringBuilder line = new StringBuilder(spec.usage());

@@ -61,6 +61,7 @@ public final class ClientSession {
     private Consumer<io.github.skystrike.shared.text.ChatMessage> chatListener;
     private Consumer<PacketCapabilities> capabilityListener;
     private Consumer<PacketCommandResponse> commandResponseListener;
+    private Runnable sessionResetListener;
 
     private final Deque<PacketKillEvent> killFeed = new ArrayDeque<>();
     private PacketDamageEvent lastDamageDealt;
@@ -128,6 +129,11 @@ public final class ClientSession {
     /** Called on the render thread for every command response the server sends back. */
     public void setCommandResponseListener(Consumer<PacketCommandResponse> listener) {
         this.commandResponseListener = listener;
+    }
+
+    /** Called whenever a connection attempt or joined session is torn down. */
+    public void setSessionResetListener(Runnable listener) {
+        this.sessionResetListener = listener;
     }
 
     /**
@@ -304,6 +310,9 @@ public final class ClientSession {
         hitMarkerTimer = 0f;
         hitMarkerHeadshot = false;
         hitMarkerLethal = false;
+        if (sessionResetListener != null) {
+            sessionResetListener.run();
+        }
     }
 
     /** Tells the server we are leaving, then tears the transport down. */
