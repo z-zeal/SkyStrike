@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.utility.UtilityCatalogueTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:19.497Z" hostname="runnervm8df0l" time="0.014">
+  <properties/>
+  <testcase name="the claymore is a placed proximity device, not something you throw" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="definitions reject impossible numbers rather than storing them" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.003"/>
+  <testcase name="utility wire ids occupy their own range, clear of guns and melee" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="the catalogue matches the mechanics §6 table exactly" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="wire ids round-trip, and foreign ids decode to null rather than guessing" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.001"/>
+  <testcase name="only the claymore is provisional; the plan specifies everything else" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="damage-over-time utilities report a damage rate, instant ones report none" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="the wire encoding is frozen: appending must never shift an existing id" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="vision-blocking and persistence are properties of the effect, not of the item" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <testcase name="every utility has a definition, and the registry hands out the same instance" classname="io.github.skystrike.shared.utility.UtilityCatalogueTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

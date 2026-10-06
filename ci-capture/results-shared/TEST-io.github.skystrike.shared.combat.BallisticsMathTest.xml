@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.combat.BallisticsMathTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:17.701Z" hostname="runnervm8df0l" time="0.082">
+  <properties/>
+  <testcase name="muzzle velocity points along the aim" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.029"/>
+  <testcase name="drag is quoted per tick and applies the same bleed per second at any step size" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.001"/>
+  <testcase name="damage falls off linearly to the weapon floor and never below it" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.001"/>
+  <testcase name="sidearms stay faster than players and drop less than two units at effective range" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.012"/>
+  <testcase name="the gravity ramp starts at zero, ends at one, and is smooth in between" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.001"/>
+  <testcase name="a round fired flat drops, slows and records the path it actually flew" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.001"/>
+  <testcase name="drop is invisible up close and obvious across the arena" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.004"/>
+  <testcase name="every gun in the table is fast enough to need sweeping" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.002"/>
+  <testcase name="a sidearm at maximum range does its floor damage, not its muzzle damage" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.001"/>
+  <testcase name="rounds expire on time, on energy, or on overshooting their range" classname="io.github.skystrike.shared.combat.BallisticsMathTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.weapons.LoadoutSystemTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:40.529Z" hostname="runnervm8df0l" time="0.031">
+  <properties/>
+  <testcase name="an empty magazine blocks the trigger and starts the reload instead" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.006"/>
+  <testcase name="selecting the handgun swaps the live gun, its own magazine intact" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.001"/>
+  <testcase name="melee kills credit the melee weapon on the wire" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.005"/>
+  <testcase name="firing spends magazine rounds; a shotgun spends one shell for eight pellets" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.001"/>
+  <testcase name="nothing leaves the barrel while reloading" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.001"/>
+  <testcase name="the slot keypress rule applies exactly once per press, never twice" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.001"/>
+  <testcase name="pressing 1 on the primary quick-swaps to melee, and back, server-side" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.0"/>
+  <testcase name="holding the trigger swings melee at the weapon's cadence, not faster" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.002"/>
+  <testcase name="a burst with a short magazine runs dry mid-pattern" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.0"/>
+  <testcase name="switching resets the accumulated spread and recoil — the melee detour included" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.003"/>
+  <testcase name="depleted utility slots cannot be selected, even by packet" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.0"/>
+  <testcase name="the dead bank neither shots nor swings" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.002"/>
+  <testcase name="an equipped utility consumes one item only after a successful trigger-edge throw" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.001"/>
+  <testcase name="stun slow consumes trigger edges and prevents a gun shot" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.0"/>
+  <testcase name="a reload dies when the weapon does — switching away kills it" classname="io.github.skystrike.server.weapons.LoadoutSystemTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

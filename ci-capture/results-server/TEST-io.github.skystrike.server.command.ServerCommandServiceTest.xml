@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.command.ServerCommandServiceTest" tests="10" skipped="0" failures="1" errors="0" timestamp="2026-10-06T19:36:40.111Z" hostname="runnervm8df0l" time="0.098">
+  <properties/>
+  <testcase name="say is broadcast to everyone through the chat dispatch; the message is sanitised" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.021"/>
+  <testcase name="sethealth and teleport mutate the authoritative player, errors mutate nothing" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.015"/>
+  <testcase name="help listing is filtered: a player sees only what they may run" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.005"/>
+  <testcase name="an ordinary player is refused privileged commands with the typo response" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.004"/>
+  <testcase name="kick tells the player and closes their slot, and cannot target yourself" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.022">
+    <failure message="org.opentest4j.AssertionFailedError: [/kick failed: Cannot invoke &quot;com.esotericsoftware.kryonet.TcpConnection.close()&quot; because &quot;this.tcp&quot; is null] ==&gt; expected: &lt;true&gt; but was: &lt;false&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: [/kick failed: Cannot invoke &quot;com.esotericsoftware.kryonet.TcpConnection.close()&quot; because &quot;this.tcp&quot; is null] ==&gt; expected: &lt;true&gt; but was: &lt;false&gt;
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:214)
+	at io.github.skystrike.server.command.ServerCommandServiceTest.kickLifecycle(ServerCommandServiceTest.java:235)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+</failure>
+  </testcase>
+  <testcase name="overlong and empty lines are refused before parsing" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.002"/>
+  <testcase name="a forged capability cannot exist: there is no packet path into the resolver" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.003"/>
+  <testcase name="a granted caller runs cheats; an omitted state toggles the flag" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.004"/>
+  <testcase name="the command budget is six per window per caller, not per victim" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.006"/>
+  <testcase name="give applies a requested primary immediately through the respawn path" classname="io.github.skystrike.server.command.ServerCommandServiceTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

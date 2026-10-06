@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.sim.TickProfilerTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:40.449Z" hostname="runnervm8df0l" time="0.016">
+  <properties/>
+  <testcase name="rejectsANonPositiveRate()" classname="io.github.skystrike.server.sim.TickProfilerTest" time="0.004"/>
+  <testcase name="noReportIsDueBeforeAnyTickHasRun()" classname="io.github.skystrike.server.sim.TickProfilerTest" time="0.0"/>
+  <testcase name="the report line keeps a stable shape so it stays readable in a log" classname="io.github.skystrike.server.sim.TickProfilerTest" time="0.005"/>
+  <testcase name="countsSamplesPerWindow()" classname="io.github.skystrike.server.sim.TickProfilerTest" time="0.002"/>
+  <testcase name="reportingClearsTheWindowButKeepsDroppedTicks()" classname="io.github.skystrike.server.sim.TickProfilerTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
