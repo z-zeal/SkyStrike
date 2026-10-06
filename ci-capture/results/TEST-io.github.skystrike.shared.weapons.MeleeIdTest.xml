@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.weapons.MeleeIdTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:11.242Z" hostname="runnervmmprz5" time="0.002">
+  <properties/>
+  <testcase name="the melee range can never collide with a gun ordinal" classname="io.github.skystrike.shared.weapons.MeleeIdTest" time="0.0"/>
+  <testcase name="ordinal lookups fall back instead of throwing" classname="io.github.skystrike.shared.weapons.MeleeIdTest" time="0.0"/>
+  <testcase name="the wire-id discriminator is exact at both edges" classname="io.github.skystrike.shared.weapons.MeleeIdTest" time="0.0"/>
+  <testcase name="wire ids are the base plus the ordinal, and round-trip" classname="io.github.skystrike.shared.weapons.MeleeIdTest" time="0.001"/>
+  <testcase name="the catalog roster is frozen: 21 weapons, knife default" classname="io.github.skystrike.shared.weapons.MeleeIdTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

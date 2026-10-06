@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.model.GadgetSlotTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:09.948Z" hostname="runnervmmprz5" time="0.013">
+  <properties/>
+  <testcase name="copies are deep and defensive decoding falls back to NONE" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.001"/>
+  <testcase name="equipping pulls the registry durability and clears every flag" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.003"/>
+  <testcase name="durability damage breaks the gadget at zero, permanently and inactively" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.0"/>
+  <testcase name="damage is ignored on empty slots and non-positive amounts" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.001"/>
+  <testcase name="a fresh slot is empty, unusable and harmlessly NONE" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.0"/>
+  <testcase name="the shield vocabulary follows the flags: stowed, equipped, broken" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.001"/>
+  <testcase name="respawn keeps the chosen gadget and clears its state (mechanics §10)" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.003"/>
+  <testcase name="the cooldown ticks down to zero and never below" classname="io.github.skystrike.shared.model.GadgetSlotTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

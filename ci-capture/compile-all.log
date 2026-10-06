@@ -21,4 +21,4 @@ Execution failed for task ':server:compileJava' (registered by plugin class 'org
 > Check your code and dependencies to fix the compilation error(s)
 > Run with --scan to get full insights from a Build Scan (powered by Develocity).
 
-BUILD FAILED in 12s
+BUILD FAILED in 16s

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.debug.DebugStateTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:09.771Z" hostname="runnervmmprz5" time="0.01">
+  <properties/>
+  <testcase name="a non-positive or non-finite timescale falls back to the default, even with the master on" classname="io.github.skystrike.shared.debug.DebugStateTest" time="0.003"/>
+  <testcase name="with the master off, every stored intent reads back as the safe default" classname="io.github.skystrike.shared.debug.DebugStateTest" time="0.001"/>
+  <testcase name="with the master on, stored values read back as stored" classname="io.github.skystrike.shared.debug.DebugStateTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

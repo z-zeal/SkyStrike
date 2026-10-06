@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.command.CommandParserTest" tests="14" skipped="0" failures="1" errors="0" timestamp="2026-10-06T12:58:09.554Z" hostname="runnervmmprz5" time="0.091">
+  <properties/>
+  <testcase name="integer ranges reject both format and bounds violations" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.024"/>
+  <testcase name="a missing required argument fails by name" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.004"/>
+  <testcase name="the greedy argument takes the rest of the line with spacing intact" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.006">
+    <failure message="io.github.skystrike.shared.command.CommandException: unexpected extra input starting at 'rotate'" type="io.github.skystrike.shared.command.CommandException">io.github.skystrike.shared.command.CommandException: unexpected extra input starting at 'rotate'
+	at io.github.skystrike.shared.command.CommandParser.parseArguments(CommandParser.java:127)
+	at io.github.skystrike.shared.command.CommandParserTest.greedyStringKeepsSpacing(CommandParserTest.java:124)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+</failure>
+  </testcase>
+  <testcase name="enums coerce case-insensitively and reject unknown constants" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.006"/>
+  <testcase name="an unterminated quote is an error, not a guess" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.006"/>
+  <testcase name="a spec may not declare a greedy argument anywhere but last" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.001"/>
+  <testcase name="backslash escapes the next character, inside and outside quotes" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.001"/>
+  <testcase name="unexpected trailing input fails at the extra token" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.006"/>
+  <testcase name="durations parse suffixes into seconds" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.006"/>
+  <testcase name="plain tokens split on runs of whitespace" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.004"/>
+  <testcase name="float ranges reject infinities and out-of-range values" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.008"/>
+  <testcase name="double quotes group a phrase and are removed from the token" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.001"/>
+  <testcase name="optional arguments absent from the line stay absent from the result" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.003"/>
+  <testcase name="every documented boolean spelling parses to the same two values" classname="io.github.skystrike.shared.command.CommandParserTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

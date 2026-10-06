@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.math.GeometryTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:09.926Z" hostname="runnervmmprz5" time="0.011">
+  <properties/>
+  <testcase name="a fast bullet must not tunnel through a thin 14-unit roof" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="a segment that stops short of the box misses" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="overlapIsSymmetricAndEdgeInclusive()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="grazingAnEdgeCounts()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="degenerateSegmentBehavesLikeAPointTest()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="entry fraction is the distance along the segment to the near face" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="entryFractionIsNegativeWhenTheLineMisses()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="segmentStartingInsideHits()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.001"/>
+  <testcase name="segmentThroughTheBoxHits()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.001"/>
+  <testcase name="segmentPassingAboveMisses()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <testcase name="entryFractionIsZeroWhenStartingInside()" classname="io.github.skystrike.shared.math.GeometryTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

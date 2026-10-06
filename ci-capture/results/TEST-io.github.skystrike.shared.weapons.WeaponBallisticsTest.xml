@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.weapons.WeaponBallisticsTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:11.256Z" hostname="runnervmmprz5" time="0.014">
+  <properties/>
+  <testcase name="every profile sits inside the documented bounds" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.002"/>
+  <testcase name="every pistol and revolver is faster than all player movement" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.001"/>
+  <testcase name="every weapon has a flight profile" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.0"/>
+  <testcase name="gravity weights follow the class ladder of §4.2" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.0"/>
+  <testcase name="sprite asset ids are the catalog ids" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.005"/>
+  <testcase name="flagship rows match the generated conversion" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.0"/>
+  <testcase name="the record rejects impossible numbers" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.002"/>
+  <testcase name="the shortest-range weapon is a shotgun and the longest is a sniper" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.001"/>
+  <testcase name="wire ordinals are frozen: the catalog order of the first 89 is protocol" classname="io.github.skystrike.shared.weapons.WeaponBallisticsTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

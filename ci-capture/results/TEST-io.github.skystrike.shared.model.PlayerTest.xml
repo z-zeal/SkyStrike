@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.model.PlayerTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:10.009Z" hostname="runnervmmprz5" time="0.007">
+  <properties/>
+  <testcase name="hitbox corresponds to bottom-center x, y with standing vs crouching height" classname="io.github.skystrike.shared.model.PlayerTest" time="0.002"/>
+  <testcase name="utilityWireIdsHaveUtilityDisplayNames()" classname="io.github.skystrike.shared.model.PlayerTest" time="0.001"/>
+  <testcase name="copyIsDeepAndIndependent()" classname="io.github.skystrike.shared.model.PlayerTest" time="0.002"/>
+  <testcase name="stun/flash state keeps the strongest duration, ticks down, and clears per life" classname="io.github.skystrike.shared.model.PlayerTest" time="0.0"/>
+  <testcase name="facingDirectionDerivesFromAimAngle()" classname="io.github.skystrike.shared.model.PlayerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
