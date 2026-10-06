@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.server.chat.ChatServiceTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:39.888Z" hostname="runnervm8df0l" time="0.046">
+<testsuite name="io.github.skystrike.server.chat.ChatServiceTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:52.283Z" hostname="runnervmmprz5" time="0.051">
   <properties/>
-  <testcase name="a line that sanitises to nothing is never relayed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.006"/>
-  <testcase name="the same line twice inside the duplicate window is dropped without a token" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.005"/>
-  <testcase name="a server announcement reaches everyone and is transcribed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.0"/>
-  <testcase name="the body is sanitised and truncated server-side, not trusted" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
-  <testcase name="a sender who is not on the roster is relayed to nobody" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
+  <testcase name="a line that sanitises to nothing is never relayed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.005"/>
+  <testcase name="the same line twice inside the duplicate window is dropped without a token" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.006"/>
+  <testcase name="a server announcement reaches everyone and is transcribed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.003"/>
+  <testcase name="the body is sanitised and truncated server-side, not trusted" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.003"/>
+  <testcase name="a sender who is not on the roster is relayed to nobody" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.004"/>
   <testcase name="a muted player is silenced at the relay, before anyone is addressed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
-  <testcase name="a TEAM line is addressed only to the author's own team" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
-  <testcase name="spam is throttled per author, and one spammer cannot throttle anyone else" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.003"/>
-  <testcase name="an ALL line reaches every joined player, including the author" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.0"/>
-  <testcase name="the same line again after the window is allowed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.002"/>
-  <testcase name="accepted lines are transcribed; rejected ones are not" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.0"/>
+  <testcase name="a TEAM line is addressed only to the author's own team" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.004"/>
+  <testcase name="spam is throttled per author, and one spammer cannot throttle anyone else" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.002"/>
+  <testcase name="an ALL line reaches every joined player, including the author" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
+  <testcase name="the same line again after the window is allowed" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
+  <testcase name="accepted lines are transcribed; rejected ones are not" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
   <testcase name="the author's team comes from the roster, so a patched client cannot pick one" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.002"/>
-  <testcase name="disconnecting clears the author's limiter and duplicate state" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.001"/>
+  <testcase name="disconnecting clears the author's limiter and duplicate state" classname="io.github.skystrike.server.chat.ChatServiceTest" time="0.002"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

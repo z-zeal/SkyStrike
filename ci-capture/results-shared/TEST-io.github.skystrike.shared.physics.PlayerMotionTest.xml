@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.physics.PlayerMotionTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:18.479Z" hostname="runnervm8df0l" time="0.028">
+<testsuite name="io.github.skystrike.shared.physics.PlayerMotionTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:30.364Z" hostname="runnervmmprz5" time="0.034">
   <properties/>
-  <testcase name="jumping applies 420 u/s upward velocity and breaks grounded state" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.002"/>
+  <testcase name="jumping applies 420 u/s upward velocity and breaks grounded state" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.001"/>
   <testcase name="ground damping 16/s stops player much faster than air damping 1.0/s" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.002"/>
-  <testcase name="coyote time keeps body upright for 0.10s after leaving ground" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.001"/>
+  <testcase name="coyote time keeps body upright for 0.10s after leaving ground" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.0"/>
   <testcase name="jetpack fuel recharges at 20/s only while grounded" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.004"/>
   <testcase name="jetpack burns 20 fuel/s for exactly 5 seconds of continuous flight" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.003"/>
   <testcase name="ground movement accelerates smoothly toward walk speed with ground damping" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.001"/>
   <testcase name="an intact tank raises jetpack capacity and thrust, while a broken tank does neither" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.001"/>
   <testcase name="crouching halves speed to 100 u/s and shrinks hitbox height from 50 to 30" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.002"/>
-  <testcase name="simulation is deterministic: same inputs produce identical states" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.004"/>
-  <testcase name="backpedal case cuts aim torque to zero and multiplies velocity bank by 2.40" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.002"/>
+  <testcase name="simulation is deterministic: same inputs produce identical states" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.008"/>
+  <testcase name="backpedal case cuts aim torque to zero and multiplies velocity bank by 2.40" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.005"/>
   <testcase name="a stunned player targets 30 percent movement speed while the slow lasts" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.001"/>
   <testcase name="swept collision prevents moving through solid walls" classname="io.github.skystrike.shared.physics.PlayerMotionTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>

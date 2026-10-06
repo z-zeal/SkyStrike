@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:40.331Z" hostname="runnervm8df0l" time="0.026">
+<testsuite name="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:52.726Z" hostname="runnervmmprz5" time="0.018">
   <properties/>
-  <testcase name="a non-pistol cannot take the handgun slot, while the rest of the packet lives" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.004"/>
-  <testcase name="later requests overwrite earlier ones, still as full packets" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.004"/>
-  <testcase name="a utility-only request is not mistaken for an empty packet" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.004"/>
-  <testcase name="gadget requests are validated per slot and applied at respawn, like everything else" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.006"/>
-  <testcase name="garbage ordinals and empty packets change nothing" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.001"/>
-  <testcase name="a valid request is recorded, per field, and applied at respawn time" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.006"/>
+  <testcase name="a non-pistol cannot take the handgun slot, while the rest of the packet lives" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.005"/>
+  <testcase name="later requests overwrite earlier ones, still as full packets" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.002"/>
+  <testcase name="a utility-only request is not mistaken for an empty packet" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.0"/>
+  <testcase name="gadget requests are validated per slot and applied at respawn, like everything else" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.003"/>
+  <testcase name="garbage ordinals and empty packets change nothing" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.002"/>
+  <testcase name="a valid request is recorded, per field, and applied at respawn time" classname="io.github.skystrike.server.net.handlers.LoadoutUpdateHandlerTest" time="0.0"/>
   <system-out><![CDATA[[loadout] player=7 requested primary=22 handgun=-1 melee=-1 utilityA=-1 utilityB=-1 gadgetQ=-1 gadgetE=-1 (applies at respawn)
 [loadout] player=7 requested primary=-1 handgun=15 melee=-1 utilityA=-1 utilityB=-1 gadgetQ=-1 gadgetE=-1 (applies at respawn)
 [loadout] player=7 requested primary=40 handgun=-1 melee=-1 utilityA=-1 utilityB=-1 gadgetQ=-1 gadgetE=-1 (applies at respawn)

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.text.RateLimiterTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:19.379Z" hostname="runnervm8df0l" time="0.012">
+<testsuite name="io.github.skystrike.shared.text.RateLimiterTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:31.477Z" hostname="runnervmmprz5" time="0.01">
   <properties/>
-  <testcase name="invalid limiter configuration and requests fail closed" classname="io.github.skystrike.shared.text.RateLimiterTest" time="0.001"/>
-  <testcase name="a full bucket permits the configured burst then refills continuously" classname="io.github.skystrike.shared.text.RateLimiterTest" time="0.001"/>
+  <testcase name="invalid limiter configuration and requests fail closed" classname="io.github.skystrike.shared.text.RateLimiterTest" time="0.003"/>
+  <testcase name="a full bucket permits the configured burst then refills continuously" classname="io.github.skystrike.shared.text.RateLimiterTest" time="0.002"/>
   <testcase name="chatFactoryUsesSharedPolicy()" classname="io.github.skystrike.shared.text.RateLimiterTest" time="0.0"/>
   <testcase name="refill caps at capacity and old timestamps cannot create a token" classname="io.github.skystrike.shared.text.RateLimiterTest" time="0.002"/>
   <system-out><![CDATA[]]></system-out>

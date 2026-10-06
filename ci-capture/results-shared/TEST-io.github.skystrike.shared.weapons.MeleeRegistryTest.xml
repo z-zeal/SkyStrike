@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.weapons.MeleeRegistryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:19.533Z" hostname="runnervm8df0l" time="0.008">
+<testsuite name="io.github.skystrike.shared.weapons.MeleeRegistryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:31.614Z" hostname="runnervmmprz5" time="0.007">
   <properties/>
-  <testcase name="flagship rows match the generated conversion of the catalog stats" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.002"/>
-  <testcase name="every melee weapon of the catalog is defined and plausible" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.001"/>
-  <testcase name="the class identities hold: polearms reach, knives cycle, heavies shove" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.001"/>
-  <testcase name="no melee weapon one-shots a full-health player from the body" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.001"/>
+  <testcase name="flagship rows match the generated conversion of the catalog stats" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.001"/>
+  <testcase name="every melee weapon of the catalog is defined and plausible" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.0"/>
+  <testcase name="the class identities hold: polearms reach, knives cycle, heavies shove" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.0"/>
+  <testcase name="no melee weapon one-shots a full-health player from the body" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.0"/>
   <testcase name="swing cooldown is the inverse of the cadence" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.0"/>
   <testcase name="lookups return copies, never the shared instance" classname="io.github.skystrike.shared.weapons.MeleeRegistryTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>

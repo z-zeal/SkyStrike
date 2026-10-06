@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.server.net.ConnectionRegistryTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:36:40.225Z" hostname="runnervm8df0l" time="0.034">
+<testsuite name="io.github.skystrike.server.net.ConnectionRegistryTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-06T19:38:52.653Z" hostname="runnervmmprz5" time="0.022">
   <properties/>
-  <testcase name="entriesAreReadOnly()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.001"/>
-  <testcase name="theSameConnectionCannotJoinTwice()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.008"/>
-  <testcase name="joiningAllocatesAscendingPlayerIds()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.003"/>
-  <testcase name="lookupsWorkByConnectionAndByPlayerId()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.001"/>
-  <testcase name="a full server refuses the next join" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.009"/>
-  <testcase name="leavingFreesTheSlotAndIsIdempotent()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.001"/>
-  <testcase name="rejectsANonPositiveCapacity()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.001"/>
+  <testcase name="entriesAreReadOnly()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.004"/>
+  <testcase name="theSameConnectionCannotJoinTwice()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.0"/>
+  <testcase name="joiningAllocatesAscendingPlayerIds()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.001"/>
+  <testcase name="lookupsWorkByConnectionAndByPlayerId()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.003"/>
+  <testcase name="a full server refuses the next join" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.0"/>
+  <testcase name="leavingFreesTheSlotAndIsIdempotent()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.0"/>
+  <testcase name="rejectsANonPositiveCapacity()" classname="io.github.skystrike.server.net.ConnectionRegistryTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>
