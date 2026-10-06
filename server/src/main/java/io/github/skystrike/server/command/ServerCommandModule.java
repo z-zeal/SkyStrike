@@ -89,15 +89,11 @@ public final class ServerCommandModule {
             registry.register(metadata.withHandler(handler));
         }
         registry.register(help(registry));
-        registry.register(CommandSpec.builder("players")
-            .description("list the joined players")
-            .side(CommandSide.SERVER)
-            .handler((ctx, args) -> playersCommand(deps))
-            .build());
     }
 
     private static Map<String, CommandHandler> handlers(Deps deps) {
         Map<String, CommandHandler> handlers = new HashMap<>();
+        handlers.put("players", (ctx, args) -> playersCommand(deps));
         handlers.put("say", (ctx, args) -> sayCommand(deps, ctx, args));
         handlers.put("respawn", (ctx, args) -> respawnCommand(deps, ctx, args));
         handlers.put("kill", (ctx, args) -> killCommand(deps, ctx, args));

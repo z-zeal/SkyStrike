@@ -22,6 +22,10 @@ public final class ServerCommandCatalog {
     /** Every server-executable command's metadata, in stable order. */
     public static List<CommandSpec> metadata() {
         return List.of(
+            CommandSpec.builder("players")
+                .description("list the joined players")
+                .side(CommandSide.SERVER)
+                .build(),
             CommandSpec.builder("say")
                 .description("broadcast a server announcement to everyone")
                 .permission(Permission.MODERATOR)

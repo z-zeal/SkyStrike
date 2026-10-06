@@ -10,6 +10,7 @@ import io.github.skystrike.shared.command.CommandResult;
 import io.github.skystrike.shared.command.CommandSide;
 import io.github.skystrike.shared.command.CommandSpec;
 import io.github.skystrike.shared.command.CvarRegistry;
+import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.text.ChatChannel;
@@ -91,7 +92,20 @@ public final class ClientCommandService {
      * leading slash makes a command and a doubled one is chat reading {@code /something}.
      */
     public boolean isCommandLine(String text) {
-        return unlocked() && capabilities.isCommandLine(text);
+        return unlocked()
+            && text != null
+            && text.startsWith(ClientCapabilities.COMMAND_PREFIX)
+            && !text.startsWith(ClientCapabilities.COMMAND_PREFIX + ClientCapabilities.COMMAND_PREFIX);
+    }
+
+    /**
+     * Permission used by local help, hints and completion. A local dev console may describe the
+     * full command surface even when the connected server grants no console; the server still
+     * re-authorises every forwarded line against its own permission resolver.
+     */
+    public Permission localPermission() {
+        return DebugFlags.enabled() && !capabilities.consoleAccess()
+            ? Permission.ADMIN : capabilities.level();
     }
 
     /**
@@ -121,7 +135,7 @@ public final class ClientCommandService {
         CommandContext context = new CommandContext(
             Math.max(0, localPlayerId.getAsInt()),
             String.valueOf(localPlayerName.get()),
-            capabilities.level(),
+            localPermission(),
             CommandSide.CLIENT,
             now,
             connectedPlayerNames.get());
@@ -188,8 +202,9 @@ public final class ClientCommandService {
 
     /** Names for the completion popup, filtered to what this level may see. */
     public List<String> completeCommandNames(String prefix) {
-        List<String> names = registry.completeNames(prefix, capabilities.level());
-        for (String name : cvars.completeNames(prefix, capabilities.level())) {
+        Permission permission = localPermission();
+        List<String> names = registry.completeNames(prefix, permission);
+        for (String name : cvars.completeNames(prefix, permission)) {
             if (!names.contains(name)) {
                 names.add(name);
             }

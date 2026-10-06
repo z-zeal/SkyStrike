@@ -6,7 +6,6 @@ import io.github.skystrike.shared.command.CommandContext;
 import io.github.skystrike.shared.command.CommandSide;
 import io.github.skystrike.shared.command.CompletionEngine;
 import io.github.skystrike.shared.command.Permission;
-import io.github.skystrike.shared.config.DebugFlags;
 import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -22,7 +21,6 @@ import java.util.function.Supplier;
 public final class ConsoleCompletionPopup {
 
     private final ClientCommandService commands;
-    private final ClientCapabilities capabilities;
     private final IntSupplier localPlayerId;
     private final Supplier<String> localPlayerName;
     private final Supplier<List<String>> connectedPlayerNames;
@@ -45,7 +43,6 @@ public final class ConsoleCompletionPopup {
             throw new IllegalArgumentException("all collaborators are required");
         }
         this.commands = commands;
-        this.capabilities = capabilities;
         this.localPlayerId = localPlayerId;
         this.localPlayerName = localPlayerName;
         this.connectedPlayerNames = connectedPlayerNames;
@@ -53,14 +50,13 @@ public final class ConsoleCompletionPopup {
 
     /** Candidates for {@code typedCommandBody} (no leading slash). Recomputes on text change. */
     public List<String> candidatesFor(String typedCommandBody) {
-        String key = typedCommandBody == null ? "" : typedCommandBody;
+        String text = typedCommandBody == null ? "" : typedCommandBody;
+        Permission level = commands.localPermission();
+        // Include permission in the cache key: a capability push can promote or revoke a player
+        // while the field text stays unchanged, and the popup must update immediately.
+        String key = text + '\u0000' + level.name();
         if (!key.equals(computedFor)) {
             computedFor = key;
-            // The server-granted level is what the client is told; the dev flag merely opens the
-            // local console, so with no grant it shows the full local table while the server
-            // still re-authorises every forwarded line (playable build plan M1 §2.8).
-            Permission level = DebugFlags.enabled() && !capabilities.consoleAccess()
-                ? Permission.ADMIN : capabilities.level();
             CommandContext context = new CommandContext(
                 Math.max(0, localPlayerId.getAsInt()),
                 String.valueOf(localPlayerName.get()),
@@ -68,7 +64,7 @@ public final class ConsoleCompletionPopup {
                 CommandSide.CLIENT,
                 System.currentTimeMillis(),
                 connectedPlayerNames.get());
-            candidates = CompletionEngine.complete(key, commands.registry(), commands.cvars(), context);
+            candidates = CompletionEngine.complete(text, commands.registry(), commands.cvars(), context);
             selected = 0;
         }
         return candidates;
@@ -88,6 +84,13 @@ public final class ConsoleCompletionPopup {
         }
         int size = candidates.size();
         selected = ((selected + direction) % size + size) % size;
+    }
+
+    /** Selects one visible row, used by pointer/touch input. */
+    public void select(int index) {
+        if (index >= 0 && index < candidates.size()) {
+            selected = index;
+        }
     }
 
     public int selected() {
