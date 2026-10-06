@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.gadget.GadgetRegistryTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:09.782Z" hostname="runnervmmprz5" time="0.023">
+<testsuite name="io.github.skystrike.shared.gadget.GadgetRegistryTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:30:14.914Z" hostname="runnervm8df0l" time="0.018">
   <properties/>
   <testcase name="activation behaviours match mechanics §7: manual, manual, hybrid, passive" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
-  <testcase name="a definition rejects NONE, null and negative durability" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.005"/>
-  <testcase name="every mechanics-§7 number is specified: nothing in the registry is provisional" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
+  <testcase name="a definition rejects NONE, null and negative durability" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
+  <testcase name="every mechanics-§7 number is specified: nothing in the registry is provisional" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.002"/>
   <testcase name="ordinal decoding: strict decode throws, defensive decode falls back to NONE" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.002"/>
-  <testcase name="the gadget wire range starts at 3000 and overlaps nothing" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
-  <testcase name="drones and cameras spawn world entities; shield and tank are worn" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
-  <testcase name="display names reach the kill feed through the wire id" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
-  <testcase name="documented durabilities survived transcription: 30, 150, no pool, 20" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.0"/>
-  <testcase name="gadget ordinals are frozen in the structure plan's documented order" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.0"/>
-  <testcase name="every real gadget has a definition, in enum order; NONE has none" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.003"/>
+  <testcase name="the gadget wire range starts at 3000 and overlaps nothing" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.003"/>
+  <testcase name="drones and cameras spawn world entities; shield and tank are worn" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.0"/>
+  <testcase name="display names reach the kill feed through the wire id" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.0"/>
+  <testcase name="documented durabilities survived transcription: 30, 150, no pool, 20" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.002"/>
+  <testcase name="gadget ordinals are frozen in the structure plan's documented order" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
+  <testcase name="every real gadget has a definition, in enum order; NONE has none" classname="io.github.skystrike.shared.gadget.GadgetRegistryTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

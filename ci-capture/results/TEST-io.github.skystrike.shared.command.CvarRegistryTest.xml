@@ -1,25 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.command.CvarRegistryTest" tests="6" skipped="0" failures="1" errors="0" timestamp="2026-10-06T12:58:09.719Z" hostname="runnervmmprz5" time="0.027">
+<testsuite name="io.github.skystrike.shared.command.CvarRegistryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:30:14.891Z" hostname="runnervm8df0l" time="0.01">
   <properties/>
-  <testcase name="listing and completion honour the cvar's permission" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.005"/>
-  <testcase name="the hook fires once per effective change and never for a no-op write" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.005">
-    <failure message="org.opentest4j.AssertionFailedError: expected: &lt;[mid-&gt;high]&gt; but was: &lt;[MID-&gt;HIGH]&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: expected: &lt;[mid-&gt;high]&gt; but was: &lt;[MID-&gt;HIGH]&gt;
-	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
-	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
-	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
-	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
-	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:177)
-	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1145)
-	at io.github.skystrike.shared.command.CvarRegistryTest.hookFiresOncePerChange(CvarRegistryTest.java:54)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
-</failure>
-  </testcase>
-  <testcase name="every bool spelling stores the same canonical value" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.001"/>
-  <testcase name="setting an out-of-range value fails and leaves the old value in place" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.006"/>
+  <testcase name="listing and completion honour the cvar's permission" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.001"/>
+  <testcase name="the hook fires once per effective change and never for a no-op write" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.002"/>
+  <testcase name="every bool spelling stores the same canonical value" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.002"/>
+  <testcase name="setting an out-of-range value fails and leaves the old value in place" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.001"/>
   <testcase name="a no-value read describes current, default and meaning" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.001"/>
-  <testcase name="a default that violates its own type is rejected at build time" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.006"/>
+  <testcase name="a default that violates its own type is rejected at build time" classname="io.github.skystrike.shared.command.CvarRegistryTest" time="0.002"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

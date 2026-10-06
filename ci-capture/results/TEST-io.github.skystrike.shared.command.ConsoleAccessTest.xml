@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.command.ConsoleAccessTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:09.703Z" hostname="runnervmmprz5" time="0.015">
+<testsuite name="io.github.skystrike.shared.command.ConsoleAccessTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:30:14.879Z" hostname="runnervm8df0l" time="0.01">
   <properties/>
-  <testcase name="the shipping threshold gives a console to moderators and above only" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.001"/>
-  <testcase name="lowering the threshold is a policy change, not a code change" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.001"/>
+  <testcase name="the shipping threshold gives a console to moderators and above only" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.002"/>
+  <testcase name="lowering the threshold is a policy change, not a code change" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.0"/>
   <testcase name="a missing level grants nothing" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.001"/>
-  <testcase name="the ladder is ordered and 'at least' is inclusive" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.004"/>
+  <testcase name="the ladder is ordered and 'at least' is inclusive" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.002"/>
   <testcase name="an out-of-range rank decodes to the least privileged level, never the most" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.0"/>
   <testcase name="namesParseCaseInsensitivelyAndUnknownNamesYieldNull()" classname="io.github.skystrike.shared.command.ConsoleAccessTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>

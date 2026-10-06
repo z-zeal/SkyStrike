@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.combat.RecoilMathTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:09.379Z" hostname="runnervmmprz5" time="0.006">
+<testsuite name="io.github.skystrike.shared.combat.RecoilMathTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:30:14.653Z" hostname="runnervm8df0l" time="0.011">
   <properties/>
   <testcase name="body torque follows the horizontal component of the aim" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.001"/>
-  <testcase name="the ADS blend eases rather than snapping" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.0"/>
-  <testcase name="the linear push is opposite the aim, so firing down lifts you" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.0"/>
+  <testcase name="the ADS blend eases rather than snapping" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.001"/>
+  <testcase name="the linear push is opposite the aim, so firing down lifts you" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.001"/>
   <testcase name="the multiplier composes ADS, movement, airborne and burst" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.0"/>
   <testcase name="the visual kick is capped at 35 degrees and decays at 120 deg/s" classname="io.github.skystrike.shared.combat.RecoilMathTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>

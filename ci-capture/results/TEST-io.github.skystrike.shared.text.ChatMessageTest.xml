@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="io.github.skystrike.shared.text.ChatMessageTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T12:58:11.104Z" hostname="runnervmmprz5" time="0.005">
+<testsuite name="io.github.skystrike.shared.text.ChatMessageTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:30:16.139Z" hostname="runnervm8df0l" time="0.005">
   <properties/>
   <testcase name="a null target falls back to ALL rather than to nothing" classname="io.github.skystrike.shared.text.ChatMessageTest" time="0.0"/>
   <testcase name="a player line takes its channel from the requested target" classname="io.github.skystrike.shared.text.ChatMessageTest" time="0.001"/>

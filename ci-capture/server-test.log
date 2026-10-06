@@ -1,24 +1,13 @@
-/home/runner/work/SkyStrike/SkyStrike/server/src/main/java/io/github/skystrike/server/GameServer.java:161: error: cannot find symbol
-        router.register(PacketCommandRequest.class,
-                        ^
-  symbol:   class PacketCommandRequest
-  location: class GameServer
-1 error
+
+179 tests completed, 10 failed
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
-Execution failed for task ':server:compileJava' (registered by plugin class 'org.gradle.api.plugins.JavaBasePlugin').
-> Compilation failed; see the compiler output below.
-  /home/runner/work/SkyStrike/SkyStrike/server/src/main/java/io/github/skystrike/server/GameServer.java:161: error: cannot find symbol
-          router.register(PacketCommandRequest.class,
-                          ^
-    symbol:   class PacketCommandRequest
-    location: class GameServer
-  1 error
+Execution failed for task ':server:test'.
+> There were failing tests. See the report at: file:///home/runner/work/SkyStrike/SkyStrike/server/build/reports/tests/test/index.html
 
 * Try:
-> Check your code and dependencies to fix the compilation error(s)
 > Run with --scan to get full insights from a Build Scan (powered by Develocity).
 
-BUILD FAILED in 18s
+BUILD FAILED in 20s
