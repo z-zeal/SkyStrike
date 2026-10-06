@@ -39,9 +39,15 @@ import org.junit.jupiter.api.Test;
  */
 class ServerCommandServiceTest {
 
-    /** A network-free stand-in: the registry indexes sessions by connection id. */
+    /**
+     * A network-free stand-in: the registry indexes sessions by connection id, and
+     * {@code kick} closes the slot's connection. The real {@link Connection#close()}
+     * reaches into a TCP pipe this stub never had, so it is overridden to just record
+     * the call instead.
+     */
     private static final class FakeConnection extends Connection {
         private final int id;
+        private boolean closed;
 
         FakeConnection(int id) {
             this.id = id;
@@ -50,6 +56,11 @@ class ServerCommandServiceTest {
         @Override
         public int getID() {
             return id;
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 
@@ -83,6 +94,7 @@ class ServerCommandServiceTest {
     private List<Packet> sent;
     private List<Integer> recipients;
     private LoadoutSystem loadoutSystem;
+    private FakeConnection rookConnection;
 
     @BeforeEach
     void setUp() {
@@ -116,8 +128,9 @@ class ServerCommandServiceTest {
                     loadoutSystem.resetForRespawn(session);
                 }));
 
+        rookConnection = new FakeConnection(2);
         players.register(new FakeConnection(1), 1, "Nova", 0, 100f, 200f);
-        players.register(new FakeConnection(2), 2, "Rook", 1, 200f, 200f);
+        players.register(rookConnection, 2, "Rook", 1, 200f, 200f);
     }
 
     private CommandResult run(int playerId, String name, String line) {
@@ -235,6 +248,7 @@ class ServerCommandServiceTest {
         assertTrue(kicked.ok(), kicked.lines().toString());
         assertEquals(List.of(2), recipients);
         assertTrue(sent.get(0) instanceof PacketChatMessage);
+        assertTrue(rookConnection.closed, "kick should close the target's connection");
     }
 
     @Test
