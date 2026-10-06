@@ -1,0 +1,3 @@
+shared-test exit: 1
+server-test exit: 1
+compile-all exit: 1
