@@ -195,6 +195,7 @@ So the honest sequencing recommendation is:
 | Phase 5 increment 1 — shared throwable foundation | Implemented: `shared/config/UtilityConfig`, `shared/utility/{UtilityId,DetonationMode,UtilityEffect,UtilityDefinition,UtilityRegistry,ThrowablePhysics,ExplosionMath,StunMath}`, `shared/model/ThrownUtility` |
 | Phase 5 increment 2A — utility inventory and wire contract | Implemented: populated loadout slots 4–5 with carried counts and respawn refill; utility choices added to the server-authoritative loadout request; `ThrownUtility` appended at Kryo index 25 and added to `PacketGameState` |
 | Phase 5 increment 2B — authoritative lifecycle, zones and preview | Written but uncompiled: utility trigger edges and cooldowns; `server/utility/UtilitySystem` flight, fuse/contact/proximity detonation, occluded blast/impulse damage, stun lock, smoke/poison/fire zones, claymore placement; snapshots now carry `UtilityZone` at Kryo index 26; live smoke zones feed the client shader and `TrajectoryRenderer` uses `ThrowablePhysics` |
+| Phase 6 increment 1 — shared gadget foundation and contracts | Written but uncompiled: `shared/gadget/{GadgetId,GadgetBehavior,GadgetDefinition,GadgetRegistry}`, populated `GadgetConfig` with the centralised §7 reference-unit conversion, `shared/model/{GadgetSlot,ShieldState}`, `shared/combat/ShieldArcMath`, two Q/E gadget slots inside `PlayerLoadout` with explicit respawn reset, gadget choices in `PacketLoadoutUpdate`, `GadgetSlot` appended at Kryo index 27, fuel-tank hit zone connected through `HitZoneMath.resolve(x, y, player)` into `DamageService` |
 
 Phase 5 is under way, so §3.6's "never started" now applies to Phase 6 only. What landed is the
 shared half: identity and wire encoding (2000 + ordinal, a third range in the existing `weaponId`
@@ -217,10 +218,52 @@ the client renders/interpolates both thrown state and zones. The protocol is now
 arming/trigger/cone numbers, fire jitter, zone cap and the damage-over-time tick interval remain
 explicitly provisional where the plan gives no values.
 
+Phase 6 is now under way too, so §1.2's "never started" is itself historical. Increment 1 is
+the shared, deterministic foundation and the authoritative contracts — deliberately not the
+client surveillance experience:
+
+- **Identity and behaviour.** `shared/gadget/GadgetId` freezes the structure plan's documented
+  order (none, drone, shield, fuel tank, camera) as the wire ordinal, reserves wire range 3000+
+  in the shared weapon-id int, and carries the three `GadgetBehavior` activation modes
+  (drone/camera manual, shield hybrid, fuel tank passive). `GadgetRegistry` holds one immutable
+  record per real gadget (30/150/—/20 durability); nothing in the registry is provisional.
+- **Configuration.** `GadgetConfig` is populated from mechanics §7. The §7 gadget numbers are
+  quoted in the plan's old small-scale reference units; the conversion (25 world units per
+  reference unit, derived from the 50-unit player against the reference two-unit character)
+  exists exactly once as `WORLD_UNITS_PER_REFERENCE_UNIT`, giving drone speed 200 u/s, drone
+  cone 250 u @ 70°, camera launch 300 u/s, tank blast radius 100 u. Genuinely unspecified
+  tuning (drone lerp/damping and cone brightness, camera cone, rear shield arc width, tank
+  impulse, shield overflow-to-health) is explicitly flagged provisional in the javadoc.
+- **Live state and loadout.** `shared/model/GadgetSlot` (gadget ordinal, durability, active,
+  broken, cooldown) rides as two independent Q/E slots inside `PlayerLoadout`, outside the 1–5
+  selection system. Both default to empty — the plan names no default gadget. Duplicates are
+  rejected per slot (provisional rule; stacking passive multipliers silently would be worse).
+  Respawn semantics are explicit and tested: the chosen gadget survives death, its state (a
+  broken shield included) resets.
+- **Deterministic maths.** `shared/combat/ShieldArcMath` resolves equipped-front/stowed-rear
+  coverage with `Angles.shortestDelta` (no ±180 wrap bugs), splits damage between durability
+  and health, and absorbs nothing when broken. `HitZoneMath` gained the gadget-aware
+  `resolve(impactX, impactY, player)` overload that feeds the *existing* fuel-tank hook from
+  loadout state — there is still exactly one hit-zone implementation — and `DamageService` now
+  calls it. The `FUEL_TANK` zone multiplier stays 1.0, so until the authoritative detonation
+  lands, a tank hit deals plain body damage: reported, never regressing.
+- **Wire contract.** `GadgetSlot` appended at Kryo index 27 (nothing reordered), gadget fields
+  appended to `PacketLoadoutUpdate` with `KEEP_CURRENT` distinct from the valid explicit
+  `NONE`, server-side per-field validation in `LoadoutUpdateHandler`, respawn-only application
+  through `PlayerSession`. `PROTOCOL_VERSION` moved 7 → 8.
+
+**Still missing from Phase 6**, by design of the increment: the authoritative drone/camera
+entity lifecycle (`server/gadget/*`), gadget key presses in the input packet, shield damage
+application and the handgun-only lock, fuel-tank passive multipliers and the detonation itself,
+view cycling, surveillance input locking, drone/camera observers in the visibility shader, and
+all rendering/HUD. The identity, loadout and network contracts above were shaped so those can
+land without another contract change.
+
 `TextSanitizer` and `RateLimiter` are no longer dead code — the relay is their only caller.
 `PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities, 5 → 6 for the throwable/loadout contract,
-and 6 → 7 for live utility zones and replicated throwable status. §3.3 and §3.4 above describe
-the state *before* this work; the rest of §3 still stands.
+6 → 7 for live utility zones and replicated throwable status, and 7 → 8 for the gadget
+contract. §3.3 and §3.4 above describe the state *before* this work; the rest of §3 still
+stands.
 
 Still outstanding for Phase 7: the HUD in full (§3.1), the dialog in full (§3.2), and build-order
 Phases 4–9 (§3.5).

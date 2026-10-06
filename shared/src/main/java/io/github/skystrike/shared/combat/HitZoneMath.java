@@ -48,13 +48,29 @@ public final class HitZoneMath {
     }
 
     /**
+     * Resolves a hit against a live player including their gadget state: the Phase 6 entry
+     * point. The rear fuel-tank zone exists exactly while the target's loadout carries a worn,
+     * intact tank ({@link io.github.skystrike.shared.model.PlayerLoadout#hasFuelTank()}); with
+     * no tank — or a detonated one — this is identical to {@link #resolve(float, Player)}.
+     */
+    public static HitZone resolve(float impactX, float impactY, Player target) {
+        boolean hasFuelTank = target.loadout != null && target.loadout.hasFuelTank();
+        return resolveWithGadget(
+            impactX, impactY, target.y, target.x, target.currentHeight(),
+            target.isFacingRight(), hasFuelTank);
+    }
+
+    /**
      * Resolves a hit including the rear-mounted fuel tank.
      *
-     * <p>Phase 3 never passes {@code true} for {@code hasFuelTank} — no gadget system exists yet —
-     * so this is the placeholder the Phase 6 gadget plugs into rather than a second hit-zone
-     * implementation written later. The tank occupies a narrow strip on the side of the hitbox
-     * the player is facing away from, between 30% and 72% of current height, so it sits under the
-     * head zone and behind the body.
+     * <p>This is the single hit-zone implementation: Phase 3 always passed {@code false} for
+     * {@code hasFuelTank}, and the Phase 6 gadget state now feeds the flag through
+     * {@link #resolve(float, float, Player)} rather than through a second implementation.
+     *
+     * <p><b>The rear-facing condition:</b> the tank occupies a narrow strip on the side of the
+     * hitbox the player's aim points <i>away</i> from — aiming right puts the tank on the left
+     * edge, and vice versa — between 30% and 72% of current height, so it sits under the head
+     * zone and behind the body. A head hit always stays a head hit.
      *
      * @param facingRight the direction the player's aim points, which is where the tank is not
      */

@@ -28,8 +28,12 @@ public final class NetConfig {
      *
      * <p>7 — Phase 5 live utilities: {@code UtilityZone} appended as snapshot state; throwable
      * aim and player stun/flash status became snapshot fields.
+     *
+     * <p>8 — Phase 6 gadget contract: {@code GadgetSlot} appended as a payload type; the two
+     * Q/E gadget slots now ride inside {@code PlayerLoadout}, and gadget choices were added to
+     * {@code PacketLoadoutUpdate}.
      */
-    public static final int PROTOCOL_VERSION = 7;
+    public static final int PROTOCOL_VERSION = 8;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

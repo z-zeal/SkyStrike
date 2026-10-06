@@ -22,8 +22,10 @@ public final class CombatConfig {
     public static final float BODY_DAMAGE_MULTIPLIER = 1.0f;
 
     /**
-     * Fuel-tank multiplier placeholder. The gadget is a Phase 6 system: until then no player
-     * carries one and {@code HitZoneMath} can never return the zone.
+     * Fuel-tank zone multiplier. Deliberately 1.0: the tank's answer to being shot is the
+     * {@code GadgetConfig} detonation applied by the server's gadget system, not a scaled
+     * version of the bullet's damage. The zone resolves only while a worn, intact tank is in
+     * the target's loadout.
      */
     public static final float FUEL_TANK_DAMAGE_MULTIPLIER = 1.0f;
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.player.PlayerRegistry;
 import io.github.skystrike.server.player.PlayerSession;
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.utility.UtilityId;
@@ -90,6 +91,46 @@ class LoadoutUpdateHandlerTest {
         assertEquals(UtilityId.STUN.ordinal(), session.requestedUtilityA());
         assertEquals(UtilityId.FLASHBANG.ordinal(), session.requestedUtilityB());
         assertEquals(WeaponId.DEFAULT.ordinal(), session.requestedPrimary(), "untouched");
+    }
+
+    @Test
+    @DisplayName("gadget requests are validated per slot and applied at respawn, like everything else")
+    void gadgetRequestIsRecordedAndValidated() {
+        handler.handle(connection, new PacketLoadoutUpdate(
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            GadgetId.SHIELD.ordinal(),
+            GadgetId.FUEL_TANK.ordinal()));
+
+        assertEquals(GadgetId.SHIELD.ordinal(), session.requestedGadgetQ());
+        assertEquals(GadgetId.FUEL_TANK.ordinal(), session.requestedGadgetE());
+
+        // The live loadout is untouched until the respawn flow applies the request.
+        assertTrue(session.player().loadout.gadgetQ.isEmpty());
+
+        assertTrue(session.applyRequestedLoadout());
+        assertTrue(session.player().loadout.gadgetQ.holds(GadgetId.SHIELD));
+        assertTrue(session.player().loadout.gadgetE.holds(GadgetId.FUEL_TANK));
+        assertTrue(session.player().loadout.hasFuelTank());
+
+        // Garbage gadget ordinals are dropped field by field; NONE is a valid "carry nothing".
+        handler.handle(connection, new PacketLoadoutUpdate(
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            99,
+            GadgetId.NONE.ordinal()));
+        assertEquals(GadgetId.SHIELD.ordinal(), session.requestedGadgetQ(), "garbage was dropped");
+        assertEquals(GadgetId.NONE.ordinal(), session.requestedGadgetE(), "explicit NONE stuck");
+
+        assertTrue(session.applyRequestedLoadout());
+        assertTrue(session.player().loadout.gadgetQ.holds(GadgetId.SHIELD));
+        assertTrue(session.player().loadout.gadgetE.isEmpty());
     }
 
     @Test

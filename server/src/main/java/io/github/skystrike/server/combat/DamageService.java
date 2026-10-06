@@ -104,7 +104,11 @@ public final class DamageService {
             return null;
         }
 
-        HitZone zone = HitZoneMath.resolve(impactY, target);
+        // Gadget-aware resolution: the rear fuel-tank zone exists only while the target's
+        // loadout carries a worn, intact tank. Its multiplier is 1.0, so until the authoritative
+        // detonation lands in the server gadget increment, a tank hit deals plain body damage —
+        // the zone is reported, nothing regresses.
+        HitZone zone = HitZoneMath.resolve(impactX, impactY, target);
         float afterFalloff =
             BallisticsMath.damageAfterFalloff(stats.damage(), distanceTravelled, stats.ballistics());
         float damage = HitZoneMath.applyZone(afterFalloff, zone);

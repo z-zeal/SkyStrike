@@ -1,5 +1,6 @@
 package io.github.skystrike.shared.model;
 
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.MeleeId;
@@ -16,6 +17,12 @@ import io.github.skystrike.shared.weapons.WeaponId;
  * empty — a player is never defenceless. A utility slot remains part of the composition after its
  * carried count reaches zero, but counts as empty for selection and cycling until the next
  * respawn refills it.
+ *
+ * <p>Alongside the five main slots sit the two gadget slots, Q and E (mechanics §7, §8). They
+ * are deliberately <b>outside</b> the 1–5 selection system: a gadget is never "in the hands",
+ * never cycled by the wheel, and works regardless of which main slot is active. Both default to
+ * empty — the mechanics plan names no default gadget, and an undocumented free fuel tank or
+ * shield would be a silent balance decision.
  *
  * <p>The switching rules live here, once, so client prediction and the server cannot diverge:
  * selecting is idempotent ({@link #selectSlot}), a key <i>press</i> carries the tap-swap rule
@@ -67,6 +74,12 @@ public final class PlayerLoadout {
 
     /** Number of slot 5 utilities left in this life. Zero makes the slot unselectable. */
     public int utilityBCount;
+
+    /** The Q gadget slot. Never {@code null}; empty by default. */
+    public GadgetSlot gadgetQ = new GadgetSlot();
+
+    /** The E gadget slot. Never {@code null}; empty by default. */
+    public GadgetSlot gadgetE = new GadgetSlot();
 
     /** The currently active slot, 1–5. Only ever a filled slot. */
     public int activeSlot = SLOT_PRIMARY;
@@ -122,6 +135,8 @@ public final class PlayerLoadout {
         this.utilityACount = other.utilityACount;
         this.utilityB = other.utilityB;
         this.utilityBCount = other.utilityBCount;
+        this.gadgetQ = other.gadgetQ == null ? new GadgetSlot() : other.gadgetQ.copy();
+        this.gadgetE = other.gadgetE == null ? new GadgetSlot() : other.gadgetE.copy();
         this.activeSlot = other.activeSlot;
         this.quickSwapOrigin = other.quickSwapOrigin;
         this.reloading = other.reloading;
@@ -171,6 +186,71 @@ public final class PlayerLoadout {
             case SLOT_UTILITY_B -> Math.max(0, utilityBCount);
             default -> 0;
         };
+    }
+
+    // --- Gadget slots (mechanics §7, §8) --------------------------------------------------------
+
+    /**
+     * The Q or E slot by index: 0 = Q, 1 = E. Gadget slots sit outside the 1–5 numbering on
+     * purpose — they are never the active slot.
+     */
+    public GadgetSlot gadgetSlot(int index) {
+        return switch (index) {
+            case 0 -> gadgetQ;
+            case 1 -> gadgetE;
+            default -> throw new IllegalArgumentException("gadget slot index must be 0 or 1: " + index);
+        };
+    }
+
+    /** True while either slot holds a usable (equipped, not yet destroyed) {@code id}. */
+    public boolean hasUsableGadget(GadgetId id) {
+        return (gadgetQ.holds(id) && gadgetQ.isUsable())
+            || (gadgetE.holds(id) && gadgetE.isUsable());
+    }
+
+    /**
+     * True while a fuel tank is worn and intact — the condition under which
+     * {@code HitZoneMath} resolves the rear tank zone. A detonated (broken) tank is gone for
+     * the rest of the life and exposes no zone.
+     */
+    public boolean hasFuelTank() {
+        return hasUsableGadget(GadgetId.FUEL_TANK);
+    }
+
+    /** The slot holding the shield, or {@code null} when no shield is carried. */
+    public GadgetSlot shieldSlot() {
+        if (gadgetQ.holds(GadgetId.SHIELD)) {
+            return gadgetQ;
+        }
+        return gadgetE.holds(GadgetId.SHIELD) ? gadgetE : null;
+    }
+
+    /** The carried shield's state, or {@code null} when no shield is carried. */
+    public ShieldState shieldState() {
+        GadgetSlot slot = shieldSlot();
+        return slot == null ? null : slot.shieldState();
+    }
+
+    /**
+     * Applies a gadget composition change. {@code null} keeps a slot's current choice;
+     * {@link GadgetId#NONE} explicitly empties it. A slot re-assigned the gadget it already
+     * holds keeps its live state (as an unchanged gun keeps its ammo); an actual change equips
+     * the new gadget fresh.
+     *
+     * <p><b>Duplicates are rejected per slot</b>: a change that would leave both slots holding
+     * the same real gadget is dropped, Q applying before E. Provisional rule — the plan never
+     * says whether two shields may be carried, and letting passive multipliers stack silently
+     * is the worse default.
+     */
+    public void setGadgets(GadgetId gadgetQId, GadgetId gadgetEId) {
+        if (gadgetQId != null && gadgetQId != gadgetQ.gadgetId()
+                && !(gadgetQId.isReal() && gadgetQId == gadgetE.gadgetId())) {
+            gadgetQ.equip(gadgetQId);
+        }
+        if (gadgetEId != null && gadgetEId != gadgetE.gadgetId()
+                && !(gadgetEId.isReal() && gadgetEId == gadgetQ.gadgetId())) {
+            gadgetE.equip(gadgetEId);
+        }
     }
 
     /** The utility in hand, or {@code null} while a gun or melee weapon is active. */
@@ -383,6 +463,24 @@ public final class PlayerLoadout {
     }
 
     /**
+     * Seven-component composition update: the five main slots plus the two gadget slots. Null
+     * components keep their current choice; gadget duplicates are rejected per
+     * {@link #setGadgets}.
+     */
+    public void setComposition(
+        WeaponId primaryId,
+        WeaponId handgunId,
+        MeleeId meleeId,
+        UtilityId utilityAId,
+        UtilityId utilityBId,
+        GadgetId gadgetQId,
+        GadgetId gadgetEId
+    ) {
+        setGadgets(gadgetQId, gadgetEId);
+        setComposition(primaryId, handgunId, meleeId, utilityAId, utilityBId);
+    }
+
+    /**
      * Five-slot composition update. Null components keep their current choice; changing a utility
      * supplies its full carried count immediately, matching a newly-created gun's full magazine.
      */
@@ -418,7 +516,8 @@ public final class PlayerLoadout {
     }
 
     /**
-     * What a respawn does to a loadout (mechanics §10): both guns back to full, no reload in
+     * What a respawn does to a loadout (mechanics §10): both guns back to full, utilities
+     * restocked, gadget state cleared (full durability, not broken, not active), no reload in
      * flight, hands back on the first real weapon. The composition itself is kept — a death
      * does not steal a chosen weapon.
      */
@@ -430,6 +529,8 @@ public final class PlayerLoadout {
             handgun.refill();
         }
         refillUtilities();
+        gadgetQ.resetForRespawn();
+        gadgetE.resetForRespawn();
         cancelReload();
         activeSlot = firstFilledSlot();
         quickSwapOrigin = NO_QUICK_SWAP;
@@ -450,6 +551,8 @@ public final class PlayerLoadout {
             + ", melee=" + meleeId().displayName()
             + ", utilityA=" + utilityIdForSlot(SLOT_UTILITY_A) + " x" + utilityACount
             + ", utilityB=" + utilityIdForSlot(SLOT_UTILITY_B) + " x" + utilityBCount
+            + ", gadgetQ=" + gadgetQ
+            + ", gadgetE=" + gadgetE
             + (reloading ? String.format(", reloading %.2fs", reloadTimer) : "")
             + (quickSwapOrigin != NO_QUICK_SWAP ? ", swapFrom=" + quickSwapOrigin : "")
             + "]";
