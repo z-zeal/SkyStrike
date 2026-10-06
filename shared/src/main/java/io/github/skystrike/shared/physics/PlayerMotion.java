@@ -66,7 +66,14 @@ public final class PlayerMotion {
         }
         p.vx = Lerp.clamp(p.vx, -PlayerConfig.MAX_HORIZONTAL_SPEED, PlayerConfig.MAX_HORIZONTAL_SPEED);
 
-        // 4. Vertical movement (Jump, Jetpack, Gravity)
+        // 4. Vertical movement (Jump, Jetpack, Gravity). A worn, intact fuel tank changes
+        // only the shared jetpack function; both server authority and local prediction call this
+        // same code. A tank breaking also clamps fuel back to the ordinary capacity immediately.
+        boolean hasFuelTank = p.loadout != null && p.loadout.hasFuelTank();
+        float fuelCapacity = PlayerConfig.MAX_FUEL
+            * (hasFuelTank ? io.github.skystrike.shared.config.GadgetConfig.FUEL_TANK_CAPACITY_MULTIPLIER : 1f);
+        p.fuel = Math.min(Math.max(0f, p.fuel), fuelCapacity);
+
         if (input != null && input.jump && (p.grounded || p.coyoteTimer > 0f)) {
             p.vy = PlayerConfig.JUMP_SPEED;
             p.grounded = false;
@@ -76,10 +83,12 @@ public final class PlayerMotion {
         if (input != null && input.jetpack && p.fuel > 0f) {
             p.jetpacking = true;
             float aimRad = Angles.toRadians(p.aimAngle);
-            float thrustAx = PlayerConfig.JETPACK_THRUST
+            float thrust = PlayerConfig.JETPACK_THRUST
+                * (hasFuelTank ? io.github.skystrike.shared.config.GadgetConfig.FUEL_TANK_THRUST_MULTIPLIER : 1f);
+            float thrustAx = thrust
                 * PlayerConfig.JETPACK_AIM_SPLIT
                 * (float) Math.cos(aimRad);
-            float thrustAy = PlayerConfig.JETPACK_THRUST
+            float thrustAy = thrust
                 * (PlayerConfig.JETPACK_VERTICAL_SPLIT + PlayerConfig.JETPACK_AIM_SPLIT * (float) Math.sin(aimRad));
             p.vx += thrustAx * dt;
             p.vy += thrustAy * dt;
@@ -96,7 +105,7 @@ public final class PlayerMotion {
 
         // 6. Grounded state recharge and coyote timer
         if (p.grounded) {
-            p.fuel = Math.min(PlayerConfig.MAX_FUEL, p.fuel + PlayerConfig.FUEL_RECHARGE_RATE * dt);
+            p.fuel = Math.min(fuelCapacity, p.fuel + PlayerConfig.FUEL_RECHARGE_RATE * dt);
             p.coyoteTimer = PlayerConfig.COYOTE_TIME;
         } else {
             p.coyoteTimer = Math.max(0f, p.coyoteTimer - dt);

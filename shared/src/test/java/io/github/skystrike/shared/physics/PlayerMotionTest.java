@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
@@ -118,6 +120,36 @@ class PlayerMotionTest {
 
         assertEquals(80f, player.fuel, 0.5f);
         assertTrue(player.jetpacking);
+    }
+
+    @Test
+    @DisplayName("an intact tank raises jetpack capacity and thrust, while a broken tank does neither")
+    void fuelTankMultipliersAreSharedWithPrediction() {
+        Player ordinary = new Player(1, "Ordinary", 0, 500f, 300f);
+        Player tanked = new Player(2, "Tanked", 0, 500f, 300f);
+        tanked.loadout.setGadgets(GadgetId.FUEL_TANK, GadgetId.NONE);
+        ordinary.grounded = false;
+        tanked.grounded = false;
+        ordinary.fuel = 150f;
+        tanked.fuel = 150f;
+
+        PlayerInput idle = new PlayerInput(1L, 0f, false, false, false, false, false, 90f);
+        ordinary = PlayerMotion.step(ordinary, idle, 1f / 60f, map);
+        tanked = PlayerMotion.step(tanked, idle, 1f / 60f, map);
+        assertEquals(PlayerConfig.MAX_FUEL, ordinary.fuel, 0.001f);
+        assertEquals(PlayerConfig.MAX_FUEL * GadgetConfig.FUEL_TANK_CAPACITY_MULTIPLIER,
+            tanked.fuel, 0.001f);
+
+        PlayerInput jetpack = new PlayerInput(2L, 0f, false, false, true, false, false, 90f);
+        ordinary = PlayerMotion.step(ordinary, jetpack, 1f / 60f, map);
+        tanked = PlayerMotion.step(tanked, jetpack, 1f / 60f, map);
+        assertTrue(tanked.vy > ordinary.vy, "the intact tank must increase shared thrust");
+
+        tanked.loadout.gadgetQ.broken = true;
+        tanked.loadout.gadgetQ.active = false;
+        tanked.fuel = 150f;
+        tanked = PlayerMotion.step(tanked, idle, 1f / 60f, map);
+        assertEquals(PlayerConfig.MAX_FUEL, tanked.fuel, 0.001f);
     }
 
     @Test

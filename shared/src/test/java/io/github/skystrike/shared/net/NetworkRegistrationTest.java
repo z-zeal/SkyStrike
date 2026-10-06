@@ -148,7 +148,7 @@ class NetworkRegistrationTest {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(GadgetSlot.class, types.get(27));
         assertEquals(28, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(8, NetConfig.PROTOCOL_VERSION);
+        assertEquals(9, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -206,6 +206,8 @@ class NetworkRegistrationTest {
         assertEquals(10L, input.sequence);
         assertEquals(PacketPlayerInput.NO_SLOT_PRESS, input.slotPress);
         assertEquals(-1L, input.slotPressSeq);
+        assertEquals(PacketPlayerInput.NO_GADGET_PRESS, input.gadgetPress);
+        assertEquals(-1L, input.gadgetPressSeq);
         assertEquals(1.0f, input.moveX);
         assertTrue(input.jump);
         assertFalse(input.crouch);
@@ -221,6 +223,14 @@ class NetworkRegistrationTest {
         assertTrue(decodedPress.fire);
         assertEquals(PlayerLoadout.SLOT_MELEE, decodedPress.slotPress);
         assertEquals(11L, decodedPress.slotPressSeq);
+
+        PacketPlayerInput withGadget = new PacketPlayerInput(
+            12L, 0f, false, false, false, false, false, 0f,
+            PacketPlayerInput.NO_SLOT_PRESS, PacketPlayerInput.GADGET_Q_PRESS);
+        withGadget.gadgetPressSeq = 12L;
+        PacketPlayerInput decodedGadget = roundTrip(withGadget);
+        assertEquals(PacketPlayerInput.GADGET_Q_PRESS, decodedGadget.gadgetPress);
+        assertEquals(12L, decodedGadget.gadgetPressSeq);
 
         PacketLoadoutUpdate loadout = roundTrip(new PacketLoadoutUpdate(
             WeaponId.CATHEDRAL.ordinal(),

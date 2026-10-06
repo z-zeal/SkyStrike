@@ -1,7 +1,10 @@
 package io.github.skystrike.server.combat;
 
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.gadget.GadgetRegistry;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -25,7 +28,7 @@ public final class KillFeedService {
      * One death.
      *
      * @param killerId      the player credited, or the victim's own id when self-inflicted
-     * @param weaponId      {@link WeaponId} ordinal
+     * @param weaponId      shared weapon-family wire id (gun, melee, utility or gadget)
      * @param friendlyFire  killer and victim shared a team
      */
     public record KillEvent(
@@ -40,6 +43,16 @@ public final class KillFeedService {
     ) {
         public WeaponId weapon() {
             return WeaponId.fromOrdinal(weaponId);
+        }
+
+        /** Display name for guns, utilities, melee weapons and gadget wire ids. */
+        public String weaponDisplayName() {
+            String gadget = GadgetRegistry.displayNameForWireId(weaponId);
+            if (!gadget.isEmpty()) {
+                return gadget;
+            }
+            String utility = UtilityRegistry.displayNameForWireId(weaponId);
+            return utility.isEmpty() ? WeaponRegistry.displayNameForWireId(weaponId) : utility;
         }
     }
 

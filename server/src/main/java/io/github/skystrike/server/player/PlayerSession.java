@@ -48,6 +48,11 @@ public final class PlayerSession {
     private volatile long slotPressSeqPending = -1L;
     private volatile long lastSlotPressSeqApplied = -1L;
 
+    /** Q/E gadget edge latch, deduplicated by the client's first carrying sequence. */
+    private volatile int gadgetPressPending = PacketPlayerInput.NO_GADGET_PRESS;
+    private volatile long gadgetPressSeqPending = -1L;
+    private volatile long lastGadgetPressSeqApplied = -1L;
+
     /** The slot the gun state was last aligned with, so a change forces a fresh weapon. */
     private int lastMirroredSlot;
 
@@ -125,6 +130,13 @@ public final class PlayerSession {
             slotPressPending = packet.slotPress;
             slotPressSeqPending = packet.slotPressSeq;
         }
+        if ((packet.gadgetPress == PacketPlayerInput.GADGET_Q_PRESS
+                || packet.gadgetPress == PacketPlayerInput.GADGET_E_PRESS)
+            && packet.gadgetPressSeq > lastGadgetPressSeqApplied
+            && packet.gadgetPressSeq != gadgetPressSeqPending) {
+            gadgetPressPending = packet.gadgetPress;
+            gadgetPressSeqPending = packet.gadgetPressSeq;
+        }
         this.latestInput = PlayerInput.fromPacket(packet);
         this.lastInputTimeMillis = System.currentTimeMillis();
     }
@@ -164,12 +176,45 @@ public final class PlayerSession {
         return press;
     }
 
+    /**
+     * Returns one Q/E edge and retires its birth sequence. The caller must invoke this even for a
+     * dead or stunned player; only the caller decides whether the consumed edge is allowed to act.
+     */
+    public int consumeGadgetPress() {
+        int press = gadgetPressPending;
+        long seq = gadgetPressSeqPending;
+        gadgetPressPending = PacketPlayerInput.NO_GADGET_PRESS;
+        gadgetPressSeqPending = -1L;
+        if (press == PacketPlayerInput.NO_GADGET_PRESS || seq <= lastGadgetPressSeqApplied) {
+            return PacketPlayerInput.NO_GADGET_PRESS;
+        }
+        lastGadgetPressSeqApplied = seq;
+        return press;
+    }
+
     /** Drops every pending edge, used when the player dies or respawns holding the mouse. */
     public void clearTrigger() {
         firePressedPending = false;
         triggerHeld = false;
+        if (slotPressSeqPending > lastSlotPressSeqApplied) {
+            lastSlotPressSeqApplied = slotPressSeqPending;
+        }
+        if (gadgetPressSeqPending > lastGadgetPressSeqApplied) {
+            lastGadgetPressSeqApplied = gadgetPressSeqPending;
+        }
         slotPressPending = PacketPlayerInput.NO_SLOT_PRESS;
         slotPressSeqPending = -1L;
+        gadgetPressPending = PacketPlayerInput.NO_GADGET_PRESS;
+        gadgetPressSeqPending = -1L;
+    }
+
+    /** Drops only a pending gadget edge, for a death detected after the input was received. */
+    public void clearGadgetPress() {
+        if (gadgetPressSeqPending > lastGadgetPressSeqApplied) {
+            lastGadgetPressSeqApplied = gadgetPressSeqPending;
+        }
+        gadgetPressPending = PacketPlayerInput.NO_GADGET_PRESS;
+        gadgetPressSeqPending = -1L;
     }
 
     public long lastInputTimeMillis() {

@@ -69,7 +69,7 @@ public final class MeleeSystem {
                 continue;
             }
 
-            DamageService.DamageResult result = damage.apply(
+            DamageService.DamageResult result = damage.applyWithSource(
                 attacker,
                 attacker.id,
                 target,
@@ -78,7 +78,9 @@ public final class MeleeSystem {
                 melee.id().wireId(),
                 targetX,
                 targetY,
-                0f);
+                0f,
+                originX,
+                originY);
             if (result == null) {
                 continue;
             }

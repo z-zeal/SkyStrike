@@ -225,10 +225,55 @@ public final class PlayerLoadout {
         return gadgetE.holds(GadgetId.SHIELD) ? gadgetE : null;
     }
 
+    /** The carried fuel tank slot, or {@code null} when no tank is carried. */
+    public GadgetSlot fuelTankSlot() {
+        if (gadgetQ.holds(GadgetId.FUEL_TANK)) {
+            return gadgetQ;
+        }
+        return gadgetE.holds(GadgetId.FUEL_TANK) ? gadgetE : null;
+    }
+
+    /** True while the shield is equipped, intact and therefore protecting the player. */
+    public boolean shieldEquipped() {
+        GadgetSlot slot = shieldSlot();
+        return slot != null && slot.isUsable() && slot.active;
+    }
+
     /** The carried shield's state, or {@code null} when no shield is carried. */
     public ShieldState shieldState() {
         GadgetSlot slot = shieldSlot();
         return slot == null ? null : slot.shieldState();
+    }
+
+    /**
+     * Applies a Q/E edge's common active-flag rule. Passive gadgets, including the fuel tank,
+     * are worn rather than toggled; manual and hybrid gadgets toggle while usable. Returns false
+     * for an empty, broken or invalid slot.
+     */
+    public boolean toggleGadget(int index) {
+        GadgetSlot slot;
+        try {
+            slot = gadgetSlot(index);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+        if (!slot.isUsable() || slot.gadgetId().behavior() == io.github.skystrike.shared.gadget.GadgetBehavior.PASSIVE) {
+            return false;
+        }
+        slot.active = !slot.active;
+        return true;
+    }
+
+    /**
+     * Shared handgun-only rule for an equipped shield. A sidearm is forced into the hands when
+     * one exists; with no sidearm, the active slot is left alone and the server blocks weapon
+     * action. Keeping this rule in shared loadout state makes client prediction match authority.
+     */
+    public boolean enforceShieldHandgunLock() {
+        if (!shieldEquipped() || !isFilled(SLOT_HANDGUN)) {
+            return false;
+        }
+        return selectSlot(SLOT_HANDGUN);
     }
 
     /**

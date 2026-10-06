@@ -147,4 +147,41 @@ class PlayerSessionTest {
         session.setInput(next);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, session.consumeSlotPress());
     }
+
+    @Test
+    @DisplayName("a Q/E gadget press is deduplicated by its birth sequence")
+    void retransmittedGadgetPressIsDeduplicated() {
+        for (int i = 0; i < 3; i++) {
+            PacketPlayerInput packet = new PacketPlayerInput(
+                30L + i, 0f, false, false, false, false, false, 0f,
+                PacketPlayerInput.NO_SLOT_PRESS,
+                PacketPlayerInput.GADGET_Q_PRESS);
+            packet.gadgetPressSeq = 30L;
+            session.setInput(packet);
+        }
+
+        assertEquals(PacketPlayerInput.GADGET_Q_PRESS, session.consumeGadgetPress());
+        assertEquals(PacketPlayerInput.NO_GADGET_PRESS, session.consumeGadgetPress());
+
+        PacketPlayerInput next = new PacketPlayerInput(
+            40L, 0f, false, false, false, false, false, 0f,
+            PacketPlayerInput.NO_SLOT_PRESS,
+            PacketPlayerInput.GADGET_E_PRESS);
+        next.gadgetPressSeq = 40L;
+        session.setInput(next);
+        assertEquals(PacketPlayerInput.GADGET_E_PRESS, session.consumeGadgetPress());
+    }
+
+    @Test
+    @DisplayName("clearing input edges drops a pending gadget toggle")
+    void clearTriggerDropsGadgetPress() {
+        PacketPlayerInput packet = new PacketPlayerInput(
+            50L, 0f, false, false, false, false, false, 0f,
+            PacketPlayerInput.NO_SLOT_PRESS,
+            PacketPlayerInput.GADGET_Q_PRESS);
+        packet.gadgetPressSeq = 50L;
+        session.setInput(packet);
+        session.clearTrigger();
+        assertEquals(PacketPlayerInput.NO_GADGET_PRESS, session.consumeGadgetPress());
+    }
 }

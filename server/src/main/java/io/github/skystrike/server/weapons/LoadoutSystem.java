@@ -3,6 +3,7 @@ package io.github.skystrike.server.weapons;
 import io.github.skystrike.server.combat.BulletSystem;
 import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.MeleeSystem;
+import io.github.skystrike.server.gadget.ShieldSystem;
 import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.utility.UtilitySystem;
 import io.github.skystrike.shared.combat.SpreadMath;
@@ -47,11 +48,12 @@ public final class LoadoutSystem {
     private final MeleeSystem meleeSystem;
     private final BulletSystem bulletSystem;
     private final UtilitySystem utilitySystem;
+    private final ShieldSystem shieldSystem;
     private final FireController.Volley volley = new FireController.Volley();
 
     /** Legacy construction for gun/melee-only tests; active utilities require the four-arg form. */
     public LoadoutSystem(FireController fireController, MeleeSystem meleeSystem, BulletSystem bulletSystem) {
-        this(fireController, meleeSystem, bulletSystem, null);
+        this(fireController, meleeSystem, bulletSystem, null, new ShieldSystem());
     }
 
     public LoadoutSystem(
@@ -60,10 +62,21 @@ public final class LoadoutSystem {
         BulletSystem bulletSystem,
         UtilitySystem utilitySystem
     ) {
+        this(fireController, meleeSystem, bulletSystem, utilitySystem, new ShieldSystem());
+    }
+
+    public LoadoutSystem(
+        FireController fireController,
+        MeleeSystem meleeSystem,
+        BulletSystem bulletSystem,
+        UtilitySystem utilitySystem,
+        ShieldSystem shieldSystem
+    ) {
         this.fireController = fireController;
         this.meleeSystem = meleeSystem;
         this.bulletSystem = bulletSystem;
         this.utilitySystem = utilitySystem;
+        this.shieldSystem = shieldSystem == null ? new ShieldSystem() : shieldSystem;
     }
 
     /**
@@ -83,21 +96,33 @@ public final class LoadoutSystem {
             loadout.tapSlot(slotPress);
         }
 
-        // 2. The live gun state belongs to whatever is actually in hand. A slot change wipes
-        // spread, recoil and cooldown — even when the same gun comes back out of a melee detour.
-        syncGunForSlot(session, loadout, gun);
-
+        // 2. Q/E edges are retired before alive/stun checks. A rejected edge is never carried
+        // through death or stun. Passive gadgets (the fuel tank) deliberately do nothing here.
+        int gadgetPress = session.consumeGadgetPress();
         boolean firePressed = session.consumeFirePressed();
         if (!player.alive || loadout == null) {
             return;
         }
-
-        // A stun locks every weapon category, including throwables. We still consumed the press
-        // edge above, so a player cannot hold fire through a stun and get a banked shot on wakeup.
         if (player.isSlowed()) {
             mirror(player, loadout, gun);
             return;
         }
+        if (gadgetPress != PacketPlayerInput.NO_GADGET_PRESS) {
+            shieldSystem.toggle(player, gadgetPress);
+        }
+
+        // 3. An equipped shield forces the handgun when possible. With no handgun every weapon
+        // action is blocked below; it is safer than silently granting melee or primary fire.
+        boolean shieldEquipped = shieldSystem.enforceHandgunOnly(player);
+        if (shieldEquipped && shieldSystem.blocksWeaponAction(player)) {
+            syncGunForSlot(session, loadout, gun);
+            mirror(player, loadout, gun);
+            return;
+        }
+
+        // The live gun state belongs to whatever is actually in hand. A slot change wipes
+        // spread, recoil and cooldown — even when the same gun comes back out of a melee detour.
+        syncGunForSlot(session, loadout, gun);
 
         if (loadout.utilityActive()) {
             tickUtility(player, session, loadout, firePressed);
