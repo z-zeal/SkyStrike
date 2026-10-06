@@ -3,6 +3,7 @@ package io.github.skystrike.shared.net.s2c;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.Packet;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,9 @@ public final class PacketGameState implements Packet {
     /** Thrown utilities in flight or settled while their fuse counts down. */
     public List<ThrownUtility> thrownUtilities = new ArrayList<>();
 
+    /** Persistent smoke, poison and fire zones currently in the arena. */
+    public List<UtilityZone> utilityZones = new ArrayList<>();
+
     public PacketGameState() {
     }
 
@@ -54,7 +58,7 @@ public final class PacketGameState implements Packet {
         List<Player> players,
         List<Projectile> projectiles
     ) {
-        this(tick, serverTimeMillis, playerCount, players, projectiles, null);
+        this(tick, serverTimeMillis, playerCount, players, projectiles, null, null);
     }
 
     public PacketGameState(
@@ -64,6 +68,18 @@ public final class PacketGameState implements Packet {
         List<Player> players,
         List<Projectile> projectiles,
         List<ThrownUtility> thrownUtilities
+    ) {
+        this(tick, serverTimeMillis, playerCount, players, projectiles, thrownUtilities, null);
+    }
+
+    public PacketGameState(
+        long tick,
+        long serverTimeMillis,
+        int playerCount,
+        List<Player> players,
+        List<Projectile> projectiles,
+        List<ThrownUtility> thrownUtilities,
+        List<UtilityZone> utilityZones
     ) {
         this.tick = tick;
         this.serverTimeMillis = serverTimeMillis;
@@ -77,6 +93,9 @@ public final class PacketGameState implements Packet {
         if (thrownUtilities != null) {
             this.thrownUtilities = new ArrayList<>(thrownUtilities);
         }
+        if (utilityZones != null) {
+            this.utilityZones = new ArrayList<>(utilityZones);
+        }
     }
 
     @Override
@@ -86,6 +105,7 @@ public final class PacketGameState implements Packet {
             + ", playerCount=" + playerCount
             + ", players=" + players.size()
             + ", projectiles=" + projectiles.size()
-            + ", thrownUtilities=" + thrownUtilities.size() + "]";
+            + ", thrownUtilities=" + thrownUtilities.size()
+            + ", utilityZones=" + utilityZones.size() + "]";
     }
 }

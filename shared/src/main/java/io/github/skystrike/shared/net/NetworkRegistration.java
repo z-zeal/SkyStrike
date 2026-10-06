@@ -6,6 +6,7 @@ import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
@@ -82,7 +83,10 @@ public final class NetworkRegistration {
         PacketCapabilities.class,
 
         // Phase 5: throwable state carried inside snapshots (append-only)
-        ThrownUtility.class);
+        ThrownUtility.class,
+
+        // Phase 5 lifecycle: persistent smoke, poison and fire zones (append-only)
+        UtilityZone.class);
 
     private NetworkRegistration() {
     }

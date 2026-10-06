@@ -52,6 +52,9 @@ public final class PlayerSession {
 
     private float meleeCooldownRemaining;
 
+    /** Per-utility cooldowns, keyed by the append-only {@link UtilityId} ordinal. */
+    private final float[] utilityCooldowns = new float[UtilityId.values().length];
+
     private int requestedPrimary;
     private int requestedHandgun;
     private int requestedMelee;
@@ -192,6 +195,40 @@ public final class PlayerSession {
 
     public float meleeCooldownRemaining() {
         return meleeCooldownRemaining;
+    }
+
+    // --- Utility cooldowns -----------------------------------------------------------------------
+
+    /** Advances every per-utility throw cooldown. Tick thread only. */
+    public void tickUtilityCooldowns(float dt) {
+        if (dt <= 0f) {
+            return;
+        }
+        for (int i = 0; i < utilityCooldowns.length; i++) {
+            utilityCooldowns[i] = Math.max(0f, utilityCooldowns[i] - dt);
+        }
+    }
+
+    /** True when this exact utility type may be thrown again. */
+    public boolean utilityReady(UtilityId id) {
+        return id != null && utilityCooldowns[id.ordinal()] <= 0f;
+    }
+
+    /** Starts this utility type's cooldown after a successful authoritative placement/throw. */
+    public void startUtilityCooldown(UtilityId id, float seconds) {
+        if (id != null) {
+            utilityCooldowns[id.ordinal()] = Math.max(0f, seconds);
+        }
+    }
+
+    /** A respawn refills inventory and clears every per-life utility delay. */
+    public void resetUtilityCooldowns() {
+        java.util.Arrays.fill(utilityCooldowns, 0f);
+    }
+
+    /** Remaining cooldown for HUD/debug tests; invalid types report zero. */
+    public float utilityCooldownRemaining(UtilityId id) {
+        return id == null ? 0f : utilityCooldowns[id.ordinal()];
     }
 
     // --- Live-state mirroring --------------------------------------------------------------------

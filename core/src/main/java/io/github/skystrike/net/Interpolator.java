@@ -4,6 +4,8 @@ import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -117,6 +119,9 @@ public final class Interpolator {
             result.kills = p1.kills;
             result.deaths = p1.deaths;
             result.respawnTimer = p1.respawnTimer;
+            result.blindRemaining = Lerp.mix(p0.blindRemaining, p1.blindRemaining, alpha);
+            result.blindDuration = p1.blindDuration;
+            result.slowRemaining = Lerp.mix(p0.slowRemaining, p1.slowRemaining, alpha);
             interpolated.add(result);
         }
 
@@ -180,10 +185,82 @@ public final class Interpolator {
         return interpolated;
     }
 
+    /**
+     * Returns smoothly interpolated utilities in flight. A newly observed utility is drawn at its
+     * newer position rather than delayed until the next pair of snapshots, matching bullets.
+     */
+    public List<ThrownUtility> interpolateThrownUtilities() {
+        List<StateBuffer.Snapshot> snaps = buffer.snapshots();
+        if (snaps.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (snaps.size() == 1) {
+            return copyUtilities(snaps.get(0).thrownUtilities());
+        }
+
+        long renderTime = System.currentTimeMillis() - delayMillis;
+        StateBuffer.Snapshot from = null;
+        StateBuffer.Snapshot to = null;
+        for (int i = 0; i < snaps.size() - 1; i++) {
+            if (snaps.get(i).timestampMillis() <= renderTime && snaps.get(i + 1).timestampMillis() >= renderTime) {
+                from = snaps.get(i);
+                to = snaps.get(i + 1);
+                break;
+            }
+        }
+        if (from == null || to == null) {
+            return copyUtilities(snaps.get(snaps.size() - 1).thrownUtilities());
+        }
+
+        long span = to.timestampMillis() - from.timestampMillis();
+        float alpha = span > 0 ? (float) (renderTime - from.timestampMillis()) / (float) span : 1f;
+        alpha = Lerp.clamp(alpha, 0f, 1f);
+        List<ThrownUtility> result = new ArrayList<>();
+        for (Map.Entry<Integer, ThrownUtility> entry : to.thrownUtilities().entrySet()) {
+            ThrownUtility newer = entry.getValue();
+            ThrownUtility older = from.thrownUtilities().get(entry.getKey());
+            if (older == null) {
+                result.add(newer.copy());
+                continue;
+            }
+            ThrownUtility interpolated = newer.copy();
+            interpolated.x = Lerp.mix(older.x, newer.x, alpha);
+            interpolated.y = Lerp.mix(older.y, newer.y, alpha);
+            interpolated.vx = Lerp.mix(older.vx, newer.vx, alpha);
+            interpolated.vy = Lerp.mix(older.vy, newer.vy, alpha);
+            result.add(interpolated);
+        }
+        return result;
+    }
+
+    /**
+     * Persistent zones do not move, so the newest snapshot is authoritative. Copies keep callers
+     * from mutating the historical network buffer while preparing shader smoke uniforms.
+     */
+    public List<UtilityZone> latestUtilityZones() {
+        List<StateBuffer.Snapshot> snaps = buffer.snapshots();
+        if (snaps.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<UtilityZone> zones = new ArrayList<>();
+        for (UtilityZone zone : snaps.get(snaps.size() - 1).utilityZones().values()) {
+            zones.add(zone.copy());
+        }
+        return zones;
+    }
+
     private static List<Projectile> copyAll(Map<Integer, Projectile> rounds) {
         List<Projectile> list = new ArrayList<>(rounds.size());
         for (Projectile projectile : rounds.values()) {
             list.add(projectile.copy());
+        }
+        return list;
+    }
+
+    private static List<ThrownUtility> copyUtilities(Map<Integer, ThrownUtility> utilities) {
+        List<ThrownUtility> list = new ArrayList<>(utilities.size());
+        for (ThrownUtility utility : utilities.values()) {
+            list.add(utility.copy());
         }
         return list;
     }

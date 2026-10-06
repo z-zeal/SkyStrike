@@ -17,6 +17,7 @@ import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.Team;
 import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
@@ -75,6 +76,7 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(Player.class));
         assertTrue(NetworkRegistration.isSupportType(Projectile.class));
         assertTrue(NetworkRegistration.isSupportType(ThrownUtility.class));
+        assertTrue(NetworkRegistration.isSupportType(UtilityZone.class));
         assertTrue(NetworkRegistration.isSupportType(HitZone.class));
         assertTrue(NetworkRegistration.isSupportType(PlayerLoadout.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
@@ -130,12 +132,13 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    @DisplayName("throwable state is appended at the Phase 5 wire position")
+    @DisplayName("throwable and persistent-zone state are appended at the Phase 5 wire positions")
     void phaseFiveThrowableStateIsAppended() {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(ThrownUtility.class, types.get(25));
-        assertEquals(26, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(6, NetConfig.PROTOCOL_VERSION);
+        assertEquals(UtilityZone.class, types.get(26));
+        assertEquals(27, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(7, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -248,6 +251,9 @@ class NetworkRegistrationTest {
         p.deaths = 1;
         p.alive = false;
         p.respawnTimer = 2.5f;
+        p.blindRemaining = 1.5f;
+        p.blindDuration = 3f;
+        p.slowRemaining = 0.75f;
         p.loadout.primary.magazine = 3;
         p.loadout.primary.reserve = 17;
         p.loadout.handgun.magazine = 4;
@@ -269,6 +275,7 @@ class NetworkRegistrationTest {
             12, 1, 0, UtilityId.FRAG.ordinal(), 320f, 410f, 600f, 300f, 2.5f);
         thrown.prevX = 310f;
         thrown.prevY = 405f;
+        thrown.aimAngle = 35f;
         thrown.age = 0.25f;
         thrown.fuseRemaining = 2.25f;
         thrown.resting = false;
@@ -276,8 +283,11 @@ class NetworkRegistrationTest {
         thrown.contactNormalX = -1f;
         thrown.contactNormalY = 0f;
 
+        UtilityZone zone = new UtilityZone(
+            3, 1, 0, UtilityId.POISON_SMOKE.ordinal(), 350f, 420f, 220f, 12f, 6.5f);
+
         PacketGameState state = roundTrip(
-            new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown)));
+            new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown), List.of(zone)));
         assertEquals(4242L, state.tick);
         assertEquals(99L, state.serverTimeMillis);
         assertEquals(1, state.playerCount);
@@ -307,6 +317,9 @@ class NetworkRegistrationTest {
         assertEquals(3, state.players.get(0).kills);
         assertFalse(state.players.get(0).alive);
         assertEquals(2.5f, state.players.get(0).respawnTimer);
+        assertEquals(1.5f, state.players.get(0).blindRemaining);
+        assertEquals(3f, state.players.get(0).blindDuration);
+        assertEquals(0.75f, state.players.get(0).slowRemaining);
 
         assertEquals(1, state.projectiles.size());
         Projectile decoded = state.projectiles.get(0);
@@ -329,6 +342,7 @@ class NetworkRegistrationTest {
         assertEquals(405f, decodedThrown.prevY);
         assertEquals(600f, decodedThrown.vx);
         assertEquals(300f, decodedThrown.vy);
+        assertEquals(35f, decodedThrown.aimAngle);
         assertEquals(0.25f, decodedThrown.age);
         assertEquals(2.25f, decodedThrown.fuseRemaining);
         assertFalse(decodedThrown.resting);
@@ -336,6 +350,17 @@ class NetworkRegistrationTest {
         assertEquals(-1f, decodedThrown.contactNormalX);
         assertEquals(0f, decodedThrown.contactNormalY);
         assertEquals(UtilityId.FRAG.wireId(), decodedThrown.weaponWireId());
+
+        assertEquals(1, state.utilityZones.size());
+        UtilityZone decodedZone = state.utilityZones.get(0);
+        assertEquals(3, decodedZone.id);
+        assertEquals(UtilityId.POISON_SMOKE, decodedZone.utility());
+        assertEquals(350f, decodedZone.x);
+        assertEquals(420f, decodedZone.y);
+        assertEquals(220f, decodedZone.radius);
+        assertEquals(12f, decodedZone.damage);
+        assertEquals(6.5f, decodedZone.remainingSeconds);
+        assertTrue(decodedZone.blocksVision());
     }
 
     @Test

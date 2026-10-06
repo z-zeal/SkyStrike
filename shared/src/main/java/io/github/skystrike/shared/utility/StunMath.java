@@ -1,8 +1,11 @@
 package io.github.skystrike.shared.utility;
 
 import io.github.skystrike.shared.config.UtilityConfig;
+import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.shared.vision.VisionMath;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,9 +18,10 @@ import java.util.List;
  * to 70% it is punishing, beyond that it is a nuisance. Bands make the effect something a player
  * can learn to judge by eye, which a smooth curve does not.
  *
- * <p>Line of sight is checked to the <b>eye</b>, not the centre — unlike a blast, which arrives
- * at the whole body. A flash you did not see does almost nothing: no sight means a 0.3 s
- * concussion and no slow at all.
+ * <p>Sight is checked to the <b>eye</b>, not the centre — unlike a blast, which arrives at the
+ * whole body. The detonation must also lie inside the player's forward vision cone. A flash you
+ * did not see because cover blocked it <em>or because you turned away</em> does almost nothing:
+ * no sight means a 0.3 s concussion and no slow at all.
  */
 public final class StunMath {
 
@@ -34,7 +38,7 @@ public final class StunMath {
         }
     }
 
-    /** A stun applied to one player. */
+    /** A stun applied to one player; {@code hadLineOfSight} includes terrain, smoke and facing. */
     public record StunHit(int playerId, StunEffect effect, float distance, boolean hadLineOfSight) {
     }
 
@@ -92,6 +96,21 @@ public final class StunMath {
      */
     public static List<StunHit> resolve(
         float x, float y, float radius, Collection<Player> candidates, ArenaMap map) {
+        return resolve(x, y, radius, candidates, map, null);
+    }
+
+    /**
+     * As {@link #resolve(float, float, float, Collection, ArenaMap)}, but smoke volumes take part
+     * in the target's sight check just as terrain and facing do.
+     */
+    public static List<StunHit> resolve(
+        float x,
+        float y,
+        float radius,
+        Collection<Player> candidates,
+        ArenaMap map,
+        List<SmokeVolume> smokeVolumes
+    ) {
         List<StunHit> hits = new ArrayList<>();
         if (candidates == null) {
             return hits;
@@ -104,7 +123,7 @@ public final class StunMath {
             if (bandFor(distance, radius) == Band.OUT_OF_RANGE) {
                 continue;
             }
-            boolean sees = VisionMath.hasLineOfSight(x, y, player.eyeX(), player.eyeY(), map);
+            boolean sees = canSeeDetonation(player, x, y, map, smokeVolumes);
             StunEffect effect = effectFor(x, y, radius, player.eyeX(), player.eyeY(), sees);
             if (!effect.isAnything()) {
                 continue;
@@ -112,6 +131,32 @@ public final class StunMath {
             hits.add(new StunHit(player.id, effect, distance, sees));
         }
         return hits;
+    }
+
+    /**
+     * Whether the player actually sees a stun detonation: terrain must be clear and it must be
+     * inside their forward cone. The peripheral visibility floor is intentionally not enough —
+     * turning completely away is a learnt defensive response, not a cosmetic camera change.
+     */
+    public static boolean canSeeDetonation(Player player, float x, float y, ArenaMap map) {
+        return canSeeDetonation(player, x, y, map, null);
+    }
+
+    /** As {@link #canSeeDetonation(Player, float, float, ArenaMap)}, with active smoke occlusion. */
+    public static boolean canSeeDetonation(
+        Player player,
+        float x,
+        float y,
+        ArenaMap map,
+        List<SmokeVolume> smokeVolumes
+    ) {
+        if (player == null
+            || !VisionMath.hasLineOfSight(x, y, player.eyeX(), player.eyeY(), map, smokeVolumes)) {
+            return false;
+        }
+        float angleToDetonation = Angles.toDegrees((float) Math.atan2(y - player.eyeY(), x - player.eyeX()));
+        return Math.abs(Angles.shortestDelta(player.aimAngle, angleToDetonation))
+            <= VisionConfig.CONE_HALF_ANGLE_DEGREES;
     }
 
     /**

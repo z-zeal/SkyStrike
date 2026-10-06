@@ -4,6 +4,7 @@ import io.github.skystrike.server.combat.BulletSystem;
 import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.MeleeSystem;
 import io.github.skystrike.server.player.PlayerSession;
+import io.github.skystrike.server.utility.UtilitySystem;
 import io.github.skystrike.shared.combat.SpreadMath;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
@@ -12,6 +13,8 @@ import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.weapons.FireMode;
 import io.github.skystrike.shared.weapons.MeleeDefinition;
 import io.github.skystrike.shared.weapons.MeleeRegistry;
+import io.github.skystrike.shared.utility.UtilityId;
+import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.Collection;
 
@@ -43,12 +46,24 @@ public final class LoadoutSystem {
     private final FireController fireController;
     private final MeleeSystem meleeSystem;
     private final BulletSystem bulletSystem;
+    private final UtilitySystem utilitySystem;
     private final FireController.Volley volley = new FireController.Volley();
 
+    /** Legacy construction for gun/melee-only tests; active utilities require the four-arg form. */
     public LoadoutSystem(FireController fireController, MeleeSystem meleeSystem, BulletSystem bulletSystem) {
+        this(fireController, meleeSystem, bulletSystem, null);
+    }
+
+    public LoadoutSystem(
+        FireController fireController,
+        MeleeSystem meleeSystem,
+        BulletSystem bulletSystem,
+        UtilitySystem utilitySystem
+    ) {
         this.fireController = fireController;
         this.meleeSystem = meleeSystem;
         this.bulletSystem = bulletSystem;
+        this.utilitySystem = utilitySystem;
     }
 
     /**
@@ -60,6 +75,7 @@ public final class LoadoutSystem {
         Player player = session.player();
         PlayerLoadout loadout = player.loadout;
         GunInstance gun = session.gun();
+        session.tickUtilityCooldowns(dt);
 
         // 1. A latched slot press applies the same tap rule the client's prediction ran.
         int slotPress = session.consumeSlotPress();
@@ -69,28 +85,74 @@ public final class LoadoutSystem {
 
         // 2. The live gun state belongs to whatever is actually in hand. A slot change wipes
         // spread, recoil and cooldown — even when the same gun comes back out of a melee detour.
-        if (loadout != null && loadout.activeSlot != session.lastMirroredSlot()) {
-            WeaponItem item = loadout.activeItem();
-            if (item != null && item.weaponId() != null) {
-                gun.resetTo(item.weaponId());
-            }
-            session.setLastMirroredSlot(loadout.activeSlot);
-        }
+        syncGunForSlot(session, loadout, gun);
 
         boolean firePressed = session.consumeFirePressed();
         if (!player.alive || loadout == null) {
             return;
         }
 
-        if (loadout.meleeActive()) {
+        // A stun locks every weapon category, including throwables. We still consumed the press
+        // edge above, so a player cannot hold fire through a stun and get a banked shot on wakeup.
+        if (player.isSlowed()) {
+            mirror(player, loadout, gun);
+            return;
+        }
+
+        if (loadout.utilityActive()) {
+            tickUtility(player, session, loadout, firePressed);
+            // Consuming the final throwable cycles to a real slot during this tick. Synchronise
+            // immediately so the snapshot does not show that new gun with stale recoil/spread.
+            syncGunForSlot(session, loadout, gun);
+        } else if (loadout.meleeActive()) {
             tickMelee(player, session, loadout, targets, damage, dt);
         } else {
             tickGun(player, session, gun, loadout, dt, firePressed);
         }
 
         // 4. Mirror the authoritative result onto the networked player record.
+        mirror(player, loadout, gun);
+    }
+
+    /** Aligns the session's volatile gun state after any active-slot transition. */
+    private static void syncGunForSlot(PlayerSession session, PlayerLoadout loadout, GunInstance gun) {
+        if (loadout == null || loadout.activeSlot == session.lastMirroredSlot()) {
+            return;
+        }
+        WeaponItem item = loadout.activeItem();
+        if (item != null && item.weaponId() != null) {
+            gun.resetTo(item.weaponId());
+        }
+        session.setLastMirroredSlot(loadout.activeSlot);
+    }
+
+    /**
+     * Utilities throw on the trigger edge, never the held level: an automatic rifle may hose
+     * while held, but holding a grenade key cannot empty both slots at tick rate. Inventory is
+     * consumed only after the server accepted the spawn and the type-specific cooldown starts.
+     */
+    private void tickUtility(
+        Player player,
+        PlayerSession session,
+        PlayerLoadout loadout,
+        boolean firePressed
+    ) {
+        if (!firePressed || utilitySystem == null) {
+            return;
+        }
+        UtilityId utility = loadout.activeUtilityId();
+        if (utility == null || !session.utilityReady(utility)) {
+            return;
+        }
+        if (utilitySystem.throwUtility(player, utility)) {
+            loadout.consumeActiveUtility();
+            session.startUtilityCooldown(utility, UtilityRegistry.of(utility).cooldownSeconds());
+        }
+    }
+
+    private static void mirror(Player player, PlayerLoadout loadout, GunInstance gun) {
         player.weaponId = loadout.heldWeaponWireId();
-        if (loadout.meleeActive()) {
+        if (loadout.meleeActive() || loadout.utilityActive()) {
             player.spread = 0f;
             player.gunKick = 0f;
         } else {
@@ -177,6 +239,7 @@ public final class LoadoutSystem {
         WeaponId held = loadout == null ? null : loadout.heldGunId();
         session.gun().resetTo(held == null ? WeaponId.DEFAULT : held);
         session.resetMeleeCooldown();
+        session.resetUtilityCooldowns();
         session.clearTrigger();
         if (loadout != null) {
             session.setLastMirroredSlot(loadout.activeSlot);

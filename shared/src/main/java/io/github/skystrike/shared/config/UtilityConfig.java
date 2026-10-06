@@ -71,6 +71,9 @@ public final class UtilityConfig {
     /** Upper bound on simultaneously live throwables, so a spam loop cannot exhaust the heap. */
     public static final int MAX_ACTIVE_THROWABLES = 128;
 
+    /** Upper bound on simultaneous smoke, poison and fire zones. */
+    public static final int MAX_ACTIVE_ZONES = 64;
+
     // --- Explosions (mechanics §6) -------------------------------------------------------------
 
     /**
@@ -128,6 +131,20 @@ public final class UtilityConfig {
 
     /** Number of spread zones cast either side of the central one along the surface tangent. */
     public static final int FIRE_SPREAD_ZONES_PER_SIDE = 3;
+
+    /** Maximum deterministic position jitter used by a molotov's outward casts. */
+    public static final float FIRE_SPREAD_JITTER = 0.35f;
+
+    // --- Claymore (mechanics §6, provisional details) ------------------------------------------
+
+    /** Seconds a placed claymore takes to arm. Provisional: the plan gives no value. */
+    public static final float CLAYMORE_ARMING_SECONDS = 0.50f;
+
+    /** Distance at which a non-owner hostile presence triggers a claymore. Provisional. */
+    public static final float CLAYMORE_TRIGGER_RADIUS = 100f;
+
+    /** Half-angle of the claymore's forward directional blast. Provisional. */
+    public static final float CLAYMORE_CONE_HALF_ANGLE_DEGREES = 45f;
 
     // --- Carried counts (mechanics §6) ---------------------------------------------------------
 

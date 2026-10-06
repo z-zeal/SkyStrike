@@ -38,7 +38,11 @@ public final class PlayerMotion {
             return;
         }
 
-        // 1. Aim and ADS state
+        // 1. Throwable status timers. They are part of movement state so shared prediction and
+        // server authority age the exact same clocks.
+        p.tickStatus(dt);
+
+        // 2. Aim and ADS state
         if (input != null) {
             p.aimAngle = Angles.wrap(input.aimAngle);
             p.ads = input.ads;
@@ -51,6 +55,9 @@ public final class PlayerMotion {
         // 3. Horizontal movement and damping
         float moveX = input != null ? Lerp.clamp(input.moveX, -1f, 1f) : 0f;
         float targetSpeed = p.crouched ? PlayerConfig.CROUCH_SPEED : PlayerConfig.WALK_SPEED;
+        if (p.isSlowed()) {
+            targetSpeed *= io.github.skystrike.shared.config.UtilityConfig.STUN_MOVE_SPEED_MULTIPLIER;
+        }
         float targetVx = moveX * targetSpeed;
         float dampingRate = p.grounded ? PlayerConfig.GROUND_DAMPING : PlayerConfig.AIR_DAMPING;
         p.vx = Lerp.smooth(p.vx, targetVx, dampingRate, dt);

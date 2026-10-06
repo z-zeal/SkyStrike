@@ -10,6 +10,7 @@ import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.utility.StunMath.Band;
 import io.github.skystrike.shared.utility.StunMath.StunEffect;
 import io.github.skystrike.shared.utility.StunMath.StunHit;
+import io.github.skystrike.shared.vision.SmokeVolume;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,7 @@ class StunMathTest {
     @DisplayName("resolve skips the dead and the distant, and reports one hit per player")
     void resolveFiltersCandidates() {
         Player close = new Player(1, "Close", 0, 600f, 100f);
+        close.aimAngle = 180f; // detonation is to the left, inside the sight cone
         Player distant = new Player(2, "Distant", 0, 2500f, 100f);
         Player dead = new Player(3, "Dead", 0, 620f, 100f);
         dead.alive = false;
@@ -93,8 +95,40 @@ class StunMathTest {
     void coverDowngradesTheStun() {
         // The lane pillar (x 1010..1034, y 100..360) stands between the two.
         Player sheltered = new Player(1, "Sheltered", 0, 1100f, 100f);
+        sheltered.aimAngle = 180f; // facing the blast; only the pillar saves them
 
         List<StunHit> hits = StunMath.resolve(980f, 142.5f, RADIUS, List.of(sheltered), map);
+
+        assertEquals(1, hits.size());
+        assertFalse(hits.get(0).hadLineOfSight());
+        assertEquals(UtilityConfig.STUN_NO_SIGHT_CONCUSSION_SECONDS,
+            hits.get(0).effect().blindSeconds(), 0.001f);
+        assertEquals(0f, hits.get(0).effect().slowSeconds(), 0.001f);
+    }
+
+    @Test
+    @DisplayName("an opaque smoke volume downgrades a stun through the shared vision query")
+    void smokeDowngradesTheStun() {
+        Player throughSmoke = new Player(1, "Smoked", 0, 600f, 100f);
+        throughSmoke.aimAngle = 180f;
+        SmokeVolume smoke = new SmokeVolume(550f, throughSmoke.eyeY(), 100f, 1f);
+
+        List<StunHit> hits = StunMath.resolve(
+            500f, throughSmoke.eyeY(), RADIUS, List.of(throughSmoke), null, List.of(smoke));
+
+        assertEquals(1, hits.size());
+        assertFalse(hits.get(0).hadLineOfSight());
+        assertEquals(UtilityConfig.STUN_NO_SIGHT_CONCUSSION_SECONDS,
+            hits.get(0).effect().blindSeconds(), 0.001f);
+    }
+
+    @Test
+    @DisplayName("turning away from a clear detonation is the same reduced concussion as cover")
+    void turningAwayDowngradesTheStun() {
+        Player turnedAway = new Player(1, "Turned", 0, 600f, 100f);
+        turnedAway.aimAngle = 0f; // detonation is left at x = 500
+
+        List<StunHit> hits = StunMath.resolve(500f, turnedAway.eyeY(), RADIUS, List.of(turnedAway), null);
 
         assertEquals(1, hits.size());
         assertFalse(hits.get(0).hadLineOfSight());
