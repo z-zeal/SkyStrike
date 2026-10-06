@@ -45,9 +45,10 @@ jobs:
 
       - name: Commit capture
         run: |
-          mkdir -p ci-capture/results
-          cp shared/build/test-results/test/*.xml ci-capture/results/ 2>/dev/null || true
-          rm -f ci-capture/results/binary || true
+          mkdir -p ci-capture/results-shared ci-capture/results-server
+          cp shared/build/test-results/test/*.xml ci-capture/results-shared/ 2>/dev/null || true
+          cp server/build/test-results/test/*.xml ci-capture/results-server/ 2>/dev/null || true
+          rm -f ci-capture/results-shared/binary || true
           git config user.name "arena-debug-bot"
           git config user.email "arena-debug-bot@users.noreply.github.com"
           git add ci-capture/
