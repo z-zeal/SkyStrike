@@ -34,12 +34,14 @@ jobs:
       - name: Build and capture
         run: |
           mkdir -p ci-capture
+          set +e
           ./gradlew shared:test --no-daemon > ci-capture/shared-test.log 2>&1
           echo "shared-test exit: $?" >> ci-capture/exit-codes.txt
           ./gradlew server:test --no-daemon > ci-capture/server-test.log 2>&1
           echo "server-test exit: $?" >> ci-capture/exit-codes.txt
           ./gradlew shared:compileJava server:compileJava core:compileJava lwjgl3:compileJava --no-daemon > ci-capture/compile-all.log 2>&1
           echo "compile-all exit: $?" >> ci-capture/exit-codes.txt
+          true
 
       - name: Commit capture
         run: |
