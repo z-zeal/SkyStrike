@@ -35,6 +35,14 @@ public final class PermissionResolver {
     private final Map<Integer, Permission> overridesByPlayerId = new HashMap<>();
     private Permission consoleThreshold = ConsoleAccess.SHIPPING_THRESHOLD;
 
+    /**
+     * Dev mode ({@code --dev} on the launcher): every joined player resolves to
+     * {@link Permission#ADMIN} regardless of grants or overrides. It exists so a development
+     * host exercises every command without identity plumbing, it is off by default, and it is
+     * deliberately loud: {@code GameServer} announces it on startup.
+     */
+    private boolean devMode;
+
     /** Statically grants {@code name} a level, as a deployment would from its config. */
     public PermissionResolver grant(String name, Permission level) {
         if (name == null || name.isBlank() || level == null) {
@@ -71,6 +79,9 @@ public final class PermissionResolver {
 
     /** The effective level for a joined player. Never null. */
     public Permission resolve(int playerId, String name) {
+        if (devMode) {
+            return Permission.ADMIN;
+        }
         Permission override = overridesByPlayerId.get(playerId);
         if (override != null) {
             return override;
@@ -100,10 +111,21 @@ public final class PermissionResolver {
         return this;
     }
 
+    /** Whether every joined player resolves to admin. See the field comment before enabling. */
+    public PermissionResolver setDevMode(boolean devMode) {
+        this.devMode = devMode;
+        return this;
+    }
+
+    public boolean devMode() {
+        return devMode;
+    }
+
     public void clear() {
         grantsByName.clear();
         overridesByPlayerId.clear();
         consoleThreshold = ConsoleAccess.SHIPPING_THRESHOLD;
+        devMode = false;
     }
 
     private static String normalise(String name) {

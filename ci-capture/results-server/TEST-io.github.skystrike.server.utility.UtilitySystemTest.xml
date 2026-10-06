@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.utility.UtilitySystemTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:58.783Z" hostname="runnervm8df0l" time="0.017">
+  <properties/>
+  <testcase name="molotov spread makes seven surface-tangent zones but damages a player once per DOT clock" classname="io.github.skystrike.server.utility.UtilitySystemTest" time="0.002"/>
+  <testcase name="a frag delegates one occluded blast through DamageService and applies impulse" classname="io.github.skystrike.server.utility.UtilitySystemTest" time="0.001"/>
+  <testcase name="a successful throw starts at the shared muzzle with its registry velocity" classname="io.github.skystrike.server.utility.UtilitySystemTest" time="0.001"/>
+  <testcase name="smoke zones feed the exact opaque volume list used by gameplay sight queries" classname="io.github.skystrike.server.utility.UtilitySystemTest" time="0.003"/>
+  <testcase name="a stun stores blindness and slow on the player, while cover reduces it to concussion" classname="io.github.skystrike.server.utility.UtilitySystemTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

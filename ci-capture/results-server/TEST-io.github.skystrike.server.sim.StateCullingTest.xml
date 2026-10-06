@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.sim.StateCullingTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:58.769Z" hostname="runnervm8df0l" time="0.005">
+  <properties/>
+  <testcase name="testTeammatesShareVision()" classname="io.github.skystrike.server.sim.StateCullingTest" time="0.001"/>
+  <testcase name="testVisibleEnemyIsNotCulled()" classname="io.github.skystrike.server.sim.StateCullingTest" time="0.001"/>
+  <testcase name="testOccludedEnemyIsCulled()" classname="io.github.skystrike.server.sim.StateCullingTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.weapons.WeaponRegistryTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:36.919Z" hostname="runnervm8df0l" time="0.02">
+  <properties/>
+  <testcase name="base spread matches the generated table and every profile is in range" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.001"/>
+  <testcase name="flagship rows match the generated conversion of the catalog stats" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.002"/>
+  <testcase name="every weapon of the catalog is defined and plausible" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.001"/>
+  <testcase name="recoil profiles are in range and scale with the catalog's kick scalar" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.001"/>
+  <testcase name="wire display names resolve for guns and melee alike" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.001"/>
+  <testcase name="lookup by wire ordinal falls back instead of throwing" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.0"/>
+  <testcase name="one trigger event produces the right number of rounds" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.001"/>
+  <testcase name="ADS tightens every cone: snipers to 18%, SMGs only to 42%" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.0"/>
+  <testcase name="cooldown is the inverse of the quoted fire rate" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.0"/>
+  <testcase name="a shell costs one magazine unit, a burst costs three" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.0"/>
+  <testcase name="the time-to-kill identities hold at 150 HP" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.0"/>
+  <testcase name="a PDW kills in well under a second and a bolt sniper cannot" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.001"/>
+  <testcase name="lookups return copies, never the shared instance" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.008"/>
+  <testcase name="pellet weapons are exactly the catalog's multi-projectile guns" classname="io.github.skystrike.shared.weapons.WeaponRegistryTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

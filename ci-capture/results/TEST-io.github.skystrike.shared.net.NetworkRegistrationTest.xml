@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.net.NetworkRegistrationTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-06T13:30:15.113Z" hostname="runnervm8df0l" time="0.181">
+  <properties/>
+  <testcase name="the build-plan M1 command packets are appended last; the list and protocol are frozen" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.005"/>
+  <testcase name="the Phase 6 gadget slot sits at its pinned position" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.001"/>
+  <testcase name="support types are payloads carried inside packets, not packets themselves" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="serverToClientPacketsRoundTrip()" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.08"/>
+  <testcase name="every packet has the public no-arg constructor the serialiser needs" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.004"/>
+  <testcase name="theRegistrationListHasNoDuplicates()" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="every registered addressable type implements Packet" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="two independently registered endpoints agree on every class id" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.012"/>
+  <testcase name="clientToServerPacketsRoundTrip()" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.025"/>
+  <testcase name="the loadout types added in Phase 4 sit at their pinned positions" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="throwable and persistent-zone state are appended at the Phase 5 wire positions" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="the chat and capability types added in Phase 7 are appended, never inserted" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="the combat types added in Phase 3 sit at their pinned positions" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.0"/>
+  <testcase name="chat and capability packets survive the wire with their enums intact" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.015"/>
+  <testcase name="command request and response survive the wire intact" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.009"/>
+  <testcase name="damage and kill events survive the wire with their hit zone intact" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.015"/>
+  <testcase name="a packet written by one endpoint reads back as the same type on the other" classname="io.github.skystrike.shared.net.NetworkRegistrationTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

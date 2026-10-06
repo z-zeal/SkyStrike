@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.ServerConfigTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:58.071Z" hostname="runnervm8df0l" time="0.131">
+  <properties/>
+  <testcase name="devFlagNeedsNoValueAndDefaultsOff()" classname="io.github.skystrike.server.ServerConfigTest" time="0.016"/>
+  <testcase name="unknownOrIncompleteArgumentsAreRejected()" classname="io.github.skystrike.server.ServerConfigTest" time="0.006"/>
+  <testcase name="snapshotRateDividesTheTickRate()" classname="io.github.skystrike.server.ServerConfigTest" time="0.001"/>
+  <testcase name="defaultsComeFromTheSharedContract()" classname="io.github.skystrike.server.ServerConfigTest" time="0.001"/>
+  <testcase name="outOfRangeValuesAreRejected()" classname="io.github.skystrike.server.ServerConfigTest" time="0.008"/>
+  <testcase name="grantsParseNameAndLevelRepeatedly()" classname="io.github.skystrike.server.ServerConfigTest" time="0.002"/>
+  <testcase name="noArgumentsYieldsTheDefaults()" classname="io.github.skystrike.server.ServerConfigTest" time="0.036"/>
+  <testcase name="grantRejectsMalformedValuesRatherThanRiskingASilentGrant()" classname="io.github.skystrike.server.ServerConfigTest" time="0.008"/>
+  <testcase name="argumentsOverrideIndividualFields()" classname="io.github.skystrike.server.ServerConfigTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

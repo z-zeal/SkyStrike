@@ -20,6 +20,7 @@ public final class MessageBuffer {
 
     private final int capacity;
     private final Deque<MessageLine> lines;
+    private long revision;
 
     public MessageBuffer() {
         this(TextLimits.MESSAGE_BUFFER_CAPACITY);
@@ -40,11 +41,21 @@ public final class MessageBuffer {
             lines.removeFirst();
         }
         lines.addLast(line);
+        revision++;
     }
 
     /** Removes every retained line; used by the future local {@code /clear} command. */
     public void clear() {
         lines.clear();
+        revision++;
+    }
+
+    /**
+     * A counter that changes whenever the buffer's contents change. Renderers key their
+     * wrapped-text caches on it instead of re-wrapping the whole scrollback every frame.
+     */
+    public long revision() {
+        return revision;
     }
 
     /** Total retained records before permission filtering. */

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.utility.ExplosionMathTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:36.795Z" hostname="runnervm8df0l" time="0.038">
+  <properties/>
+  <testcase name="a blast built from a definition carries that utility's wire id for the kill feed" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.001"/>
+  <testcase name="damage falls off linearly from the centre to zero at the radius" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.0"/>
+  <testcase name="knockback points away from the detonation and keeps bite at the edge" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.004"/>
+  <testcase name="a zero-radius blast is a bug, not a point explosion" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.001"/>
+  <testcase name="resolving against nothing yields nothing instead of failing" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.0"/>
+  <testcase name="the thrower is not spared by their own grenade" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.001"/>
+  <testcase name="terrain blocks blast damage entirely, however close the detonation was" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.001"/>
+  <testcase name="every live target in range is hit exactly once, and nobody else is" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.023"/>
+  <testcase name="standing exactly on a grenade gets launched upward rather than dividing by zero" classname="io.github.skystrike.shared.utility.ExplosionMathTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

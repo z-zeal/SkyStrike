@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.shared.command.CompletionEngineTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:35.471Z" hostname="runnervm8df0l" time="0.013">
+  <properties/>
+  <testcase name="secondArgumentFollowsTheFirst()" classname="io.github.skystrike.shared.command.CompletionEngineTest" time="0.003"/>
+  <testcase name="halfTypedQuotesCompletionNeverThrows()" classname="io.github.skystrike.shared.command.CompletionEngineTest" time="0.001"/>
+  <testcase name="argumentsAdvanceWithTrailingSpace()" classname="io.github.skystrike.shared.command.CompletionEngineTest" time="0.002"/>
+  <testcase name="firstTokenCompletesNamesCallerMaySee()" classname="io.github.skystrike.shared.command.CompletionEngineTest" time="0.001"/>
+  <testcase name="firstTokenShowsPrivilegedNamesToPrivilegedCaller()" classname="io.github.skystrike.shared.command.CompletionEngineTest" time="0.001"/>
+  <testcase name="hiddenCommandsCompleteToNothingLikeTypos()" classname="io.github.skystrike.shared.command.CompletionEngineTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

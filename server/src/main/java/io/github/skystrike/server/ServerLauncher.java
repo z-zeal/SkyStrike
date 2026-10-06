@@ -9,6 +9,10 @@ public final class ServerLauncher {
     }
 
     public static void main(String[] args) {
+        // Resolve the debug master switch before anything can read it; --dev in the argument
+        // list is one of its sources.
+        io.github.skystrike.shared.config.DebugFlags.initialise(args);
+
         ServerConfig config;
         try {
             config = ServerConfig.fromArgs(args);

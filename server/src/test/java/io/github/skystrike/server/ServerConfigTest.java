@@ -1,8 +1,11 @@
 package io.github.skystrike.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import org.junit.jupiter.api.Test;
@@ -50,6 +53,36 @@ class ServerConfigTest {
         assertThrows(IllegalArgumentException.class, () -> new ServerConfig(1, 1, 0, 1, 1));
         assertThrows(IllegalArgumentException.class, () -> new ServerConfig(1, 1, 1, 0, 1));
         assertThrows(IllegalArgumentException.class, () -> new ServerConfig(1, 1, 1, 1, -1));
+    }
+
+    @Test
+    void devFlagNeedsNoValueAndDefaultsOff() {
+        assertFalse(ServerConfig.fromArgs(new String[0]).devMode());
+        assertTrue(ServerConfig.fromArgs(new String[] {"--dev"}).devMode());
+        // A valueless flag does not swallow the following option.
+        ServerConfig config = ServerConfig.fromArgs(new String[] {"--dev", "--tick-rate", "30"});
+        assertTrue(config.devMode());
+        assertEquals(30, config.tickRateHz());
+    }
+
+    @Test
+    void grantsParseNameAndLevelRepeatedly() {
+        ServerConfig config = ServerConfig.fromArgs(new String[] {
+            "--grant", "Nova=ADMIN", "--grant", "rook = moderator"
+        });
+        assertEquals(2, config.grants().size());
+        assertEquals(Permission.ADMIN, config.grants().get("Nova"));
+        assertEquals(Permission.MODERATOR, config.grants().get("rook"));
+    }
+
+    @Test
+    void grantRejectsMalformedValuesRatherThanRiskingASilentGrant() {
+        assertThrows(IllegalArgumentException.class,
+            () -> ServerConfig.fromArgs(new String[] {"--grant", "Nova"}));
+        assertThrows(IllegalArgumentException.class,
+            () -> ServerConfig.fromArgs(new String[] {"--grant", "Nova=superadmin"}));
+        assertThrows(IllegalArgumentException.class,
+            () -> ServerConfig.fromArgs(new String[] {"--grant", "=ADMIN"}));
     }
 
     @Test
