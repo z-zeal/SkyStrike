@@ -7,3 +7,6 @@ compile-all exit: 1
 shared-test exit: 0
 server-test exit: 1
 compile-all exit: 0
+shared-test exit: 0
+server-test exit: 1
+compile-all exit: 0

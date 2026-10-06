@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.skystrike.server.command.CapabilityBroadcasterTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-06T14:17:58.481Z" hostname="runnervm8df0l" time="0.025">
+  <properties/>
+  <testcase name="an unchanged capability is not pushed again" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.006"/>
+  <testcase name="a demotion is pushed too, so the console disappears mid-match" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.007"/>
+  <testcase name="promoting to the same level pushes nothing" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.001"/>
+  <testcase name="the configured threshold decides, not the broadcaster" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.0"/>
+  <testcase name="a mid-match promotion is pushed immediately, with no reconnect" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.0"/>
+  <testcase name="forgetting a player drops both the dedupe cache and the runtime promotion" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.001"/>
+  <testcase name="every join is told its capability, even when the answer is no" classname="io.github.skystrike.server.command.CapabilityBroadcasterTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
