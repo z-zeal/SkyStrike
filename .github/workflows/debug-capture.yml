@@ -4,6 +4,9 @@
 name: Debug Capture
 
 on:
+  push:
+    branches: [ "arena/943b6768-skystrike" ]
+    paths: [ ".github/workflows/debug-capture.yml" ]
   workflow_dispatch:
 
 permissions:
