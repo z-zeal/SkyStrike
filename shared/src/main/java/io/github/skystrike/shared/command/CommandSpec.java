@@ -56,7 +56,7 @@ public final class CommandSpec {
             }
         }
 
-        StringBuilder usage = new StringBuilder('/').append(name);
+        StringBuilder usage = new StringBuilder().append('/').append(name);
         for (CommandArg arg : args) {
             usage.append(' ').append(arg.usageToken());
         }

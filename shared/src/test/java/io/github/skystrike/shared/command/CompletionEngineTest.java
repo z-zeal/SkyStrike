@@ -65,8 +65,8 @@ class CompletionEngineTest {
     void argumentsAdvanceWithTrailingSpace() {
         CommandContext admin = CommandContext.local(Permission.ADMIN);
         List<String> first = CompletionEngine.complete("give ", registry(), cvars(), admin);
-        assertEquals(List.of("low", "mid", "high"), first.stream().sorted().toList(),
-            "a trailing space completes the first argument from its enum type");
+        assertEquals(List.of("low", "mid", "high"), first,
+            "a trailing space completes the first argument in enum declaration order");
         List<String> filtered = CompletionEngine.complete("give m", registry(), cvars(), admin);
         assertEquals(List.of("mid"), filtered);
     }

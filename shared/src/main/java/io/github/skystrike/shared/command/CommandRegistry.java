@@ -128,17 +128,62 @@ public final class CommandRegistry {
      * "you need admin" would merely confirm the command exists).
      */
     public List<String> unknownLines(String attempted, Permission permission) {
-        List<String> lines = new ArrayList<>();
-        lines.add("Unknown command '" + attempted + "'. Type /help for the commands available to you.");
         String suggestion = suggestionFor(attempted, permission);
+        // When something visible is near, keep the typed echo: "Unknown command 'kikc'. Did you
+        // mean /kick?" reads naturally. When nothing visible is near the echo canonicalises
+        // through the full pool instead, which renders a close typo of a hidden command and the
+        // hidden command itself as the same string — the refusal cannot confirm existence.
+        String echo = suggestion != null ? attempted : canonicalEcho(attempted);
+        List<String> lines = new ArrayList<>();
+        lines.add("Unknown command '" + echo + "'. Type /help for the commands available to you.");
         if (suggestion != null) {
             lines.add("Did you mean /" + suggestion + "?");
         }
         return lines;
     }
 
-    /** Classic Levenshtein; command names are short, so the table is a few dozen cells. */
+    /**
+     * What the refusal echoes when nothing visible suggests itself. The echo resolves through
+     * the full (unfiltered) pool: a close typo of a hidden command prints the same canonical
+     * name as the command itself, so both inputs yield byte-identical refusals and the caller
+     * cannot tell "above your level" from "merely unknown" by comparing echoes. When nothing at
+     * all is near, the typed name comes back verbatim. Used only when {@link #suggestionFor}
+     * found no visible near-match, so the hint never competes with this echo.
+     */
+    private String canonicalEcho(String attempted) {
+        String lower = attempted == null ? "" : attempted.trim().toLowerCase(Locale.ROOT);
+        if (lower.isEmpty()) {
+            return attempted == null ? "" : attempted;
+        }
+        String best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (CommandSpec spec : specs) {
+            int nameDistance = editDistance(lower, spec.name());
+            if (nameDistance < bestDistance) {
+                bestDistance = nameDistance;
+                best = spec.name();
+            }
+            for (String alias : spec.aliases()) {
+                int aliasDistance = editDistance(lower, alias);
+                if (aliasDistance < bestDistance) {
+                    bestDistance = aliasDistance;
+                    best = alias;
+                }
+            }
+        }
+        if (best != null && bestDistance <= Math.max(1, best.length() / 3)) {
+            return best;
+        }
+        return attempted;
+    }
+
+    /**
+     * Optimal string alignment distance (Damerau–Levenshtein with adjacent transpositions):
+     * the single most common console typo is a swapped pair — {@code kikc} — and that must
+     * count as one mistake, not two. Command names are short, so the table is a few dozen cells.
+     */
     static int editDistance(String a, String b) {
+        int[] previous2 = null;
         int[] previous = new int[b.length() + 1];
         for (int j = 0; j <= b.length(); j++) {
             previous[j] = j;
@@ -148,8 +193,16 @@ public final class CommandRegistry {
             current[0] = i;
             for (int j = 1; j <= b.length(); j++) {
                 int substitution = previous[j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1);
-                current[j] = Math.min(substitution, Math.min(previous[j] + 1, current[j - 1] + 1));
+                int best = Math.min(substitution, Math.min(previous[j] + 1, current[j - 1] + 1));
+                if (previous2 != null
+                    && j > 1
+                    && a.charAt(i - 1) == b.charAt(j - 2)
+                    && a.charAt(i - 2) == b.charAt(j - 1)) {
+                    best = Math.min(best, previous2[j - 2] + 1);
+                }
+                current[j] = best;
             }
+            previous2 = previous;
             previous = current;
         }
         return previous[b.length()];

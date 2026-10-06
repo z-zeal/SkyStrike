@@ -108,6 +108,9 @@ public final class CommandParser {
                     String rest = line.substring(tokens.get(cursor).startIndex()).trim();
                     out.put(arg.name(), ArgTypes.GREEDY_STRING.parse(rest));
                 }
+                // The greedy argument owns everything to the end of the line; leave nothing for
+                // the extra-input check to trip over.
+                cursor = tokens.size();
                 continue;
             }
             if (cursor >= tokens.size()) {

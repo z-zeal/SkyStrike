@@ -41,6 +41,7 @@ import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
+import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;

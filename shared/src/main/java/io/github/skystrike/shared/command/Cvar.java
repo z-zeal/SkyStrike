@@ -1,5 +1,7 @@
 package io.github.skystrike.shared.command;
 
+import java.util.Locale;
+
 
 /**
  * A typed, ranged, described console variable (console plan §7.3).
@@ -96,6 +98,11 @@ public final class Cvar {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private String canonical(String raw) throws CommandException {
         Object parsed = ((ArgType) type).parse(raw == null ? "" : raw);
+        // An enum's Java name is SHOUTY; the canonical spelling stays the lower-case token
+        // the user typed, matching what enum completion offers and how defaults are written.
+        if (parsed instanceof Enum<?>) {
+            return ((Enum<?>) parsed).name().toLowerCase(Locale.ROOT);
+        }
         return String.valueOf(parsed);
     }
 
