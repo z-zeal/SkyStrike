@@ -2,6 +2,7 @@ package io.github.skystrike.shared.net.s2c;
 
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.net.Packet;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,9 +10,9 @@ import java.util.List;
 /**
  * The per-snapshot state broadcast.
  *
- * <p>Carries the players and the rounds in flight that this particular client is allowed to see.
- * Both lists are culled per recipient on the server: state the viewer could not observe is never
- * transmitted, so a client cannot read positions out of its own network traffic.
+ * <p>Carries players, rounds and throwable utilities in flight. Entity lists can be culled per
+ * recipient by the server; state the viewer is not allowed to observe must never be exposed by a
+ * client-authored packet.
  */
 public final class PacketGameState implements Packet {
 
@@ -29,6 +30,9 @@ public final class PacketGameState implements Packet {
 
     /** Rounds in flight visible to the recipient. */
     public List<Projectile> projectiles = new ArrayList<>();
+
+    /** Thrown utilities in flight or settled while their fuse counts down. */
+    public List<ThrownUtility> thrownUtilities = new ArrayList<>();
 
     public PacketGameState() {
     }
@@ -50,6 +54,17 @@ public final class PacketGameState implements Packet {
         List<Player> players,
         List<Projectile> projectiles
     ) {
+        this(tick, serverTimeMillis, playerCount, players, projectiles, null);
+    }
+
+    public PacketGameState(
+        long tick,
+        long serverTimeMillis,
+        int playerCount,
+        List<Player> players,
+        List<Projectile> projectiles,
+        List<ThrownUtility> thrownUtilities
+    ) {
         this.tick = tick;
         this.serverTimeMillis = serverTimeMillis;
         this.playerCount = playerCount;
@@ -59,6 +74,9 @@ public final class PacketGameState implements Packet {
         if (projectiles != null) {
             this.projectiles = new ArrayList<>(projectiles);
         }
+        if (thrownUtilities != null) {
+            this.thrownUtilities = new ArrayList<>(thrownUtilities);
+        }
     }
 
     @Override
@@ -67,6 +85,7 @@ public final class PacketGameState implements Packet {
             + ", serverTimeMillis=" + serverTimeMillis
             + ", playerCount=" + playerCount
             + ", players=" + players.size()
-            + ", projectiles=" + projectiles.size() + "]";
+            + ", projectiles=" + projectiles.size()
+            + ", thrownUtilities=" + thrownUtilities.size() + "]";
     }
 }

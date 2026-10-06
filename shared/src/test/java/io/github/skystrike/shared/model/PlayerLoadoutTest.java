@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.utility.UtilityId;
+import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
@@ -34,6 +36,12 @@ class PlayerLoadoutTest {
         assertEquals(WeaponId.DEFAULT, loadout.primary.weaponId());
         assertEquals(WeaponId.DEFAULT_SIDEARM, loadout.handgun.weaponId());
         assertEquals(MeleeId.DEFAULT, loadout.meleeId());
+        assertEquals(UtilityId.DEFAULT_PRIMARY,
+            loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A));
+        assertEquals(UtilityId.DEFAULT_SECONDARY,
+            loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B));
+        assertEquals(UtilityRegistry.of(UtilityId.DEFAULT_PRIMARY).carriedCount(), loadout.utilityACount);
+        assertEquals(UtilityRegistry.of(UtilityId.DEFAULT_SECONDARY).carriedCount(), loadout.utilityBCount);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
         assertFalse(loadout.reloading);
         assertEquals(PlayerLoadout.NO_QUICK_SWAP, loadout.quickSwapOrigin);
@@ -44,13 +52,18 @@ class PlayerLoadoutTest {
     }
 
     @Test
-    @DisplayName("slots 1-3 are filled, utility slots are not (until Phase 5)")
+    @DisplayName("all five default slots are filled until a utility is depleted")
     void filledSemantics() {
         assertTrue(loadout.isFilled(1));
         assertTrue(loadout.isFilled(2));
         assertTrue(loadout.isFilled(3), "slot 3 can never be empty");
-        assertFalse(loadout.isFilled(4), "utilities do not exist yet");
-        assertFalse(loadout.isFilled(5), "utilities do not exist yet");
+        assertTrue(loadout.isFilled(4));
+        assertTrue(loadout.isFilled(5));
+
+        loadout.utilityACount = 0;
+        assertFalse(loadout.isFilled(4), "a depleted utility is empty for selection");
+        assertEquals(UtilityId.DEFAULT_PRIMARY, loadout.utilityIdForSlot(4),
+            "depletion keeps the composition for the next respawn");
         assertFalse(PlayerLoadout.isValidSlot(0));
         assertFalse(PlayerLoadout.isValidSlot(6));
     }
@@ -62,7 +75,8 @@ class PlayerLoadoutTest {
     void selectFilledOnly() {
         assertTrue(loadout.selectSlot(2));
         assertEquals(2, loadout.activeSlot);
-        assertFalse(loadout.selectSlot(4), "empty slots cannot be selected");
+        loadout.utilityACount = 0;
+        assertFalse(loadout.selectSlot(4), "depleted slots cannot be selected");
         assertEquals(2, loadout.activeSlot);
         assertFalse(loadout.selectSlot(0), "out-of-range slots cannot be selected");
         assertFalse(loadout.selectSlot(9));
@@ -129,14 +143,17 @@ class PlayerLoadoutTest {
     }
 
     @Test
-    @DisplayName("the wheel cycles filled slots only, in both directions, wrapping")
+    @DisplayName("the wheel includes stocked utilities, skips depleted ones and wraps")
     void wheelCyclesFilledOnly() {
         assertEquals(2, loadout.cycle(1));
         assertEquals(3, loadout.cycle(1));
-        assertEquals(1, loadout.cycle(1), "wrapping skips empty 4 and 5");
+        assertEquals(4, loadout.cycle(1));
+        assertEquals(5, loadout.cycle(1));
+        assertEquals(1, loadout.cycle(1));
 
-        loadout = new PlayerLoadout();
-        assertEquals(3, loadout.cycle(-1), "backwards from 1 wraps to the last filled slot");
+        loadout.utilityACount = 0;
+        loadout.utilityBCount = 0;
+        assertEquals(3, loadout.cycle(-1), "backwards from 1 skips depleted utilities");
         assertEquals(2, loadout.cycle(-1));
         assertEquals(1, loadout.cycle(-1));
     }
@@ -144,7 +161,8 @@ class PlayerLoadoutTest {
     @Test
     @DisplayName("the wheel stays put when only melee is filled")
     void wheelWithOnlyMelee() {
-        PlayerLoadout lonely = new PlayerLoadout(null, null, MeleeId.TRENCH_KNUCKLE);
+        PlayerLoadout lonely = new PlayerLoadout(
+            null, null, MeleeId.TRENCH_KNUCKLE, null, null);
         assertEquals(PlayerLoadout.SLOT_MELEE, lonely.activeSlot);
         assertEquals(PlayerLoadout.SLOT_MELEE, lonely.cycle(1));
         assertEquals(PlayerLoadout.SLOT_MELEE, lonely.cycle(-1));
@@ -267,8 +285,13 @@ class PlayerLoadoutTest {
         loadout.setComposition(null, WeaponId.DEFAULT_SIDEARM, null);
         assertEquals(1, loadout.handgun.magazine, "an unchanged weapon keeps its magazine state");
 
-        loadout.setComposition(null, null, MeleeId.WINTER_KATANA);
+        loadout.setComposition(null, null, MeleeId.WINTER_KATANA,
+            UtilityId.CLAYMORE, UtilityId.POISON_SMOKE);
         assertEquals(MeleeId.WINTER_KATANA, loadout.meleeId());
+        assertEquals(UtilityId.CLAYMORE, loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A));
+        assertEquals(1, loadout.utilityACount, "claymore uses its per-definition carried count");
+        assertEquals(UtilityId.POISON_SMOKE,
+            loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B));
     }
 
     @Test
@@ -278,6 +301,8 @@ class PlayerLoadoutTest {
         loadout.primary.magazine = 1;
         loadout.primary.reserve = 2;
         loadout.handgun.magazine = 0;
+        loadout.utilityACount = 0;
+        loadout.utilityBCount = 0;
         loadout.selectSlot(PlayerLoadout.SLOT_HANDGUN);
         assertTrue(loadout.startReload());
 
@@ -287,6 +312,8 @@ class PlayerLoadoutTest {
         assertEquals(5, loadout.primary.magazine);
         assertEquals(25, loadout.primary.reserve);
         assertEquals(15, loadout.handgun.magazine);
+        assertEquals(UtilityRegistry.of(UtilityId.DEFAULT_PRIMARY).carriedCount(), loadout.utilityACount);
+        assertEquals(UtilityRegistry.of(UtilityId.DEFAULT_SECONDARY).carriedCount(), loadout.utilityBCount);
         assertFalse(loadout.reloading);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
         assertEquals(PlayerLoadout.NO_QUICK_SWAP, loadout.quickSwapOrigin);
@@ -297,12 +324,15 @@ class PlayerLoadoutTest {
     @DisplayName("copies are deep: ammo and slot state do not alias")
     void copiesAreDeep() {
         loadout.primary.magazine = 9;
+        loadout.utilityACount = 1;
         PlayerLoadout twin = loadout.copy();
         assertNotSame(loadout.primary, twin.primary);
 
         twin.primary.magazine = 1;
+        twin.utilityACount = 0;
         twin.activeSlot = PlayerLoadout.SLOT_MELEE;
         assertEquals(9, loadout.primary.magazine);
+        assertEquals(1, loadout.utilityACount);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
 
         PlayerLoadout third = new PlayerLoadout();
@@ -320,5 +350,29 @@ class PlayerLoadoutTest {
         loadout.tapSlot(2); // to melee
         assertEquals(MeleeId.DEFAULT.wireId(), loadout.heldWeaponWireId(),
             "melee in hand is the melee wire id, not some gun");
+        loadout.selectSlot(PlayerLoadout.SLOT_UTILITY_A);
+        assertEquals(UtilityId.DEFAULT_PRIMARY.wireId(), loadout.heldWeaponWireId());
+        loadout.selectSlot(PlayerLoadout.SLOT_UTILITY_B);
+        assertEquals(UtilityId.DEFAULT_SECONDARY.wireId(), loadout.heldWeaponWireId());
+    }
+
+    @Test
+    @DisplayName("consuming the last utility empties its slot and advances to the next filled one")
+    void utilityConsumptionSkipsDepletedSlot() {
+        loadout.utilityACount = 1;
+        loadout.utilityBCount = 1;
+        assertTrue(loadout.selectSlot(PlayerLoadout.SLOT_UTILITY_A));
+        assertEquals(UtilityId.DEFAULT_PRIMARY, loadout.activeUtilityId());
+
+        assertTrue(loadout.consumeActiveUtility());
+        assertEquals(0, loadout.utilityACount);
+        assertFalse(loadout.isFilled(PlayerLoadout.SLOT_UTILITY_A));
+        assertEquals(PlayerLoadout.SLOT_UTILITY_B, loadout.activeSlot);
+        assertEquals(UtilityId.DEFAULT_SECONDARY, loadout.activeUtilityId());
+
+        assertTrue(loadout.consumeActiveUtility());
+        assertEquals(0, loadout.utilityBCount);
+        assertEquals(PlayerLoadout.SLOT_PRIMARY, loadout.activeSlot);
+        assertFalse(loadout.consumeActiveUtility(), "only an active utility can be consumed");
     }
 }

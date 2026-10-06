@@ -1,5 +1,7 @@
 package io.github.skystrike.shared.model;
 
+import io.github.skystrike.shared.utility.UtilityId;
+import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.weapons.WeaponId;
@@ -11,8 +13,9 @@ import io.github.skystrike.shared.weapons.WeaponId;
  * rules from this one class.
  *
  * <p>Slot layout: 1 primary gun, 2 handgun, 3 melee, 4 and 5 utilities. Slot 3 can never be
- * empty — a player is never defenceless. Utility slots exist in the numbering but hold nothing
- * yet (Phase 5); they are never "filled", so selection and cycling skip them.
+ * empty — a player is never defenceless. A utility slot remains part of the composition after its
+ * carried count reaches zero, but counts as empty for selection and cycling until the next
+ * respawn refills it.
  *
  * <p>The switching rules live here, once, so client prediction and the server cannot diverge:
  * selecting is idempotent ({@link #selectSlot}), a key <i>press</i> carries the tap-swap rule
@@ -53,6 +56,18 @@ public final class PlayerLoadout {
     /** Slot 3: the melee weapon, as a {@link MeleeId} ordinal. Never empty. */
     public int melee = MeleeId.DEFAULT.ordinal();
 
+    /** Slot 4 utility, as a {@link UtilityId} ordinal. Its type survives depletion. */
+    public int utilityA = UtilityId.DEFAULT_PRIMARY.ordinal();
+
+    /** Number of slot 4 utilities left in this life. Zero makes the slot unselectable. */
+    public int utilityACount;
+
+    /** Slot 5 utility, as a {@link UtilityId} ordinal. Its type survives depletion. */
+    public int utilityB = UtilityId.DEFAULT_SECONDARY.ordinal();
+
+    /** Number of slot 5 utilities left in this life. Zero makes the slot unselectable. */
+    public int utilityBCount;
+
     /** The currently active slot, 1–5. Only ever a filled slot. */
     public int activeSlot = SLOT_PRIMARY;
 
@@ -68,15 +83,30 @@ public final class PlayerLoadout {
     /** Seconds left on the current reload. */
     public float reloadTimer;
 
-    /** The starting loadout: rifle, sidearm, knife — nobody spawns defenceless. */
+    /** The starting loadout: rifle, sidearm, knife, frag and smoke. */
     public PlayerLoadout() {
-        this(WeaponId.DEFAULT, WeaponId.DEFAULT_SIDEARM, MeleeId.DEFAULT);
+        this(WeaponId.DEFAULT, WeaponId.DEFAULT_SIDEARM, MeleeId.DEFAULT,
+            UtilityId.DEFAULT_PRIMARY, UtilityId.DEFAULT_SECONDARY);
     }
 
+    /** Builds the three weapon slots and supplies the default pair of utilities. */
     public PlayerLoadout(WeaponId primaryId, WeaponId handgunId, MeleeId meleeId) {
+        this(primaryId, handgunId, meleeId, UtilityId.DEFAULT_PRIMARY, UtilityId.DEFAULT_SECONDARY);
+    }
+
+    public PlayerLoadout(
+        WeaponId primaryId,
+        WeaponId handgunId,
+        MeleeId meleeId,
+        UtilityId utilityAId,
+        UtilityId utilityBId
+    ) {
         this.primary = primaryId == null ? null : new WeaponItem(primaryId);
         this.handgun = handgunId == null ? null : new WeaponItem(handgunId);
         this.melee = (meleeId == null ? MeleeId.DEFAULT : meleeId).ordinal();
+        this.utilityA = utilityAId == null ? -1 : utilityAId.ordinal();
+        this.utilityB = utilityBId == null ? -1 : utilityBId.ordinal();
+        refillUtilities();
         this.activeSlot = firstFilledSlot();
     }
 
@@ -88,6 +118,10 @@ public final class PlayerLoadout {
         this.primary = other.primary == null ? null : other.primary.copy();
         this.handgun = other.handgun == null ? null : other.handgun.copy();
         this.melee = other.melee;
+        this.utilityA = other.utilityA;
+        this.utilityACount = other.utilityACount;
+        this.utilityB = other.utilityB;
+        this.utilityBCount = other.utilityBCount;
         this.activeSlot = other.activeSlot;
         this.quickSwapOrigin = other.quickSwapOrigin;
         this.reloading = other.reloading;
@@ -104,18 +138,67 @@ public final class PlayerLoadout {
         return slot >= 1 && slot <= SLOT_COUNT;
     }
 
-    /** A slot is filled when it holds something usable. Utility slots are empty until Phase 5. */
+    /** A slot is filled when it holds something usable right now. */
     public boolean isFilled(int slot) {
         return switch (slot) {
             case SLOT_PRIMARY -> primary != null && primary.hasWeapon();
             case SLOT_HANDGUN -> handgun != null && handgun.hasWeapon();
             case SLOT_MELEE -> true; // never empty, by rule
-            default -> false; // utility slots: Phase 5
+            case SLOT_UTILITY_A -> UtilityId.isValidOrdinal(utilityA) && utilityACount > 0;
+            case SLOT_UTILITY_B -> UtilityId.isValidOrdinal(utilityB) && utilityBCount > 0;
+            default -> false;
         };
     }
 
     public MeleeId meleeId() {
         return MeleeId.fromOrdinal(melee);
+    }
+
+    /** Utility assigned to slot 4 or 5, or {@code null} for another or invalid slot. */
+    public UtilityId utilityIdForSlot(int slot) {
+        int ordinal = switch (slot) {
+            case SLOT_UTILITY_A -> utilityA;
+            case SLOT_UTILITY_B -> utilityB;
+            default -> -1;
+        };
+        return UtilityId.isValidOrdinal(ordinal) ? UtilityId.fromOrdinal(ordinal) : null;
+    }
+
+    /** Carried count for slot 4 or 5. Other slots report zero. */
+    public int utilityCountForSlot(int slot) {
+        return switch (slot) {
+            case SLOT_UTILITY_A -> Math.max(0, utilityACount);
+            case SLOT_UTILITY_B -> Math.max(0, utilityBCount);
+            default -> 0;
+        };
+    }
+
+    /** The utility in hand, or {@code null} while a gun or melee weapon is active. */
+    public UtilityId activeUtilityId() {
+        return isFilled(activeSlot) ? utilityIdForSlot(activeSlot) : null;
+    }
+
+    public boolean utilityActive() {
+        return activeUtilityId() != null;
+    }
+
+    /**
+     * Consumes one item from the active utility slot. When that was the last one, the slot becomes
+     * empty and the hands advance to the next filled slot so an empty utility can never stay live.
+     */
+    public boolean consumeActiveUtility() {
+        if (!utilityActive()) {
+            return false;
+        }
+        if (activeSlot == SLOT_UTILITY_A) {
+            utilityACount--;
+        } else {
+            utilityBCount--;
+        }
+        if (!isFilled(activeSlot)) {
+            cycle(1);
+        }
+        return true;
     }
 
     /** The gun item in hand, or {@code null} when the active slot is not a filled gun slot. */
@@ -138,13 +221,16 @@ public final class PlayerLoadout {
     }
 
     /**
-     * What is in the hands, as a wire id: a {@link WeaponId} ordinal for a gun, a
-     * {@link MeleeId} wire id for melee — which is also the fallback for the not-yet-existent
-     * utility slots, because a player is never defenceless.
+     * What is in the hands, as a wire id: gun ordinal, {@link MeleeId} wire id, or
+     * {@link UtilityId} wire id. Melee is the defensive fallback for invalid state.
      */
     public int heldWeaponWireId() {
         WeaponItem item = activeItem();
-        return item != null ? item.weapon : meleeId().wireId();
+        if (item != null) {
+            return item.weapon;
+        }
+        UtilityId utility = activeUtilityId();
+        return utility == null ? meleeId().wireId() : utility.wireId();
     }
 
     // --- Selection rules (mechanics §8) ---------------------------------------------------------
@@ -293,6 +379,20 @@ public final class PlayerLoadout {
      * if the weapon it held is gone.
      */
     public void setComposition(WeaponId primaryId, WeaponId handgunId, MeleeId meleeId) {
+        setComposition(primaryId, handgunId, meleeId, null, null);
+    }
+
+    /**
+     * Five-slot composition update. Null components keep their current choice; changing a utility
+     * supplies its full carried count immediately, matching a newly-created gun's full magazine.
+     */
+    public void setComposition(
+        WeaponId primaryId,
+        WeaponId handgunId,
+        MeleeId meleeId,
+        UtilityId utilityAId,
+        UtilityId utilityBId
+    ) {
         if (primaryId != null && (primary == null || primary.weapon != primaryId.ordinal())) {
             primary = new WeaponItem(primaryId);
         }
@@ -301,6 +401,14 @@ public final class PlayerLoadout {
         }
         if (meleeId != null && melee != meleeId.ordinal()) {
             melee = meleeId.ordinal();
+        }
+        if (utilityAId != null && utilityA != utilityAId.ordinal()) {
+            utilityA = utilityAId.ordinal();
+            utilityACount = UtilityRegistry.of(utilityAId).carriedCount();
+        }
+        if (utilityBId != null && utilityB != utilityBId.ordinal()) {
+            utilityB = utilityBId.ordinal();
+            utilityBCount = UtilityRegistry.of(utilityBId).carriedCount();
         }
         cancelReload();
         if (!isFilled(activeSlot)) {
@@ -321,9 +429,17 @@ public final class PlayerLoadout {
         if (handgun != null) {
             handgun.refill();
         }
+        refillUtilities();
         cancelReload();
         activeSlot = firstFilledSlot();
         quickSwapOrigin = NO_QUICK_SWAP;
+    }
+
+    private void refillUtilities() {
+        UtilityId a = utilityIdForSlot(SLOT_UTILITY_A);
+        UtilityId b = utilityIdForSlot(SLOT_UTILITY_B);
+        utilityACount = a == null ? 0 : UtilityRegistry.of(a).carriedCount();
+        utilityBCount = b == null ? 0 : UtilityRegistry.of(b).carriedCount();
     }
 
     @Override
@@ -332,6 +448,8 @@ public final class PlayerLoadout {
             + ", primary=" + (primary == null ? "empty" : primary)
             + ", handgun=" + (handgun == null ? "empty" : handgun)
             + ", melee=" + meleeId().displayName()
+            + ", utilityA=" + utilityIdForSlot(SLOT_UTILITY_A) + " x" + utilityACount
+            + ", utilityB=" + utilityIdForSlot(SLOT_UTILITY_B) + " x" + utilityBCount
             + (reloading ? String.format(", reloading %.2fs", reloadTimer) : "")
             + (quickSwapOrigin != NO_QUICK_SWAP ? ", swapFrom=" + quickSwapOrigin : "")
             + "]";

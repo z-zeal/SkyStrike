@@ -193,19 +193,23 @@ So the honest sequencing recommendation is:
 | Console plan build-order Phase 2 — chat transport and server authority | Implemented: `ChatMessage`, `PacketChatRequest`, `PacketChatMessage`, `server/chat/{ChatService,ChatModeration,ChatHistory}`, `ChatRequestHandler`, `core/chat/{ChatClient,ChatMuteList}` |
 | Console plan build-order Phase 3 — capabilities | Implemented: `shared/command/{Permission,ConsoleAccess}`, `PacketCapabilities`, `server/command/{PermissionResolver,CapabilityBroadcaster}`, `core/command/ClientCapabilities` |
 | Phase 5 increment 1 — shared throwable foundation | Implemented: `shared/config/UtilityConfig`, `shared/utility/{UtilityId,DetonationMode,UtilityEffect,UtilityDefinition,UtilityRegistry,ThrowablePhysics,ExplosionMath,StunMath}`, `shared/model/ThrownUtility` |
+| Phase 5 increment 2A — utility inventory and wire contract | Implemented: populated loadout slots 4–5 with carried counts and respawn refill; utility choices added to the server-authoritative loadout request; `ThrownUtility` appended at Kryo index 25 and added to `PacketGameState` |
 
 Phase 5 is under way, so §3.6's "never started" now applies to Phase 6 only. What landed is the
 shared half: identity and wire encoding (2000 + ordinal, a third range in the existing `weaponId`
 int), the mechanics §6 catalogue, the one substepped bouncing integrator the server and the
-trajectory preview will both call, absolute terrain occlusion for blasts, and stun banding. Not
-yet present: the server-side lifecycle (`server/utility/`), Kryo registration for `ThrownUtility`,
-smoke volumes wired into the visibility pass, molotov surface spread, claymore placement, and
+trajectory preview will both call, absolute terrain occlusion for blasts, and stun banding.
+Increment 2 now has its contract slice: loadout slots 4–5 carry utility identity and authoritative
+per-life counts, depleted slots are skipped, utility composition changes remain respawn-only, and
+`ThrownUtility` is append-only wire state at Kryo index 25 inside `PacketGameState`. Not yet
+present: the actual `server/utility/` throw/flight/detonation lifecycle, smoke volumes wired into
+the visibility pass, molotov surface spread, claymore placement, and
 `core/render/TrajectoryRenderer`. Claymore's numbers and the damage-over-time tick interval are
 marked provisional in code, because the plan leaves them blank.
 
 `TextSanitizer` and `RateLimiter` are no longer dead code — the relay is their only caller.
-`PROTOCOL_VERSION` moved 4 → 5. §3.3 and §3.4 above describe the state *before* this work; the
-rest of §3 still stands.
+`PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities and 5 → 6 for throwable state and utility
+loadouts. §3.3 and §3.4 above describe the state *before* this work; the rest of §3 still stands.
 
 Still outstanding for Phase 7: the HUD in full (§3.1), the dialog in full (§3.2), and build-order
 Phases 4–9 (§3.5).

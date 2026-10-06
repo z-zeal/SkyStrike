@@ -3,6 +3,7 @@ package io.github.skystrike.shared.model;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
+import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 
@@ -145,9 +146,9 @@ public final class Player {
     }
 
     /**
-     * The gun the {@link #weaponId} wire id names. Falls back to the default gun when the player
-     * is holding melee — check {@link #holdingMelee()} or use {@link #heldWeaponDisplayName()}
-     * when the distinction matters.
+     * The gun the {@link #weaponId} wire id names. Falls back to the default gun for a melee or
+     * utility wire id; use the loadout state or {@link #heldWeaponDisplayName()} when the
+     * distinction matters.
      */
     public WeaponId weapon() {
         return WeaponId.fromOrdinal(weaponId);
@@ -158,9 +159,10 @@ public final class Player {
         return loadout != null && loadout.meleeActive();
     }
 
-    /** Display name of whatever is in the hands, gun or melee. */
+    /** Display name of whatever is in the hands: gun, melee or utility. */
     public String heldWeaponDisplayName() {
-        return WeaponRegistry.displayNameForWireId(weaponId);
+        String utility = UtilityRegistry.displayNameForWireId(weaponId);
+        return utility.isEmpty() ? WeaponRegistry.displayNameForWireId(weaponId) : utility;
     }
 
     /** Aim angle plus the visual recoil kick — what the gun is drawn at, not what it hits. */

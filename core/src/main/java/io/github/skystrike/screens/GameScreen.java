@@ -37,6 +37,7 @@ import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.text.ChatChannel;
+import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.ui.text.MessageBuffer;
 import io.github.skystrike.ui.text.MessageLine;
@@ -306,10 +307,13 @@ public final class GameScreen implements Screen {
             PlayerLoadout loadout = localPlayer.loadout;
             if (loadout != null) {
                 WeaponItem item = loadout.activeItem();
-                String held = WeaponRegistry.displayNameForWireId(loadout.heldWeaponWireId());
-                String ammo = item == null
-                    ? ""
-                    : String.format("  %d/%d", item.magazine, item.reserve);
+                int heldWireId = loadout.heldWeaponWireId();
+                String utilityName = UtilityRegistry.displayNameForWireId(heldWireId);
+                String held = utilityName.isEmpty()
+                    ? WeaponRegistry.displayNameForWireId(heldWireId) : utilityName;
+                String ammo = loadout.utilityActive()
+                    ? String.format("  x%d", loadout.utilityCountForSlot(loadout.activeSlot))
+                    : item == null ? "" : String.format("  %d/%d", item.magazine, item.reserve);
                 String reload = loadout.reloading
                     ? String.format("  [reload %.1fs]", Math.max(0f, loadout.reloadTimer))
                     : "";

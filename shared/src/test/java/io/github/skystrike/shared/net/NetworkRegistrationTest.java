@@ -10,11 +10,13 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.github.skystrike.shared.command.Permission;
+import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.Team;
+import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
@@ -32,6 +34,7 @@ import io.github.skystrike.shared.net.s2c.PacketPong;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.text.ChatMessage;
 import io.github.skystrike.shared.text.ChatTarget;
+import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.HashSet;
@@ -67,10 +70,11 @@ class NetworkRegistrationTest {
     @Test
     @DisplayName("support types are payloads carried inside packets, not packets themselves")
     void supportTypesAreNotPackets() {
-        // Player, Projectile, HitZone and ArrayList travel as fields of a packet. Kryo still has
-        // to know them, which is why they are registered, but nothing addresses them directly.
+        // State records and ArrayList travel as fields of a packet. Kryo still has to know them,
+        // which is why they are registered, but nothing addresses them directly.
         assertTrue(NetworkRegistration.isSupportType(Player.class));
         assertTrue(NetworkRegistration.isSupportType(Projectile.class));
+        assertTrue(NetworkRegistration.isSupportType(ThrownUtility.class));
         assertTrue(NetworkRegistration.isSupportType(HitZone.class));
         assertTrue(NetworkRegistration.isSupportType(PlayerLoadout.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
@@ -122,7 +126,16 @@ class NetworkRegistrationTest {
         assertEquals(PacketChatRequest.class, types.get(22));
         assertEquals(PacketChatMessage.class, types.get(23));
         assertEquals(PacketCapabilities.class, types.get(24));
-        assertEquals(25, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertTrue(types.size() >= 25, "Phase 7 must append, never replace");
+    }
+
+    @Test
+    @DisplayName("throwable state is appended at the Phase 5 wire position")
+    void phaseFiveThrowableStateIsAppended() {
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(ThrownUtility.class, types.get(25));
+        assertEquals(26, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(6, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -196,11 +209,17 @@ class NetworkRegistrationTest {
         assertEquals(PlayerLoadout.SLOT_MELEE, decodedPress.slotPress);
         assertEquals(11L, decodedPress.slotPressSeq);
 
-        PacketLoadoutUpdate loadout = roundTrip(
-            new PacketLoadoutUpdate(WeaponId.CATHEDRAL.ordinal(), PacketLoadoutUpdate.KEEP_CURRENT, MeleeId.WINTER_KATANA.ordinal()));
+        PacketLoadoutUpdate loadout = roundTrip(new PacketLoadoutUpdate(
+            WeaponId.CATHEDRAL.ordinal(),
+            PacketLoadoutUpdate.KEEP_CURRENT,
+            MeleeId.WINTER_KATANA.ordinal(),
+            UtilityId.CLAYMORE.ordinal(),
+            UtilityId.POISON_SMOKE.ordinal()));
         assertEquals(WeaponId.CATHEDRAL.ordinal(), loadout.primary);
         assertEquals(PacketLoadoutUpdate.KEEP_CURRENT, loadout.handgun);
         assertEquals(MeleeId.WINTER_KATANA.ordinal(), loadout.melee);
+        assertEquals(UtilityId.CLAYMORE.ordinal(), loadout.utilityA);
+        assertEquals(UtilityId.POISON_SMOKE.ordinal(), loadout.utilityB);
     }
 
     @Test
@@ -235,6 +254,10 @@ class NetworkRegistrationTest {
         p.loadout.melee = MeleeId.YARD_WRENCH.ordinal();
         p.loadout.activeSlot = PlayerLoadout.SLOT_MELEE;
         p.loadout.quickSwapOrigin = PlayerLoadout.SLOT_PRIMARY;
+        p.loadout.utilityA = UtilityId.CLAYMORE.ordinal();
+        p.loadout.utilityACount = 1;
+        p.loadout.utilityB = UtilityId.POISON_SMOKE.ordinal();
+        p.loadout.utilityBCount = 2;
         p.loadout.reloading = true;
         p.loadout.reloadTimer = 1.25f;
 
@@ -242,7 +265,19 @@ class NetworkRegistrationTest {
         round.age = 0.25f;
         round.distanceTravelled = 375f;
 
-        PacketGameState state = roundTrip(new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round)));
+        ThrownUtility thrown = new ThrownUtility(
+            12, 1, 0, UtilityId.FRAG.ordinal(), 320f, 410f, 600f, 300f, 2.5f);
+        thrown.prevX = 310f;
+        thrown.prevY = 405f;
+        thrown.age = 0.25f;
+        thrown.fuseRemaining = 2.25f;
+        thrown.resting = false;
+        thrown.bounces = 2;
+        thrown.contactNormalX = -1f;
+        thrown.contactNormalY = 0f;
+
+        PacketGameState state = roundTrip(
+            new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown)));
         assertEquals(4242L, state.tick);
         assertEquals(99L, state.serverTimeMillis);
         assertEquals(1, state.playerCount);
@@ -259,6 +294,12 @@ class NetworkRegistrationTest {
         assertEquals(MeleeId.YARD_WRENCH, decodedLoadout.meleeId());
         assertEquals(PlayerLoadout.SLOT_MELEE, decodedLoadout.activeSlot);
         assertEquals(PlayerLoadout.SLOT_PRIMARY, decodedLoadout.quickSwapOrigin);
+        assertEquals(UtilityId.CLAYMORE,
+            decodedLoadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A));
+        assertEquals(1, decodedLoadout.utilityACount);
+        assertEquals(UtilityId.POISON_SMOKE,
+            decodedLoadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_B));
+        assertEquals(2, decodedLoadout.utilityBCount);
         assertTrue(decodedLoadout.reloading);
         assertEquals(1.25f, decodedLoadout.reloadTimer, 1e-4f);
         assertEquals(1.25f, state.players.get(0).spread);
@@ -275,6 +316,26 @@ class NetworkRegistrationTest {
         assertEquals(300f, decoded.x);
         assertEquals(1500f, decoded.vx);
         assertEquals(375f, decoded.distanceTravelled);
+
+        assertEquals(1, state.thrownUtilities.size());
+        ThrownUtility decodedThrown = state.thrownUtilities.get(0);
+        assertEquals(12, decodedThrown.id);
+        assertEquals(1, decodedThrown.ownerId);
+        assertEquals(0, decodedThrown.teamIndex);
+        assertEquals(UtilityId.FRAG, decodedThrown.utility());
+        assertEquals(320f, decodedThrown.x);
+        assertEquals(410f, decodedThrown.y);
+        assertEquals(310f, decodedThrown.prevX);
+        assertEquals(405f, decodedThrown.prevY);
+        assertEquals(600f, decodedThrown.vx);
+        assertEquals(300f, decodedThrown.vy);
+        assertEquals(0.25f, decodedThrown.age);
+        assertEquals(2.25f, decodedThrown.fuseRemaining);
+        assertFalse(decodedThrown.resting);
+        assertEquals(2, decodedThrown.bounces);
+        assertEquals(-1f, decodedThrown.contactNormalX);
+        assertEquals(0f, decodedThrown.contactNormalY);
+        assertEquals(UtilityId.FRAG.wireId(), decodedThrown.weaponWireId());
     }
 
     @Test
@@ -297,6 +358,15 @@ class NetworkRegistrationTest {
         assertEquals("Rook", kill.victimName);
         assertTrue(kill.headshot);
         assertEquals(WeaponId.CATHEDRAL, kill.weapon());
+
+        PacketDamageEvent utilityDamage = roundTrip(new PacketDamageEvent(
+            1, 1, 21f, 129f, HitZone.BODY, UtilityId.MOLOTOV.wireId(), 10f, 20f, 0f, false));
+        assertEquals("Molotov", utilityDamage.weaponDisplayName());
+
+        PacketKillEvent utilityKill = roundTrip(new PacketKillEvent(
+            1, "Nova", 1, "Nova", UtilityId.FRAG.wireId(), false, true, false));
+        assertEquals("Frag Grenade", utilityKill.weaponDisplayName());
+        assertTrue(utilityKill.feedLine().contains("Frag Grenade"));
     }
 
     @Test
