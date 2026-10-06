@@ -1,6 +1,6 @@
 # TEMPORARY debug workflow: captures gradle output by committing logs back to the
 # branch, because the sandbox cannot read GitHub's Azure-hosted CI log blobs.
-# Delete before the PR.
+# Delete before the PR. (rerun marker: 3)
 name: Debug Capture
 
 on:
