@@ -10,6 +10,8 @@ import io.github.skystrike.chat.ChatMuteList;
 import io.github.skystrike.command.ClientCapabilities;
 import io.github.skystrike.command.ClientCommandModule;
 import io.github.skystrike.command.ClientCommandService;
+import io.github.skystrike.command.DebugKeyController;
+import io.github.skystrike.shared.command.Cvar;
 import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.gameplay.LoadoutController;
@@ -21,14 +23,17 @@ import io.github.skystrike.net.Interpolator;
 import io.github.skystrike.net.LocalPrediction;
 import io.github.skystrike.net.StateBuffer;
 import io.github.skystrike.render.GameCamera;
+import io.github.skystrike.render.HitboxOverlay;
 import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.ProjectileRenderer;
 import io.github.skystrike.render.ThrownUtilityRenderer;
 import io.github.skystrike.render.TrajectoryRenderer;
 import io.github.skystrike.render.StatusOverlay;
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.VisionConfig;
+import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
@@ -47,6 +52,7 @@ import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.ui.console.ConsoleDialog;
+import io.github.skystrike.ui.text.ContrastTestOverlay;
 import io.github.skystrike.ui.text.MessageBuffer;
 import io.github.skystrike.ui.text.MessageSeverity;
 import io.github.skystrike.world.TerrainRenderer;
@@ -72,7 +78,16 @@ public final class GameScreen implements Screen {
     private final ThrownUtilityRenderer thrownUtilityRenderer = new ThrownUtilityRenderer();
     private final TrajectoryRenderer trajectoryRenderer = new TrajectoryRenderer();
     private final StatusOverlay overlay = new StatusOverlay();
+    private final HitboxOverlay hitboxOverlay = new HitboxOverlay();
+    private final ContrastTestOverlay contrastTestOverlay = new ContrastTestOverlay();
     private final ClientSession session;
+
+    /**
+     * The debug toolkit's local mirror (build plan M3 §4): every F-key/cvar pair writes here
+     * through {@link ClientCommandModule}'s {@code onChange} hooks, and rendering reads it back —
+     * never the other way around.
+     */
+    private final DebugState debugState = new DebugState(DebugFlags.enabled());
 
     /**
      * The chat/console state (console plan §2): the scrollback ring and the locally persisted
@@ -96,6 +111,7 @@ public final class GameScreen implements Screen {
     private final InputRouter inputRouter = new InputRouter();
     private final LoadoutController loadoutController = new LoadoutController(bindings, inputRouter);
     private final InputSampler inputSampler = new InputSampler(bindings, inputRouter, loadoutController);
+    private DebugKeyController debugKeyController;
 
     /** The wheel reaches the loadout controller as slot cycles; everything else goes via polling. */
     private final InputAdapter scrollForwarder = new InputAdapter() {
@@ -117,7 +133,6 @@ public final class GameScreen implements Screen {
     private final int udpPort;
 
     private float adsAlpha;
-    private boolean showSdfDebug;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
         this.session = new ClientSession(playerName);
@@ -149,9 +164,11 @@ public final class GameScreen implements Screen {
             this::resolveNameToId,
             Gdx.graphics::getFramesPerSecond,
             () -> lastDeltaMillis,
-            this::disconnectFromConsole));
+            this::disconnectFromConsole,
+            debugState));
         this.commandService.setServerSender(session::sendCommand);
         this.session.setCommandResponseListener(commandService::handleResponse);
+        this.debugKeyController = new DebugKeyController(bindings, commandService);
 
         this.consoleDialog = new ConsoleDialog(
             commandService,
@@ -288,8 +305,17 @@ public final class GameScreen implements Screen {
             consoleDialog.open();
         }
 
+        // Build plan M3 §4: every F-key submits the same command line typing it would, gated
+        // identically to the console itself — one owner of the keyboard at a time.
+        if (consoleDialog.isGameplayActive()) {
+            debugKeyController.update();
+        }
+
         Player localPlayer = prediction.predicted();
         float visionReach = VisionConfig.REACH_HIP;
+
+        // cl_freecam (F2): input packets keep sending zeroed intent even while detached.
+        inputSampler.setFreecamActive(debugState.freecam());
 
         if (localPlayer != null) {
             // 1. Loadout input first: a slot press this frame rides this frame's input packet
@@ -300,23 +326,24 @@ public final class GameScreen implements Screen {
             localPlayer = prediction.predict(input, delta, arena);
             session.sendUnreliable(input);
 
-            // 2. Camera follow and smoothly interpolated ADS pan / vision reach
-            adsAlpha = Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, VisionConfig.ADS_TRANSITION_RATE, delta);
-            visionReach = Lerp.mix(VisionConfig.REACH_HIP, VisionConfig.REACH_ADS, adsAlpha);
+            if (debugState.freecam() && consoleDialog.isGameplayActive()) {
+                // The camera detaches entirely: pan/zoom by hand instead of following the player.
+                sampleCameraInput(delta);
+            } else {
+                // 2. Camera follow and smoothly interpolated ADS pan / vision reach
+                adsAlpha =
+                    Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, VisionConfig.ADS_TRANSITION_RATE, delta);
+                visionReach = Lerp.mix(VisionConfig.REACH_HIP, VisionConfig.REACH_ADS, adsAlpha);
 
-            float panDist = PlayerConfig.ADS_CAMERA_PAN * adsAlpha;
-            float aimRad = Angles.toRadians(localPlayer.aimAngle);
-            float targetCamX = localPlayer.centerX() + panDist * (float) Math.cos(aimRad);
-            float targetCamY = localPlayer.centerY() + panDist * (float) Math.sin(aimRad);
-            camera.centreOn(targetCamX, targetCamY);
+                float panDist = PlayerConfig.ADS_CAMERA_PAN * adsAlpha;
+                float aimRad = Angles.toRadians(localPlayer.aimAngle);
+                float targetCamX = localPlayer.centerX() + panDist * (float) Math.cos(aimRad);
+                float targetCamY = localPlayer.centerY() + panDist * (float) Math.sin(aimRad);
+                camera.centreOn(targetCamX, targetCamY);
+            }
         } else if (consoleDialog.isGameplayActive()) {
             // Fallback manual camera pan while waiting for join/spawn
             sampleCameraInput(delta);
-        }
-
-        // Toggle SDF debug view with F1 (a gameplay key; the console owns the keyboard while open)
-        if (consoleDialog.isGameplayActive() && Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
-            showSdfDebug = !showSdfDebug;
         }
 
         // 3. Interpolate remote player and projectile states
@@ -350,36 +377,54 @@ public final class GameScreen implements Screen {
             observers.add(ObserverState.standardPlayer(
                     localPlayer.eyeX(), localPlayer.eyeY(), localPlayer.aimAngle, visionReach));
         }
-        pipeline.renderVisibility(camera, observers);
+        pipeline.renderVisibility(camera, observers, !isShadowsOn());
 
         // Pass 3: COMPOSITE (scene * max(visibility, ambientFloor) + light onto backbuffer)
         pipeline.composite();
 
-        // Pass 4: DEBUG OVERLAY
-        if (showSdfDebug) {
+        // Pass 4: DEBUG OVERLAYS
+        if (debugState.sdfView()) {
             pipeline.renderSdfDebug(camera);
+        }
+        if (debugState.hitboxes()) {
+            hitboxOverlay.render(camera, remotePlayers, localPlayer);
         }
 
         // Pass 5: HUD & OVERLAY (drawn unoccluded over composite)
-        overlay.render(statusLines(localPlayer, visionReach, projectiles.size()));
+        if (debugState.overlay()) {
+            overlay.render(statusLines(localPlayer, visionReach, projectiles.size()));
+        }
 
         // Pass 6: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
+
+        // ui_contrast_test (F12): a full-screen developer test card, so it wins over everything
+        // including the console — exactly the "readable on all four means readable in the game"
+        // validation the console plan asks for.
+        if (debugState.contrastTest()) {
+            contrastTestOverlay.render();
+        }
+    }
+
+    /** {@code r_shadows}: soft by default; unrouted through {@link DebugState} since it ships on. */
+    private boolean isShadowsOn() {
+        Cvar cvar = commandService.cvars().find("r_shadows");
+        return cvar == null || Boolean.parseBoolean(cvar.value());
     }
 
     private void sampleCameraInput(float delta) {
         float dx = 0f;
         float dy = 0f;
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
+        if (bindings.isMoveLeftPressed()) {
             dx -= PAN_SPEED_UNITS_PER_SECOND * delta;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
+        if (bindings.isMoveRightPressed()) {
             dx += PAN_SPEED_UNITS_PER_SECOND * delta;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
+        if (bindings.isCrouchPressed()) {
             dy -= PAN_SPEED_UNITS_PER_SECOND * delta;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.UP)) {
+        if (bindings.isJumpPressed()) {
             dy += PAN_SPEED_UNITS_PER_SECOND * delta;
         }
         if (dx != 0f || dy != 0f) {
@@ -397,7 +442,14 @@ public final class GameScreen implements Screen {
     private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
         List<String> lines = new ArrayList<>();
         lines.add("SkyStrike — Phase 5 (Throwables and Zones)");
-        lines.add("server: " + session.statusLine());
+        lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
+        if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
+            // M6/M7 aren't built yet; the toggles are wired ahead of the pipeline (build plan M3
+            // §4) so this is the only place they have anything to show right now.
+            lines.add(String.format(
+                "debug: r_player_light=%s  r_player_light_shadows=%s  fx_debug=%s",
+                debugState.playerLight(), debugState.playerLightShadows(), debugState.fxDebug()));
+        }
         if (localPlayer != null) {
             lines.add(String.format(
                     "player: pos (%.0f, %.0f)  vel (%.0f, %.0f)  fuel %.0f  rot %.1f°  aim %.1f°  %s %s",
@@ -453,7 +505,10 @@ public final class GameScreen implements Screen {
                     reload,
                     loadout.quickSwapOrigin == PlayerLoadout.NO_QUICK_SWAP
                         ? "-" : String.valueOf(loadout.quickSwapOrigin)));
-                lines.add(loadoutController.debugStatusLine());
+                String pendingPress = loadoutController.debugStatusLine();
+                if (!pendingPress.isEmpty()) {
+                    lines.add(pendingPress);
+                }
             }
             for (PacketKillEvent kill : session.killFeed()) {
                 lines.add("  " + kill.feedLine());
@@ -469,14 +524,21 @@ public final class GameScreen implements Screen {
                     arena.solids().size()));
         }
         lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
-            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  F1 SDF debug  Enter chat/console");
+            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Enter chat/console");
         return lines;
+    }
+
+    /** {@code " [CHEATS]"} whenever the server reports any player has a debug toggle on, else "". */
+    private String cheatsTagOrEmpty() {
+        PacketGameState snapshot = session.latestSnapshot();
+        return snapshot != null && snapshot.cheatsActive ? "  [CHEATS]" : "";
     }
 
     @Override
     public void resize(int width, int height) {
         camera.resize(width, height);
         overlay.resize(width, height);
+        contrastTestOverlay.resize(width, height);
         consoleDialog.resize(width, height);
         if (pipeline != null) {
             pipeline.resize(width, height);
@@ -505,6 +567,8 @@ public final class GameScreen implements Screen {
         thrownUtilityRenderer.dispose();
         trajectoryRenderer.dispose();
         overlay.dispose();
+        hitboxOverlay.dispose();
+        contrastTestOverlay.dispose();
         if (pipeline != null) {
             pipeline.dispose();
         }

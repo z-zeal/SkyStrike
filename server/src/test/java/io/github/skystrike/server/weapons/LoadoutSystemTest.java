@@ -107,6 +107,23 @@ class LoadoutSystemTest {
     }
 
     @Test
+    @DisplayName("sv_infinite_ammo leaves the magazine and reserve untouched while firing")
+    void infiniteAmmoSkipsConsumption() {
+        session.setInfiniteAmmo(true);
+        int startingMagazine = player.loadout.primary.magazine;
+        int startingReserve = player.loadout.primary.reserve;
+
+        holdTrigger(1);
+        tick();
+        assertEquals(startingMagazine, player.loadout.primary.magazine,
+            "infinite ammo must not spend the magazine");
+        assertEquals(startingReserve, player.loadout.primary.reserve,
+            "infinite ammo must not spend the reserve");
+        assertTrue(bulletSystem.active().size() > 0, "the round still fires");
+        assertFalse(player.loadout.reloading, "a full magazine never starts a reload");
+    }
+
+    @Test
     @DisplayName("an empty magazine blocks the trigger and starts the reload instead")
     void emptyMagazineStartsReload() {
         player.loadout.primary.magazine = 1;

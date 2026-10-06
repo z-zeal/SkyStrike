@@ -73,4 +73,17 @@ public final class PlayerRegistry {
         byId.clear();
         byConnectionId.clear();
     }
+
+    /**
+     * True while any joined session has a server debug toggle on (build plan M3 §4): the
+     * snapshot's {@code cheatsActive} flag reads this so the HUD can explain an immortal target.
+     */
+    public boolean anyCheatActive() {
+        for (PlayerSession session : byId.values()) {
+            if (session.noclip() || session.godmode() || session.infiniteAmmo()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

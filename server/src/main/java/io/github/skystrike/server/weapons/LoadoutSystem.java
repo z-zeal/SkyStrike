@@ -247,7 +247,10 @@ public final class LoadoutSystem {
         for (int i = 0; i < roundsLaunched; i++) {
             bulletSystem.spawn(player, gun.weaponId(), volley.angle(i));
         }
-        item.consume(cost);
+        // sv_infinite_ammo (build plan M3 §4): the session that fired keeps its rounds.
+        if (!session.infiniteAmmo()) {
+            item.consume(cost);
+        }
 
         // The magazine hitting zero starts the reload on its own; nobody rations a reload.
         if (!item.hasRounds()) {

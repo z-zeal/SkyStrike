@@ -29,6 +29,7 @@ class DebugStateTest {
             .setNoclip(true)
             .setGodmode(true)
             .setFxDebug(true)
+            .setContrastTest(true)
             .setTimescale(4f);
 
         assertFalse(state.masterEnabled());
@@ -43,6 +44,7 @@ class DebugStateTest {
         assertFalse(state.noclip());
         assertFalse(state.godmode());
         assertFalse(state.fxDebug());
+        assertFalse(state.contrastTest());
         assertEquals(DebugState.DEFAULT_TIMESCALE, state.timescale());
     }
 
@@ -50,10 +52,11 @@ class DebugStateTest {
     @DisplayName("with the master on, stored values read back as stored")
     void masterOnMeansReadsFollowStorage() {
         DebugState state = new DebugState(true);
-        state.setNoclip(true).setGodmode(true).setTimescale(2.5f);
+        state.setNoclip(true).setGodmode(true).setContrastTest(true).setTimescale(2.5f);
 
         assertTrue(state.noclip());
         assertTrue(state.godmode());
+        assertTrue(state.contrastTest());
         assertEquals(2.5f, state.timescale(), 1e-6f);
         assertFalse(state.freecam(), "untouched features still read false");
         assertFalse(state.overlay());

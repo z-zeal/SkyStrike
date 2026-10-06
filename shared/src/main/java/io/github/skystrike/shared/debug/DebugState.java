@@ -31,6 +31,7 @@ public final class DebugState {
     private boolean noclip;
     private boolean godmode;
     private boolean fxDebug;
+    private boolean contrastTest;
     private float timescale = DEFAULT_TIMESCALE;
 
     public DebugState(boolean masterEnabled) {
@@ -84,6 +85,11 @@ public final class DebugState {
 
     public boolean fxDebug() {
         return masterEnabled && fxDebug;
+    }
+
+    /** The console plan §5.2 four-background legibility check ({@code ui_contrast_test} / F12). */
+    public boolean contrastTest() {
+        return masterEnabled && contrastTest;
     }
 
     public float timescale() {
@@ -144,6 +150,11 @@ public final class DebugState {
 
     public DebugState setFxDebug(boolean value) {
         fxDebug = value;
+        return this;
+    }
+
+    public DebugState setContrastTest(boolean value) {
+        contrastTest = value;
         return this;
     }
 

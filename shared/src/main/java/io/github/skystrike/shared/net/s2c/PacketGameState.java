@@ -38,6 +38,13 @@ public final class PacketGameState implements Packet {
     /** Persistent smoke, poison and fire zones currently in the arena. */
     public List<UtilityZone> utilityZones = new ArrayList<>();
 
+    /**
+     * True while any joined session has a server debug toggle on ({@code sv_noclip},
+     * {@code sv_godmode} or {@code sv_infinite_ammo}; build plan M3 §4) — the HUD's "CHEATS" tag
+     * reads this so nobody is confused about why a target will not die.
+     */
+    public boolean cheatsActive;
+
     public PacketGameState() {
     }
 
@@ -106,6 +113,7 @@ public final class PacketGameState implements Packet {
             + ", players=" + players.size()
             + ", projectiles=" + projectiles.size()
             + ", thrownUtilities=" + thrownUtilities.size()
-            + ", utilityZones=" + utilityZones.size() + "]";
+            + ", utilityZones=" + utilityZones.size()
+            + ", cheatsActive=" + cheatsActive + "]";
     }
 }

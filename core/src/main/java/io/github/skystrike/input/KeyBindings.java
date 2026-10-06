@@ -68,6 +68,22 @@ public final class KeyBindings {
      */
     public int openChat = Input.Keys.ENTER;
 
+    // Debug toolkit (build plan M3 §4): one key per cvar/command, bound exactly like any other
+    // action. DebugKeyController polls these and submits the matching command line — nothing
+    // here ever flips a debug boolean directly.
+    public int clDebugOverlayKey = Input.Keys.F1;
+    public int clFreecamKey = Input.Keys.F2;
+    public int rShadowsKey = Input.Keys.F3;
+    public int svInfiniteAmmoKey = Input.Keys.F4;
+    public int respawnKey = Input.Keys.F5;
+    public int rShowSdfKey = Input.Keys.F6;
+    public int svNoclipKey = Input.Keys.F7;
+    public int svGodmodeKey = Input.Keys.F8;
+    public int rShowHitboxesKey = Input.Keys.F9;
+    public int rPlayerLightKey = Input.Keys.F10;
+    public int fxDebugKey = Input.Keys.F11;
+    public int uiContrastTestKey = Input.Keys.F12;
+
     private final Map<String, Action> actions = new LinkedHashMap<>();
 
     public KeyBindings() {
@@ -106,6 +122,24 @@ public final class KeyBindings {
         recordSingle("viewCycle", () -> viewCycle, v -> viewCycle = v, () -> Input.Keys.NUM_6);
         recordSingle("viewExit", () -> viewExit, v -> viewExit = v, () -> Input.Keys.ESCAPE);
         recordSingle("openChat", () -> openChat, v -> openChat = v, () -> Input.Keys.ENTER);
+
+        recordSingle("clDebugOverlay", () -> clDebugOverlayKey, v -> clDebugOverlayKey = v,
+            () -> Input.Keys.F1);
+        recordSingle("clFreecam", () -> clFreecamKey, v -> clFreecamKey = v, () -> Input.Keys.F2);
+        recordSingle("rShadows", () -> rShadowsKey, v -> rShadowsKey = v, () -> Input.Keys.F3);
+        recordSingle("svInfiniteAmmo", () -> svInfiniteAmmoKey, v -> svInfiniteAmmoKey = v,
+            () -> Input.Keys.F4);
+        recordSingle("respawn", () -> respawnKey, v -> respawnKey = v, () -> Input.Keys.F5);
+        recordSingle("rShowSdf", () -> rShowSdfKey, v -> rShowSdfKey = v, () -> Input.Keys.F6);
+        recordSingle("svNoclip", () -> svNoclipKey, v -> svNoclipKey = v, () -> Input.Keys.F7);
+        recordSingle("svGodmode", () -> svGodmodeKey, v -> svGodmodeKey = v, () -> Input.Keys.F8);
+        recordSingle("rShowHitboxes", () -> rShowHitboxesKey, v -> rShowHitboxesKey = v,
+            () -> Input.Keys.F9);
+        recordSingle("rPlayerLight", () -> rPlayerLightKey, v -> rPlayerLightKey = v,
+            () -> Input.Keys.F10);
+        recordSingle("fxDebug", () -> fxDebugKey, v -> fxDebugKey = v, () -> Input.Keys.F11);
+        recordSingle("uiContrastTest", () -> uiContrastTestKey, v -> uiContrastTestKey = v,
+            () -> Input.Keys.F12);
     }
 
     /** Single-key action: default is the only default. */
@@ -242,6 +276,56 @@ public final class KeyBindings {
     /** Edge-triggered: true only on the frame the chat key goes down. */
     public boolean isOpenChatJustPressed() {
         return Gdx.input.isKeyJustPressed(openChat);
+    }
+
+    // --- Debug toolkit (build plan M3 §4), each edge-triggered like every other action ---------
+
+    public boolean isClDebugOverlayJustPressed() {
+        return Gdx.input.isKeyJustPressed(clDebugOverlayKey);
+    }
+
+    public boolean isClFreecamJustPressed() {
+        return Gdx.input.isKeyJustPressed(clFreecamKey);
+    }
+
+    public boolean isRShadowsJustPressed() {
+        return Gdx.input.isKeyJustPressed(rShadowsKey);
+    }
+
+    public boolean isSvInfiniteAmmoJustPressed() {
+        return Gdx.input.isKeyJustPressed(svInfiniteAmmoKey);
+    }
+
+    public boolean isRespawnJustPressed() {
+        return Gdx.input.isKeyJustPressed(respawnKey);
+    }
+
+    public boolean isRShowSdfJustPressed() {
+        return Gdx.input.isKeyJustPressed(rShowSdfKey);
+    }
+
+    public boolean isSvNoclipJustPressed() {
+        return Gdx.input.isKeyJustPressed(svNoclipKey);
+    }
+
+    public boolean isSvGodmodeJustPressed() {
+        return Gdx.input.isKeyJustPressed(svGodmodeKey);
+    }
+
+    public boolean isRShowHitboxesJustPressed() {
+        return Gdx.input.isKeyJustPressed(rShowHitboxesKey);
+    }
+
+    public boolean isRPlayerLightJustPressed() {
+        return Gdx.input.isKeyJustPressed(rPlayerLightKey);
+    }
+
+    public boolean isFxDebugJustPressed() {
+        return Gdx.input.isKeyJustPressed(fxDebugKey);
+    }
+
+    public boolean isUiContrastTestJustPressed() {
+        return Gdx.input.isKeyJustPressed(uiContrastTestKey);
     }
 
     /** Edge-triggered: true only on the frame a loadout slot key (1–5) goes down. */

@@ -33,7 +33,9 @@ import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
 import io.github.skystrike.server.weapons.LoadoutSystem;
 import io.github.skystrike.server.weapons.RecoilService;
+import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
@@ -96,6 +98,9 @@ public final class GameServer {
     private final CapabilityBroadcaster capabilities;
     private final ServerCommandService commandService;
 
+    /** The debug toolkit's one piece of genuinely global state (build plan M3 §4): timescale. */
+    private final DebugState debugState = new DebugState(DebugFlags.enabled());
+
     /** Reused per tick so the combat systems do not allocate a player list 60 times a second. */
     private final List<Player> playerStates = new ArrayList<>();
 
@@ -117,6 +122,11 @@ public final class GameServer {
         this.fuelTankSystem = new FuelTankSystem(this.arena);
         this.killFeed = new KillFeedService();
         this.damageService = new DamageService(this.killFeed, this.fuelTankSystem);
+        // sv_godmode (build plan M3 §4): per-player session state is the single source of truth.
+        this.damageService.setGodmodePredicate(id -> {
+            PlayerSession session = this.players.byPlayerId(id);
+            return session != null && session.godmode();
+        });
         RecoilService recoilService = new RecoilService();
         this.loadoutSystem = new LoadoutSystem(
             new FireController(new Random(), recoilService),
@@ -143,7 +153,8 @@ public final class GameServer {
                 this.loadoutSystem,
                 this.chatService,
                 this::sendToPlayer,
-                this::prepareForLife));
+                this::prepareForLife,
+                this.debugState));
 
         registerHandlers();
     }
@@ -311,7 +322,9 @@ public final class GameServer {
     private void tick(SimulationClock clock) {
         endpoint.drain(this::applyNetworkEvent);
 
-        float dt = clock.dt();
+        // timescale (build plan M3 §4): scales simulation time only, never the wall-clock tick
+        // rate the loop itself runs at.
+        float dt = clock.dt() * debugState.timescale();
         collectPlayerStates();
 
         // 1. Dead players count back in, getting their requested loadout composition and a
@@ -327,7 +340,7 @@ public final class GameServer {
         for (PlayerSession session : players.all()) {
             Player player = session.player();
             PlayerInput input = session.latestInput();
-            PlayerMotion.stepInPlace(player, player.alive ? input : null, dt, arena);
+            PlayerMotion.stepInPlace(player, player.alive ? input : null, dt, arena, session.noclip());
             if (!player.alive && input != null) {
                 // Dead players are still acknowledged, so the client's prediction queue drains
                 // instead of banking three seconds of input for the respawn.
@@ -463,6 +476,7 @@ public final class GameServer {
         List<Projectile> liveRounds = bulletSystem.active();
         List<ThrownUtility> liveUtilities = utilitySystem.active();
         List<UtilityZone> liveUtilityZones = utilitySystem.zones();
+        boolean cheatsActive = players.anyCheatActive();
 
         for (ConnectionRegistry.Entry entry : connections.entries()) {
             Connection conn = entry.connection();
@@ -471,6 +485,7 @@ public final class GameServer {
             }
 
             PacketGameState snapshot = new PacketGameState(tick, now, totalJoined);
+            snapshot.cheatsActive = cheatsActive;
             for (PlayerSession s : players.all()) {
                 snapshot.players.add(s.player().copy());
             }

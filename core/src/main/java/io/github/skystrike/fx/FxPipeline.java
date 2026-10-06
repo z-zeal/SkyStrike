@@ -70,9 +70,12 @@ public final class FxPipeline implements Disposable {
 
     /**
      * Executes the half-resolution visibility pass for all observers.
+     *
+     * @param hardShadows {@code r_shadows} off (build plan M3 §4, F3): hard edges instead of the
+     *     default SDF soft shadows.
      */
-    public void renderVisibility(GameCamera camera, List<ObserverState> observers) {
-        visibilitySystem.render(camera, sdfTexture, observers, smokeVolumes);
+    public void renderVisibility(GameCamera camera, List<ObserverState> observers, boolean hardShadows) {
+        visibilitySystem.render(camera, sdfTexture, observers, smokeVolumes, hardShadows);
     }
 
     /**

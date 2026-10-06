@@ -71,6 +71,14 @@ public final class VisionConfig {
     /** Penumbra softness constant k for SDF soft shadows (16.0). */
     public static final float SHADOW_SOFTNESS_K = 16.0f;
 
+    /**
+     * Shadow k when {@code r_shadows} is off (build plan M3 §4): large enough that
+     * {@code min(res, k*d/t)} saturates to a near step function, collapsing the penumbra to a
+     * hard edge instead of actually disabling occlusion (k=0 would do the opposite and black out
+     * the whole cone).
+     */
+    public static final float SHADOW_HARD_K = 4096.0f;
+
     /** Maximum raymarching step budget on desktop tier (48 steps). */
     public static final int MARCH_STEPS_DESKTOP = 48;
 

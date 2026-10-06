@@ -60,12 +60,16 @@ public final class VisibilitySystem implements Disposable {
 
     /**
      * Executes the visibility pass for all active observers.
+     *
+     * @param hardShadows {@code r_shadows} off (build plan M3 §4, F3): collapses the SDF
+     *     penumbra to a hard edge instead of the normal soft falloff.
      */
     public void render(
             GameCamera camera,
             SdfTexture sdfTexture,
             List<ObserverState> observers,
-            SmokeVolumes smokeVolumes) {
+            SmokeVolumes smokeVolumes,
+            boolean hardShadows) {
         if (shader == null) {
             shader = shaders.load("visibility_cone", "light/visibility.vert", "light/visibility_cone.frag");
         }
@@ -80,7 +84,8 @@ public final class VisibilitySystem implements Disposable {
             shader.setUniformf("u_camPos", camera.x(), camera.y());
             shader.setUniformf("u_viewportSize", camera.viewportWidth(), camera.viewportHeight());
             shader.setUniformf("u_worldSize", sdfTexture.worldWidth(), sdfTexture.worldHeight());
-            shader.setUniformf("u_shadowK", VisionConfig.SHADOW_SOFTNESS_K);
+            shader.setUniformf("u_shadowK",
+                hardShadows ? VisionConfig.SHADOW_HARD_K : VisionConfig.SHADOW_SOFTNESS_K);
             shader.setUniformi("u_maxMarchSteps", VisionConfig.MARCH_STEPS_DESKTOP);
             shader.setUniformf("u_peripheralFloor", VisionConfig.PERIPHERAL_FLOOR);
 

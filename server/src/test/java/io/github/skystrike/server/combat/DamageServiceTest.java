@@ -250,4 +250,28 @@ class DamageServiceTest {
         target.alive = false;
         assertNull(damage.apply(attacker, 1, target, 10f, HitZone.BODY, 0, 0f, 0f, 0f));
     }
+
+    @Test
+    @DisplayName("sv_godmode blocks every damage path for that player, including bullets")
+    void godmodeBlocksDamage() {
+        damage.setGodmodePredicate(id -> id == target.id);
+
+        WeaponDefinition carbine = WeaponRegistry.of(WeaponId.IRON_CARBINE);
+        DamageService.DamageResult bullet =
+            damage.applyBulletDamage(attacker, attacker.id, target, carbine, 700f, bodyY(target), 0f);
+        assertNull(bullet);
+        assertEquals(PlayerConfig.MAX_HEALTH, target.health);
+        assertTrue(target.alive);
+
+        DamageService.DamageResult direct =
+            damage.apply(attacker, attacker.id, target, 40f, HitZone.BODY, 0, 700f, 120f, 0f);
+        assertNull(direct);
+        assertEquals(PlayerConfig.MAX_HEALTH, target.health);
+
+        // Only the flagged player is immune; the attacker still takes the same damage normally.
+        DamageService.DamageResult onAttacker =
+            damage.apply(target, target.id, attacker, 40f, HitZone.BODY, 0, 400f, 100f, 0f);
+        assertNotNull(onAttacker);
+        assertEquals(PlayerConfig.MAX_HEALTH - 40f, attacker.health, EPSILON);
+    }
 }

@@ -24,10 +24,22 @@ public final class InputSampler {
     private final Vector3 mouseScreenVec = new Vector3();
     private long sequenceCounter = 1L;
 
+    /** {@code cl_freecam} (build plan M3 §4): while true, sampled input carries zeroed intent. */
+    private boolean freecamActive;
+
     public InputSampler(KeyBindings bindings, InputRouter router, LoadoutController loadoutController) {
         this.bindings = bindings;
         this.router = router;
         this.loadoutController = loadoutController;
+    }
+
+    /**
+     * Set once per frame from {@code cl_freecam}'s current value, before {@link #sample}. The
+     * camera detaches and pans freely, but the player's own input packets must keep flowing with
+     * no movement intent — the server stays authoritative over a player who is still "there".
+     */
+    public void setFreecamActive(boolean freecamActive) {
+        this.freecamActive = freecamActive;
     }
 
     /**
@@ -36,7 +48,7 @@ public final class InputSampler {
     public PacketPlayerInput sample(Player localPlayer, GameCamera camera) {
         long sequence = sequenceCounter++;
         PacketPlayerInput packet;
-        if (!router.isGameplayActive() || localPlayer == null || camera == null) {
+        if (!router.isGameplayActive() || localPlayer == null || camera == null || freecamActive) {
             packet = new PacketPlayerInput(
                 sequence, 0f, false, false, false, false, false, 0f, PacketPlayerInput.NO_SLOT_PRESS);
         } else {
