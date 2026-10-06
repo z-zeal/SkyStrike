@@ -75,6 +75,22 @@ class PlayerMotionTest {
     }
 
     @Test
+    @DisplayName("a stunned player targets 30 percent movement speed while the slow lasts")
+    void stunSlowLimitsInputSpeed() {
+        Player player = new Player(1, "Stunned", 0, 500f, WorldConfig.GROUND_HEIGHT);
+        player.applyStatus(0f, 2f);
+        PlayerInput input = new PlayerInput(1L, 1f, false, false, false, false, false, 0f);
+
+        for (int i = 0; i < 30; i++) {
+            player = PlayerMotion.step(player, input, 1f / 60f, map);
+        }
+
+        assertTrue(player.isSlowed());
+        assertTrue(player.vx <= PlayerConfig.WALK_SPEED * 0.30f + 0.1f);
+        assertTrue(player.vx > PlayerConfig.WALK_SPEED * 0.25f);
+    }
+
+    @Test
     @DisplayName("jumping applies 420 u/s upward velocity and breaks grounded state")
     void jumpAppliesVelocity() {
         Player player = new Player(1, "Jumper", 0, 500f, WorldConfig.GROUND_HEIGHT);

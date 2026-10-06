@@ -79,6 +79,7 @@ public final class RespawnService {
         player.alive = true;
         player.spread = 0f;
         player.gunKick = 0f;
+        player.clearStatusEffects();
         if (player.loadout != null) {
             player.loadout.resetForRespawn();
         }

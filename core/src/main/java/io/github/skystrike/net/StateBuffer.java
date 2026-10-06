@@ -2,6 +2,8 @@ package io.github.skystrike.net;
 
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,9 +25,11 @@ public final class StateBuffer {
         private final long timestampMillis;
         private final Map<Integer, Player> players;
         private final Map<Integer, Projectile> projectiles;
+        private final Map<Integer, ThrownUtility> thrownUtilities;
+        private final Map<Integer, UtilityZone> utilityZones;
 
         public Snapshot(long tick, long timestampMillis, List<Player> playerList) {
-            this(tick, timestampMillis, playerList, null);
+            this(tick, timestampMillis, playerList, null, null, null);
         }
 
         public Snapshot(
@@ -33,6 +37,16 @@ public final class StateBuffer {
                 long timestampMillis,
                 List<Player> playerList,
                 List<Projectile> projectileList) {
+            this(tick, timestampMillis, playerList, projectileList, null, null);
+        }
+
+        public Snapshot(
+                long tick,
+                long timestampMillis,
+                List<Player> playerList,
+                List<Projectile> projectileList,
+                List<ThrownUtility> thrownUtilityList,
+                List<UtilityZone> utilityZoneList) {
             this.tick = tick;
             this.timestampMillis = timestampMillis;
 
@@ -51,6 +65,22 @@ public final class StateBuffer {
                 }
             }
             this.projectiles = Collections.unmodifiableMap(projectileMap);
+
+            Map<Integer, ThrownUtility> thrownMap = new HashMap<>();
+            if (thrownUtilityList != null) {
+                for (ThrownUtility utility : thrownUtilityList) {
+                    thrownMap.put(utility.id, utility.copy());
+                }
+            }
+            this.thrownUtilities = Collections.unmodifiableMap(thrownMap);
+
+            Map<Integer, UtilityZone> zoneMap = new HashMap<>();
+            if (utilityZoneList != null) {
+                for (UtilityZone zone : utilityZoneList) {
+                    zoneMap.put(zone.id, zone.copy());
+                }
+            }
+            this.utilityZones = Collections.unmodifiableMap(zoneMap);
         }
 
         public long tick() {
@@ -68,6 +98,14 @@ public final class StateBuffer {
         public Map<Integer, Projectile> projectiles() {
             return projectiles;
         }
+
+        public Map<Integer, ThrownUtility> thrownUtilities() {
+            return thrownUtilities;
+        }
+
+        public Map<Integer, UtilityZone> utilityZones() {
+            return utilityZones;
+        }
     }
 
     private static final int MAX_SNAPSHOTS = 64;
@@ -84,7 +122,8 @@ public final class StateBuffer {
             return;
         }
         long time = state.serverTimeMillis > 0 ? state.serverTimeMillis : System.currentTimeMillis();
-        snapshots.add(new Snapshot(state.tick, time, state.players, state.projectiles));
+        snapshots.add(new Snapshot(
+            state.tick, time, state.players, state.projectiles, state.thrownUtilities, state.utilityZones));
         while (snapshots.size() > MAX_SNAPSHOTS) {
             snapshots.remove(0);
         }

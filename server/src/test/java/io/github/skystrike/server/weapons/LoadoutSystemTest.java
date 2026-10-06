@@ -9,6 +9,7 @@ import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.KillFeedService;
 import io.github.skystrike.server.combat.MeleeSystem;
 import io.github.skystrike.server.player.PlayerSession;
+import io.github.skystrike.server.utility.UtilitySystem;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
@@ -37,16 +38,19 @@ class LoadoutSystemTest {
 
     private LoadoutSystem system;
     private BulletSystem bulletSystem;
+    private UtilitySystem utilitySystem;
     private DamageService damage;
     private PlayerSession session;
     private Player player;
 
     @BeforeEach
     void setUp() {
-        bulletSystem = new BulletSystem(ArenaMap.standard());
+        ArenaMap arena = ArenaMap.standard();
+        bulletSystem = new BulletSystem(arena);
+        utilitySystem = new UtilitySystem(arena);
         damage = new DamageService(new KillFeedService());
         system = new LoadoutSystem(
-            new FireController(new Random(20261005L), new RecoilService()), new MeleeSystem(), bulletSystem);
+            new FireController(new Random(20261005L), new RecoilService()), new MeleeSystem(), bulletSystem, utilitySystem);
         session = new PlayerSession(null, 1, "Nova", 0, 400f, 1200f);
         player = session.player();
         player.aimAngle = 0f;
@@ -275,6 +279,41 @@ class LoadoutSystemTest {
         tick();
         assertEquals(PlayerLoadout.SLOT_PRIMARY, player.loadout.activeSlot,
             "slot 4 is depleted: the press is ignored");
+    }
+
+    @Test
+    @DisplayName("an equipped utility consumes one item only after a successful trigger-edge throw")
+    void utilityThrowUsesEdgeInventoryAndCooldown() {
+        pressSlot(1, PlayerLoadout.SLOT_UTILITY_A, 100L);
+        tick();
+        assertEquals(PlayerLoadout.SLOT_UTILITY_A, player.loadout.activeSlot);
+
+        holdTrigger(2);
+        tick();
+        assertEquals(1, player.loadout.utilityACount);
+        assertEquals(1, utilitySystem.count());
+        assertTrue(session.utilityCooldownRemaining(player.loadout.utilityIdForSlot(PlayerLoadout.SLOT_UTILITY_A)) > 0f);
+
+        // Holding does not empty the slot at simulation rate, and a fresh edge during cooldown
+        // is still rejected by the type-specific timer.
+        tick();
+        assertEquals(1, player.loadout.utilityACount);
+        releaseTrigger(3);
+        holdTrigger(4);
+        tick();
+        assertEquals(1, player.loadout.utilityACount);
+        assertEquals(1, utilitySystem.count());
+    }
+
+    @Test
+    @DisplayName("stun slow consumes trigger edges and prevents a gun shot")
+    void stunLocksWeapons() {
+        player.applyStatus(0f, 1f);
+        holdTrigger(1);
+        tick();
+
+        assertEquals(30, player.loadout.primary.magazine);
+        assertTrue(bulletSystem.active().isEmpty());
     }
 
     // --- Melee --------------------------------------------------------------------------------------

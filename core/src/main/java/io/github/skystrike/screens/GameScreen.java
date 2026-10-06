@@ -21,6 +21,8 @@ import io.github.skystrike.net.StateBuffer;
 import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.ProjectileRenderer;
+import io.github.skystrike.render.ThrownUtilityRenderer;
+import io.github.skystrike.render.TrajectoryRenderer;
 import io.github.skystrike.render.StatusOverlay;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
@@ -31,6 +33,8 @@ import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -65,6 +69,8 @@ public final class GameScreen implements Screen {
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
     private final PlayerRenderer playerRenderer = new PlayerRenderer();
     private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
+    private final ThrownUtilityRenderer thrownUtilityRenderer = new ThrownUtilityRenderer();
+    private final TrajectoryRenderer trajectoryRenderer = new TrajectoryRenderer();
     private final StatusOverlay overlay = new StatusOverlay();
     private final ClientSession session;
 
@@ -210,13 +216,26 @@ public final class GameScreen implements Screen {
         // 3. Interpolate remote player and projectile states
         List<Player> remotePlayers = interpolator.interpolateRemotePlayers(session.playerId());
         List<Projectile> projectiles = interpolator.interpolateProjectiles();
+        List<ThrownUtility> thrownUtilities = interpolator.interpolateThrownUtilities();
+        List<UtilityZone> utilityZones = interpolator.latestUtilityZones();
+
+        // The snapshot zones are the sole source for the shader's smoke circles. This mirrors
+        // the server's UtilitySystem smokeVolumes list rather than inventing a client-only cloud.
+        pipeline.smokeVolumes().clear();
+        for (UtilityZone zone : utilityZones) {
+            if (zone.blocksVision()) {
+                pipeline.smokeVolumes().add(zone.smokeVolume());
+            }
+        }
 
         // 4. Multi-pass rendering pipeline (effects §5)
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
         pipeline.beginScene();
         terrain.render(camera);
+        trajectoryRenderer.render(camera, localPlayer, arena);
         playerRenderer.render(camera, remotePlayers, localPlayer);
         projectileRenderer.render(camera, projectiles);
+        thrownUtilityRenderer.render(camera, thrownUtilities);
         pipeline.endScene();
 
         // Pass 2: VISIBILITY (Observers + SDF Soft Shadows into half-res visibility buffer)
@@ -268,7 +287,7 @@ public final class GameScreen implements Screen {
 
     private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike — Phase 4 (Weapons, Melee and Loadout)");
+        lines.add("SkyStrike — Phase 5 (Throwables and Zones)");
         lines.add("server: " + session.statusLine());
         if (localPlayer != null) {
             lines.add(String.format(
@@ -393,6 +412,8 @@ public final class GameScreen implements Screen {
         terrain.dispose();
         playerRenderer.dispose();
         projectileRenderer.dispose();
+        thrownUtilityRenderer.dispose();
+        trajectoryRenderer.dispose();
         overlay.dispose();
         if (pipeline != null) {
             pipeline.dispose();

@@ -194,22 +194,33 @@ So the honest sequencing recommendation is:
 | Console plan build-order Phase 3 — capabilities | Implemented: `shared/command/{Permission,ConsoleAccess}`, `PacketCapabilities`, `server/command/{PermissionResolver,CapabilityBroadcaster}`, `core/command/ClientCapabilities` |
 | Phase 5 increment 1 — shared throwable foundation | Implemented: `shared/config/UtilityConfig`, `shared/utility/{UtilityId,DetonationMode,UtilityEffect,UtilityDefinition,UtilityRegistry,ThrowablePhysics,ExplosionMath,StunMath}`, `shared/model/ThrownUtility` |
 | Phase 5 increment 2A — utility inventory and wire contract | Implemented: populated loadout slots 4–5 with carried counts and respawn refill; utility choices added to the server-authoritative loadout request; `ThrownUtility` appended at Kryo index 25 and added to `PacketGameState` |
+| Phase 5 increment 2B — authoritative lifecycle, zones and preview | Written but uncompiled: utility trigger edges and cooldowns; `server/utility/UtilitySystem` flight, fuse/contact/proximity detonation, occluded blast/impulse damage, stun lock, smoke/poison/fire zones, claymore placement; snapshots now carry `UtilityZone` at Kryo index 26; live smoke zones feed the client shader and `TrajectoryRenderer` uses `ThrowablePhysics` |
 
 Phase 5 is under way, so §3.6's "never started" now applies to Phase 6 only. What landed is the
 shared half: identity and wire encoding (2000 + ordinal, a third range in the existing `weaponId`
 int), the mechanics §6 catalogue, the one substepped bouncing integrator the server and the
-trajectory preview will both call, absolute terrain occlusion for blasts, and stun banding.
-Increment 2 now has its contract slice: loadout slots 4–5 carry utility identity and authoritative
-per-life counts, depleted slots are skipped, utility composition changes remain respawn-only, and
-`ThrownUtility` is append-only wire state at Kryo index 25 inside `PacketGameState`. Not yet
-present: the actual `server/utility/` throw/flight/detonation lifecycle, smoke volumes wired into
-the visibility pass, molotov surface spread, claymore placement, and
-`core/render/TrajectoryRenderer`. Claymore's numbers and the damage-over-time tick interval are
-marked provisional in code, because the plan leaves them blank.
+trajectory preview call, absolute terrain occlusion for blasts, and stun banding. Increment 2A has
+its contract slice: loadout slots 4–5 carry utility identity and authoritative per-life counts,
+depleted slots are skipped, and utility composition changes remain respawn-only.
+
+Increment 2B writes the operational half: trigger edges spawn an authoritative `ThrownUtility`
+only after its type cooldown permits it and consume carried count only after spawn succeeds; the
+server steps that state with the shared integrator, resolves fuses, impact contact and armed
+claymore proximity, then routes all damage through `DamageService`. Frag/impact and claymore
+impulses become real player velocity, stun blindness/slow replicate in `Player` (slow blocks
+weapons and targets 30% movement), and respawn clears those status effects. Persistent smoke,
+poison and tangent-spread molotov zones are `UtilityZone` snapshot state at appended Kryo index 26.
+Smoke is converted to the same opaque `SmokeVolume` circles for the server-facing query list and
+for the client visibility shader; molotov overlap uses its strongest patch once per shared DOT
+tick. `core/render/TrajectoryRenderer` predicts with the identical `ThrowablePhysics` step and
+the client renders/interpolates both thrown state and zones. The protocol is now 7. Claymore's
+arming/trigger/cone numbers, fire jitter, zone cap and the damage-over-time tick interval remain
+explicitly provisional where the plan gives no values.
 
 `TextSanitizer` and `RateLimiter` are no longer dead code — the relay is their only caller.
-`PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities and 5 → 6 for throwable state and utility
-loadouts. §3.3 and §3.4 above describe the state *before* this work; the rest of §3 still stands.
+`PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities, 5 → 6 for the throwable/loadout contract,
+and 6 → 7 for live utility zones and replicated throwable status. §3.3 and §3.4 above describe
+the state *before* this work; the rest of §3 still stands.
 
 Still outstanding for Phase 7: the HUD in full (§3.1), the dialog in full (§3.2), and build-order
 Phases 4–9 (§3.5).

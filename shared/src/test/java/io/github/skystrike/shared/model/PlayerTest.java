@@ -69,6 +69,30 @@ class PlayerTest {
     }
 
     @Test
+    @DisplayName("stun/flash state keeps the strongest duration, ticks down, and clears per life")
+    void statusEffectsAreStatefulAndCopyable() {
+        Player player = new Player(42, "Status", 0, 500f, 100f);
+        player.applyStatus(2f, 1f);
+        player.applyStatus(1f, 3f);
+
+        assertEquals(2f, player.blindRemaining, 1e-4f);
+        assertEquals(2f, player.blindDuration, 1e-4f);
+        assertEquals(3f, player.slowRemaining, 1e-4f);
+        assertTrue(player.isSlowed());
+
+        Player copy = player.copy();
+        assertEquals(2f, copy.blindRemaining, 1e-4f);
+        assertEquals(3f, copy.slowRemaining, 1e-4f);
+
+        player.tickStatus(2f);
+        assertEquals(0f, player.blindRemaining, 1e-4f);
+        assertEquals(0f, player.blindDuration, 1e-4f);
+        assertEquals(1f, player.slowRemaining, 1e-4f);
+        player.clearStatusEffects();
+        assertFalse(player.isSlowed());
+    }
+
+    @Test
     void copyIsDeepAndIndependent() {
         Player original = new Player(42, "Original", 1, 500f, 100f);
         original.vx = 120f;

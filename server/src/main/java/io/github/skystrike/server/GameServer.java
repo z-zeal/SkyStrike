@@ -22,6 +22,7 @@ import io.github.skystrike.server.player.PlayerRegistry;
 import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.player.RespawnService;
 import io.github.skystrike.server.player.SpawnService;
+import io.github.skystrike.server.utility.UtilitySystem;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
@@ -31,6 +32,8 @@ import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
@@ -76,6 +79,7 @@ public final class GameServer {
     private final int ticksPerSnapshot;
 
     private final BulletSystem bulletSystem;
+    private final UtilitySystem utilitySystem;
     private final KillFeedService killFeed;
     private final DamageService damageService;
     private final LoadoutSystem loadoutSystem;
@@ -99,11 +103,12 @@ public final class GameServer {
         this.ticksPerSnapshot = NetConfig.ticksPerSnapshot(config.tickRateHz());
 
         this.bulletSystem = new BulletSystem(this.arena);
+        this.utilitySystem = new UtilitySystem(this.arena);
         this.killFeed = new KillFeedService();
         this.damageService = new DamageService(this.killFeed);
         RecoilService recoilService = new RecoilService();
         this.loadoutSystem = new LoadoutSystem(
-            new FireController(new Random(), recoilService), new MeleeSystem(), this.bulletSystem);
+            new FireController(new Random(), recoilService), new MeleeSystem(), this.bulletSystem, this.utilitySystem);
 
         // Chat identity and team scoping come from the authoritative registry, never the packet.
         this.chatService = new ChatService(new RegistryRoster(this.players));
@@ -181,6 +186,10 @@ public final class GameServer {
         return bulletSystem;
     }
 
+    public UtilitySystem utilitySystem() {
+        return utilitySystem;
+    }
+
     public DamageService damageService() {
         return damageService;
     }
@@ -224,6 +233,7 @@ public final class GameServer {
             connections.clear();
             players.clear();
             bulletSystem.clear();
+            utilitySystem.clear();
             chatService.clear();
             capabilities.clear();
             System.out.println("[server] stopped");
@@ -265,8 +275,9 @@ public final class GameServer {
             loadoutSystem.tick(session, dt, playerStates, damageService);
         }
 
-        // 3. Rounds already in the air, including the ones fired a moment ago.
+        // 3. Rounds and utilities already in the world, including anything thrown this tick.
         bulletSystem.step(dt, playerStates, damageService);
+        utilitySystem.step(dt, playerStates, damageService);
 
         // 4. Tell the clients what happened to them.
         dispatchCombatEvents();
@@ -380,6 +391,8 @@ public final class GameServer {
         long now = System.currentTimeMillis();
         int totalJoined = connections.count();
         List<Projectile> liveRounds = bulletSystem.active();
+        List<ThrownUtility> liveUtilities = utilitySystem.active();
+        List<UtilityZone> liveUtilityZones = utilitySystem.zones();
 
         for (ConnectionRegistry.Entry entry : connections.entries()) {
             Connection conn = entry.connection();
@@ -393,6 +406,12 @@ public final class GameServer {
             }
             for (Projectile projectile : liveRounds) {
                 snapshot.projectiles.add(projectile.copy());
+            }
+            for (ThrownUtility utility : liveUtilities) {
+                snapshot.thrownUtilities.add(utility.copy());
+            }
+            for (UtilityZone zone : liveUtilityZones) {
+                snapshot.utilityZones.add(zone.copy());
             }
             endpoint.sendUnreliable(conn, snapshot);
         }

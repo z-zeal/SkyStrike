@@ -29,6 +29,12 @@ public final class ThrownUtility {
     public float vx;
     public float vy;
 
+    /**
+     * Direction the utility was placed or thrown. Flight derives its velocity from this on spawn;
+     * a placed claymore keeps it so its eventual blast can remain directional.
+     */
+    public float aimAngle;
+
     /** Seconds since it left the hand. Drives the self-contact grace and the lifetime cap. */
     public float age;
 
@@ -84,6 +90,7 @@ public final class ThrownUtility {
         this.prevY = other.prevY;
         this.vx = other.vx;
         this.vy = other.vy;
+        this.aimAngle = other.aimAngle;
         this.age = other.age;
         this.fuseRemaining = other.fuseRemaining;
         this.resting = other.resting;
@@ -121,6 +128,7 @@ public final class ThrownUtility {
             + ", utility=" + utility()
             + ", pos=(" + String.format("%.1f", x) + ", " + String.format("%.1f", y) + ")"
             + ", vel=(" + String.format("%.1f", vx) + ", " + String.format("%.1f", vy) + ")"
+            + ", aim=" + String.format("%.1f", aimAngle)
             + ", fuse=" + String.format("%.2f", fuseRemaining)
             + ", bounces=" + bounces
             + (resting ? ", resting" : "") + "]";

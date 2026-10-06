@@ -25,8 +25,11 @@ public final class NetConfig {
      *
      * <p>6 — Phase 5 throwable contract: {@code ThrownUtility} registered as snapshot state;
      * utility composition and carried counts added to the loadout contract.
+     *
+     * <p>7 — Phase 5 live utilities: {@code UtilityZone} appended as snapshot state; throwable
+     * aim and player stun/flash status became snapshot fields.
      */
-    public static final int PROTOCOL_VERSION = 6;
+    public static final int PROTOCOL_VERSION = 7;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;
