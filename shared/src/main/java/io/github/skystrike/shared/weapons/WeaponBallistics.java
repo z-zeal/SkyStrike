@@ -15,7 +15,7 @@ import java.util.Map;
  * would quietly put the two pictures out of step.
  *
  * @param weaponClass    family, which fixes the relative drop weight
- * @param muzzleSpeed    units per second at the muzzle, 520 (snub pistols) to 1950 (AMRs)
+ * @param muzzleSpeed    units per second at the muzzle; sidearms have a dedicated 1200 floor
  * @param dragPerTick    speed retained per 60 Hz tick, 0.980 (shotguns) to 0.998 (snipers)
  * @param gravityRampSeconds time over which drop ramps in, so rounds fly flat up close
  * @param maxRange       distance at which damage reaches its floor, from the weapon table
@@ -77,45 +77,45 @@ public record WeaponBallistics(
     private static Map<WeaponId, WeaponBallistics> buildTable() {
         Map<WeaponId, WeaponBallistics> table = new EnumMap<>(WeaponId.class);
         table.put(WeaponId.IRON_SIDEARM,
-            new WeaponBallistics(WeaponClass.PISTOL, 720f, 0.98f, 1f, 392f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1340f, 0.995f, 1f, 392f, 0.55f));
         table.put(WeaponId.VESPER_9,
-            new WeaponBallistics(WeaponClass.PISTOL, 710f, 0.98f, 1f, 420f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1332f, 0.995f, 1f, 420f, 0.55f));
         table.put(WeaponId.NEST_HAWK,
-            new WeaponBallistics(WeaponClass.PISTOL, 680f, 0.98f, 1f, 308f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1310f, 0.995f, 1f, 308f, 0.55f));
         table.put(WeaponId.COBALT_COMPACT,
-            new WeaponBallistics(WeaponClass.PISTOL, 580f, 0.98f, 1f, 252f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1235f, 0.995f, 1f, 252f, 0.55f));
         table.put(WeaponId.ASHEN_SERVICE,
-            new WeaponBallistics(WeaponClass.PISTOL, 750f, 0.9802f, 1f, 448f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1362f, 0.995f, 1f, 448f, 0.55f));
         table.put(WeaponId.REDLINE_45,
-            new WeaponBallistics(WeaponClass.PISTOL, 520f, 0.98f, 1f, 364f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1200f, 0.995f, 1f, 364f, 0.55f));
         table.put(WeaponId.GLASS_NEEDLER,
-            new WeaponBallistics(WeaponClass.PISTOL, 820f, 0.9813f, 1f, 532f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1415f, 0.995f, 1f, 532f, 0.55f));
         table.put(WeaponId.HARBOR_19,
-            new WeaponBallistics(WeaponClass.PISTOL, 700f, 0.98f, 1f, 378f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1325f, 0.995f, 1f, 378f, 0.55f));
         table.put(WeaponId.NIGHT_CLERK,
-            new WeaponBallistics(WeaponClass.PISTOL, 620f, 0.98f, 1f, 336f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1265f, 0.995f, 1f, 336f, 0.55f));
         table.put(WeaponId.RUST_MARSHAL,
-            new WeaponBallistics(WeaponClass.PISTOL, 520f, 0.98f, 1f, 350f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1200f, 0.995f, 1f, 350f, 0.55f));
         table.put(WeaponId.TWIN_PEAK,
-            new WeaponBallistics(WeaponClass.PISTOL, 780f, 0.9807f, 1f, 434f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1385f, 0.995f, 1f, 434f, 0.55f));
         table.put(WeaponId.QUIET_LEDGER,
-            new WeaponBallistics(WeaponClass.PISTOL, 640f, 0.98f, 1f, 364f, 0.55f));
+            new WeaponBallistics(WeaponClass.PISTOL, 1280f, 0.995f, 1f, 364f, 0.55f));
         table.put(WeaponId.BRASS_JUDGE,
-            new WeaponBallistics(WeaponClass.REVOLVER, 560f, 0.98f, 1f, 196f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1220f, 0.995f, 1f, 196f, 0.55f));
         table.put(WeaponId.EMBER_WHEEL,
-            new WeaponBallistics(WeaponClass.REVOLVER, 880f, 0.9823f, 1f, 504f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1460f, 0.995f, 1f, 504f, 0.55f));
         table.put(WeaponId.DUST_CYLINDER,
-            new WeaponBallistics(WeaponClass.REVOLVER, 600f, 0.98f, 1f, 392f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1250f, 0.995f, 1f, 392f, 0.55f));
         table.put(WeaponId.LONGSPUR_44,
-            new WeaponBallistics(WeaponClass.REVOLVER, 920f, 0.983f, 1f, 560f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1490f, 0.995f, 1f, 560f, 0.55f));
         table.put(WeaponId.GRAVE_ORBIT,
-            new WeaponBallistics(WeaponClass.REVOLVER, 780f, 0.9807f, 1f, 308f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1385f, 0.995f, 1f, 308f, 0.55f));
         table.put(WeaponId.COPPER_LAW,
-            new WeaponBallistics(WeaponClass.REVOLVER, 680f, 0.98f, 1f, 364f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1310f, 0.995f, 1f, 364f, 0.55f));
         table.put(WeaponId.BREAKDAWN,
-            new WeaponBallistics(WeaponClass.REVOLVER, 820f, 0.9813f, 1f, 420f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1415f, 0.995f, 1f, 420f, 0.55f));
         table.put(WeaponId.IRON_SIX,
-            new WeaponBallistics(WeaponClass.REVOLVER, 840f, 0.9817f, 1f, 448f, 0.55f));
+            new WeaponBallistics(WeaponClass.REVOLVER, 1430f, 0.995f, 1f, 448f, 0.55f));
         table.put(WeaponId.WASP_NEST,
             new WeaponBallistics(WeaponClass.SMG, 760f, 0.9803f, 0.8f, 392f, 0.42f));
         table.put(WeaponId.RATTLE_CAGE,

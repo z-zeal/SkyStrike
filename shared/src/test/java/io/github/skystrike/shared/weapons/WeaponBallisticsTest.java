@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WeaponConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,15 +63,43 @@ class WeaponBallisticsTest {
         assertEquals(770f, WeaponBallistics.of(WeaponId.IRON_CARBINE).maxRange(), EPSILON);
         assertEquals(0.70f, WeaponBallistics.of(WeaponId.IRON_CARBINE).minDamageRatio(), EPSILON);
 
-        assertEquals(720f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).muzzleSpeed(), EPSILON);
+        assertEquals(1340f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).muzzleSpeed(), EPSILON);
+        assertEquals(0.995f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).dragPerTick(), EPSILON);
         assertEquals(392f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).maxRange(), EPSILON);
         assertEquals(0.55f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).minDamageRatio(), EPSILON);
 
-        // The slowest pistol hits the conversion floor; the shortest shotgun nearly does.
-        assertEquals(WeaponConfig.MUZZLE_SPEED_MIN,
+        // The slowest pistols hit the sidearm floor; range and falloff remain independent.
+        assertEquals(WeaponConfig.SIDEARM_MUZZLE_SPEED_MIN,
             WeaponBallistics.of(WeaponId.REDLINE_45).muzzleSpeed(), EPSILON);
         assertEquals(0.35f, WeaponBallistics.of(WeaponId.SHORT_GOSPEL).minDamageRatio(), EPSILON);
         assertEquals(112f, WeaponBallistics.of(WeaponId.SHORT_GOSPEL).maxRange(), EPSILON);
+    }
+
+    @Test
+    @DisplayName("every pistol and revolver is faster than all player movement")
+    void sidearmsClearTheMovementSpeedFloor() {
+        float fastestPlayerSpeed = Math.max(
+            PlayerConfig.MAX_HORIZONTAL_SPEED,
+            PlayerConfig.MAX_VERTICAL_SPEED);
+        assertTrue(WeaponConfig.SIDEARM_MUZZLE_SPEED_MIN >= fastestPlayerSpeed * 1.2f,
+            "the documented sidearm floor must clearly exceed the absolute player speed cap");
+
+        float fastestSidearm = 0f;
+        float slowestSniper = Float.MAX_VALUE;
+        for (WeaponId id : WeaponId.values()) {
+            WeaponBallistics ballistics = WeaponBallistics.of(id);
+            if (ballistics.weaponClass().isSidearm()) {
+                assertTrue(ballistics.muzzleSpeed() >= WeaponConfig.SIDEARM_MUZZLE_SPEED_MIN,
+                    id + " is too slow for the handgun slot: " + ballistics.muzzleSpeed());
+                assertTrue(ballistics.dragPerTick() >= WeaponConfig.SIDEARM_DRAG_MIN,
+                    id + " bleeds velocity too quickly: " + ballistics.dragPerTick());
+                fastestSidearm = Math.max(fastestSidearm, ballistics.muzzleSpeed());
+            } else if (ballistics.weaponClass() == WeaponClass.SNIPER) {
+                slowestSniper = Math.min(slowestSniper, ballistics.muzzleSpeed());
+            }
+        }
+        assertTrue(fastestSidearm < slowestSniper,
+            "sidearms should remain slower than every sniper");
     }
 
     @Test
@@ -97,7 +126,8 @@ class WeaponBallisticsTest {
         assertEquals(1.8f, WeaponBallistics.of(WeaponId.THORN_DMR).gravityWeight(), EPSILON);
         assertEquals(2.5f, WeaponBallistics.of(WeaponId.IRON_CARBINE).gravityWeight(), EPSILON);
         assertEquals(3.5f, WeaponBallistics.of(WeaponId.WASP_NEST).gravityWeight(), EPSILON);
-        assertEquals(2.0f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).gravityWeight(), EPSILON);
+        assertEquals(1.5f, WeaponBallistics.of(WeaponId.IRON_SIDEARM).gravityWeight(), EPSILON);
+        assertEquals(2.0f, WeaponBallistics.of(WeaponId.IRON_SIX).gravityWeight(), EPSILON);
         assertEquals(5.0f, WeaponBallistics.of(WeaponId.SCATTER_BENCH).gravityWeight(), EPSILON);
 
         assertEquals(
