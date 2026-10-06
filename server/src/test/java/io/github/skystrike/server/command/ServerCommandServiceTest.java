@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esotericsoftware.kryonet.Connection;
 import io.github.skystrike.server.chat.ChatService;
 import io.github.skystrike.server.combat.BulletSystem;
 import io.github.skystrike.server.combat.MeleeSystem;
@@ -37,6 +38,20 @@ import org.junit.jupiter.api.Test;
  * execute. Everything here runs without a socket, exactly like the chat relay's tests.
  */
 class ServerCommandServiceTest {
+
+    /** A network-free stand-in: the registry indexes sessions by connection id. */
+    private static final class FakeConnection extends Connection {
+        private final int id;
+
+        FakeConnection(int id) {
+            this.id = id;
+        }
+
+        @Override
+        public int getID() {
+            return id;
+        }
+    }
 
     /** A roster backed by the real registry, as {@code GameServer} wires it. */
     private static final class RegistryRoster implements ChatService.Roster {
@@ -101,8 +116,8 @@ class ServerCommandServiceTest {
                     loadoutSystem.resetForRespawn(session);
                 }));
 
-        players.register(null, 1, "Nova", 0, 100f, 200f);
-        players.register(null, 2, "Rook", 1, 200f, 200f);
+        players.register(new FakeConnection(1), 1, "Nova", 0, 100f, 200f);
+        players.register(new FakeConnection(2), 2, "Rook", 1, 200f, 200f);
     }
 
     private CommandResult run(int playerId, String name, String line) {
