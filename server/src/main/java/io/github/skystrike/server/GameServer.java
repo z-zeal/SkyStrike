@@ -7,6 +7,8 @@ import io.github.skystrike.server.combat.KillFeedService;
 import io.github.skystrike.server.chat.ChatService;
 import io.github.skystrike.server.command.CapabilityBroadcaster;
 import io.github.skystrike.server.command.PermissionResolver;
+import io.github.skystrike.server.command.ServerCommandModule;
+import io.github.skystrike.server.command.ServerCommandService;
 import io.github.skystrike.server.net.ConnectionRegistry;
 import io.github.skystrike.server.net.NetworkEndpoint;
 import io.github.skystrike.server.net.NetworkEvent;
@@ -15,6 +17,7 @@ import io.github.skystrike.server.combat.MeleeSystem;
 import io.github.skystrike.server.gadget.FuelTankSystem;
 import io.github.skystrike.server.gadget.ShieldSystem;
 import io.github.skystrike.server.net.handlers.ChatRequestHandler;
+import io.github.skystrike.server.net.handlers.CommandRequestHandler;
 import io.github.skystrike.server.net.handlers.JoinRequestHandler;
 import io.github.skystrike.server.net.handlers.LeaveRequestHandler;
 import io.github.skystrike.server.net.handlers.LoadoutUpdateHandler;
@@ -90,6 +93,7 @@ public final class GameServer {
     private final ChatService chatService;
     private final PermissionResolver permissions;
     private final CapabilityBroadcaster capabilities;
+    private final ServerCommandService commandService;
 
     /** Reused per tick so the combat systems do not allocate a player list 60 times a second. */
     private final List<Player> playerStates = new ArrayList<>();
@@ -125,6 +129,21 @@ public final class GameServer {
         this.permissions = new PermissionResolver();
         this.capabilities = new CapabilityBroadcaster(this.permissions, this::sendToPlayer);
 
+        // M1 §2.4: --dev resolves every joiner to admin; --grant promotes named players without
+        // it. Both are resolver-state, so nothing downstream needs to know which mode the host is in.
+        this.permissions.setDevMode(config.devMode());
+        config.grants().forEach(this.permissions::grant);
+        this.commandService = new ServerCommandService(
+            this.players,
+            this.permissions,
+            new ServerCommandModule.Deps(
+                this.players,
+                this.respawnService,
+                this.loadoutSystem,
+                this.chatService,
+                this::sendToPlayer,
+                this::prepareForLife));
+
         registerHandlers();
     }
 
@@ -139,6 +158,19 @@ public final class GameServer {
         router.register(PacketPlayerInput.class, new PlayerInputHandler(players));
         router.register(PacketLoadoutUpdate.class, new LoadoutUpdateHandler(players));
         router.register(PacketChatRequest.class, new ChatRequestHandler(players, chatService, this::sendToPlayer));
+        router.register(PacketCommandRequest.class,
+            new CommandRequestHandler(players, commandService, this::sendToPlayer));
+    }
+
+    /**
+     * The respawn-time preparation shared by the tick hook and the console commands: requested
+     * loadout composition is applied and per-life state is reset. Extracted so {@code give},
+     * {@code setteam} and {@code respawn} rebuild a player exactly the way respawning does —
+     * one path, one place.
+     */
+    private void prepareForLife(PlayerSession session) {
+        session.applyRequestedLoadout();
+        loadoutSystem.resetForRespawn(session);
     }
 
     /**
@@ -228,6 +260,10 @@ public final class GameServer {
         return capabilities;
     }
 
+    public ServerCommandService commandService() {
+        return commandService;
+    }
+
     /** Binds the transport and runs the tick loop. Blocks until {@link #stop()}. */
     public void run() throws IOException {
         endpoint.start();
@@ -243,6 +279,13 @@ public final class GameServer {
                 config.tickRateHz() / ticksPerSnapshot,
                 config.maxPlayers(),
                 NetConfig.PROTOCOL_VERSION);
+        if (config.devMode()) {
+            // Loud on purpose: a dev host must never be mistaken for a real one.
+            System.out.println("[server] DEV MODE — every joined player resolves to ADMIN");
+        }
+        if (!config.grants().isEmpty()) {
+            System.out.printf("[server] permission grants: %s%n", config.grants());
+        }
 
         try {
             loop.run();
@@ -275,8 +318,7 @@ public final class GameServer {
         respawnService.update(dt, playerStates, player -> {
             PlayerSession session = players.byPlayerId(player.id);
             if (session != null) {
-                session.applyRequestedLoadout();
-                loadoutSystem.resetForRespawn(session);
+                prepareForLife(session);
             }
         });
 
@@ -377,6 +419,7 @@ public final class GameServer {
                     // inherit the previous holder's token bucket or runtime promotion.
                     chatService.forget(leaving.playerId());
                     capabilities.forget(leaving.playerId());
+                    commandService.forget(leaving.playerId());
                 }
                 ConnectionRegistry.Entry entry = connections.leave(event.connection());
                 if (entry == null) {

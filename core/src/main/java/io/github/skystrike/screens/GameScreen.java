@@ -8,6 +8,8 @@ import com.badlogic.gdx.Screen;
 import io.github.skystrike.chat.ChatClient;
 import io.github.skystrike.chat.ChatMuteList;
 import io.github.skystrike.command.ClientCapabilities;
+import io.github.skystrike.command.ClientCommandModule;
+import io.github.skystrike.command.ClientCommandService;
 import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.gameplay.LoadoutController;
@@ -36,6 +38,7 @@ import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
+import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
@@ -43,8 +46,8 @@ import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
+import io.github.skystrike.ui.console.ConsoleDialog;
 import io.github.skystrike.ui.text.MessageBuffer;
-import io.github.skystrike.ui.text.MessageLine;
 import io.github.skystrike.ui.text.MessageSeverity;
 import io.github.skystrike.world.TerrainRenderer;
 import java.util.ArrayList;
@@ -61,9 +64,6 @@ public final class GameScreen implements Screen {
     private static final float PAN_SPEED_UNITS_PER_SECOND = 900f;
     private static final float ZOOM_RATE_PER_SECOND = 1.6f;
 
-    /** Scrollback lines echoed into the debug readout until the dialog exists. */
-    private static final int RECENT_CHAT_LINES = 4;
-
     private final ArenaMap arena = ArenaMap.standard();
     private final GameCamera camera = new GameCamera(arena.width(), arena.height());
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
@@ -75,14 +75,22 @@ public final class GameScreen implements Screen {
     private final ClientSession session;
 
     /**
-     * The chat/console state: the scrollback ring, the local mute list, and the one capability
-     * the server owns. The dialog that renders them is still to come — until then the transport
-     * is proven by the last few lines appearing in the debug readout.
+     * The chat/console state (console plan §2): the scrollback ring and the locally persisted
+     * chat target on the client's side, the capability level on the server's. The dialog that
+     * renders them is created in the constructor once the command service exists.
      */
     private final MessageBuffer messages = new MessageBuffer();
     private final ChatMuteList muteList = new ChatMuteList();
     private final ClientCapabilities capabilities = new ClientCapabilities();
     private final ChatClient chatClient = new ChatClient(messages, muteList, capabilities);
+    private final ClientPreferences preferences = new ClientPreferences();
+    private final ClientCommandService commandService;
+    private final ConsoleDialog consoleDialog;
+
+    /** Frame id of the last console close, so the closing keypress cannot re-open it (§6.4). */
+    private long consoleClosedFrameId = -1L;
+    /** Wall-clock duration of the previous frame, for the {@code fps} command's detail. */
+    private float lastDeltaMillis;
 
     private final KeyBindings bindings = new KeyBindings();
     private final InputRouter inputRouter = new InputRouter();
@@ -123,6 +131,92 @@ public final class GameScreen implements Screen {
         this.session.setCapabilityListener(this::onCapabilities);
         this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
+
+        // The M1 client command core: local commands against local state, everything else
+        // forwarded as a raw line and re-authorised server-side. The dialog renders on top.
+        this.commandService = new ClientCommandService(
+            capabilities,
+            chatClient,
+            session::playerId,
+            session::acceptedName,
+            this::connectedPlayerNames);
+        this.commandService.registerDefaults(new ClientCommandModule.Deps(
+            messages,
+            bindings,
+            muteList,
+            session::playerId,
+            this::resolveNameToId,
+            Gdx.graphics::getFramesPerSecond,
+            () -> lastDeltaMillis,
+            this::disconnectFromConsole));
+        this.commandService.setServerSender(session::sendCommand);
+        this.session.setCommandResponseListener(commandService::handleResponse);
+
+        this.consoleDialog = new ConsoleDialog(
+            commandService,
+            capabilities,
+            chatClient,
+            messages,
+            inputRouter,
+            preferences,
+            session::playerId,
+            session::acceptedName,
+            this::connectedPlayerNames);
+        this.consoleDialog.setCloseListener(
+            () -> consoleClosedFrameId = Gdx.graphics.getFrameId());
+    }
+
+    /** The {@code disconnect} client command: sever locally, note it locally. */
+    private void disconnectFromConsole() {
+        session.disconnect();
+        chatClient.addSystemLine(
+            System.currentTimeMillis(),
+            ChatChannel.SYSTEM,
+            "Disconnected.",
+            MessageSeverity.INFO);
+    }
+
+    /** Names of everyone in the latest snapshot, for {@code PLAYER} argument completion. */
+    private List<String> connectedPlayerNames() {
+        PacketGameState snapshot = session.latestSnapshot();
+        if (snapshot == null || snapshot.players == null) {
+            return List.of();
+        }
+        List<String> names = new ArrayList<>();
+        for (Player p : snapshot.players) {
+            if (p.name != null && !p.name.isBlank()) {
+                names.add(p.name);
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Resolves a display name to a player id using the latest snapshot: exact (case-insensitive)
+     * match first, then a unique prefix. -1 for no match, -2 for an ambiguous prefix — the
+     * {@code mute} command reports both as "no player matches".
+     */
+    private int resolveNameToId(String name) {
+        PacketGameState snapshot = session.latestSnapshot();
+        if (snapshot == null || snapshot.players == null || name == null) {
+            return -1;
+        }
+        String needle = name.trim().toLowerCase(java.util.Locale.ROOT);
+        int prefixMatch = -1;
+        for (Player p : snapshot.players) {
+            String candidate = p.name == null ? "" : p.name.toLowerCase(java.util.Locale.ROOT);
+            if (candidate.equals(needle)) {
+                return p.id;
+            }
+            if (candidate.startsWith(needle)) {
+                if (prefixMatch != -1 && prefixMatch != p.id) {
+                    prefixMatch = -2;
+                } else if (prefixMatch == -1) {
+                    prefixMatch = p.id;
+                }
+            }
+        }
+        return prefixMatch;
     }
 
     private void onChatMessage(io.github.skystrike.shared.text.ChatMessage message) {
@@ -181,6 +275,17 @@ public final class GameScreen implements Screen {
     @Override
     public void render(float delta) {
         session.update(delta);
+        lastDeltaMillis = delta * 1000f;
+        consoleDialog.update(delta);
+
+        // Console plan §6.4: the open key is one press, one owner. While the dialog is closed
+        // and gameplay owns input, it opens the dialog; the same keystroke is consumed by the
+        // focus machinery before it can type, and the close frame's key state cannot re-open.
+        if (consoleDialog.isGameplayActive()
+            && bindings.isOpenChatJustPressed()
+            && Gdx.graphics.getFrameId() != consoleClosedFrameId) {
+            consoleDialog.open();
+        }
 
         Player localPlayer = prediction.predicted();
         float visionReach = VisionConfig.REACH_HIP;
@@ -203,13 +308,13 @@ public final class GameScreen implements Screen {
             float targetCamX = localPlayer.centerX() + panDist * (float) Math.cos(aimRad);
             float targetCamY = localPlayer.centerY() + panDist * (float) Math.sin(aimRad);
             camera.centreOn(targetCamX, targetCamY);
-        } else {
+        } else if (consoleDialog.isGameplayActive()) {
             // Fallback manual camera pan while waiting for join/spawn
             sampleCameraInput(delta);
         }
 
-        // Toggle SDF debug view with F1
-        if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+        // Toggle SDF debug view with F1 (a gameplay key; the console owns the keyboard while open)
+        if (consoleDialog.isGameplayActive() && Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
             showSdfDebug = !showSdfDebug;
         }
 
@@ -256,6 +361,9 @@ public final class GameScreen implements Screen {
 
         // Pass 5: HUD & OVERLAY (drawn unoccluded over composite)
         overlay.render(statusLines(localPlayer, visionReach, projectiles.size()));
+
+        // Pass 6: the chat/console dialog, above everything else (passive view when closed).
+        consoleDialog.render(System.currentTimeMillis());
     }
 
     private void sampleCameraInput(float delta) {
@@ -349,7 +457,6 @@ public final class GameScreen implements Screen {
             for (PacketKillEvent kill : session.killFeed()) {
                 lines.add("  " + kill.feedLine());
             }
-            appendRecentChat(lines);
         } else {
             lines.add(String.format(
                     "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
@@ -361,34 +468,15 @@ public final class GameScreen implements Screen {
                     arena.solids().size()));
         }
         lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
-            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  F1 SDF debug");
+            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  F1 SDF debug  Enter chat/console");
         return lines;
-    }
-
-    /**
-     * The last few scrollback lines, filtered exactly as the dialog will filter them. A stand-in
-     * for the passive view until the dialog exists; it proves the relay end to end.
-     */
-    private void appendRecentChat(List<String> lines) {
-        List<MessageLine> visible = messages.visibleLines(capabilities.consoleAccess());
-        int from = Math.max(0, visible.size() - RECENT_CHAT_LINES);
-        for (int i = from; i < visible.size(); i++) {
-            MessageLine line = visible.get(i);
-            String prefix = switch (line.channel()) {
-                case TEAM -> "[TEAM] ";
-                case ALL -> "";
-                default -> "* ";
-            };
-            lines.add("  " + prefix
-                + (line.hasAuthor() ? line.authorName() + ": " : "")
-                + line.body());
-        }
     }
 
     @Override
     public void resize(int width, int height) {
         camera.resize(width, height);
         overlay.resize(width, height);
+        consoleDialog.resize(width, height);
         if (pipeline != null) {
             pipeline.resize(width, height);
         }
@@ -408,6 +496,7 @@ public final class GameScreen implements Screen {
 
     @Override
     public void dispose() {
+        consoleDialog.dispose();
         session.disconnect();
         terrain.dispose();
         playerRenderer.dispose();

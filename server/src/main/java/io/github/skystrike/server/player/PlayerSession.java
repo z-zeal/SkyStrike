@@ -69,6 +69,16 @@ public final class PlayerSession {
     private int requestedGadgetQ;
     private int requestedGadgetE;
 
+    /**
+     * Per-player session cheat state, set by the server console commands (build plan M1 §2.5).
+     * Session-scoped by construction — the flags die with the session, there is no persistence
+     * path to audit. The simulation systems that honour them (movement, ammo, damage) are wired
+     * in milestone M3; until then setting them is recorded and reported, not felt.
+     */
+    private volatile boolean noclip;
+    private volatile boolean godmode;
+    private volatile boolean infiniteAmmo;
+
     public PlayerSession(Connection connection, int playerId, String name, int teamIndex, float spawnX, float spawnY) {
         this.connection = connection;
         this.playerId = playerId;
@@ -284,6 +294,32 @@ public final class PlayerSession {
     // --- Live-state mirroring --------------------------------------------------------------------
 
     /** The loadout slot the gun state was last aligned with. */
+    // --- Session cheat flags (build plan M1; simulation wiring is M3) ----------------------------
+
+    public boolean noclip() {
+        return noclip;
+    }
+
+    public void setNoclip(boolean value) {
+        noclip = value;
+    }
+
+    public boolean godmode() {
+        return godmode;
+    }
+
+    public void setGodmode(boolean value) {
+        godmode = value;
+    }
+
+    public boolean infiniteAmmo() {
+        return infiniteAmmo;
+    }
+
+    public void setInfiniteAmmo(boolean value) {
+        infiniteAmmo = value;
+    }
+
     public int lastMirroredSlot() {
         return lastMirroredSlot;
     }

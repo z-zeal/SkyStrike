@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.github.skystrike.shared.command.CommandResult;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.gadget.GadgetId;
@@ -21,6 +22,7 @@ import io.github.skystrike.shared.model.Team;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
+import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
@@ -28,6 +30,7 @@ import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
+import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
@@ -143,12 +146,39 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    @DisplayName("the Phase 6 gadget slot is appended last; the list and protocol are frozen")
+    @DisplayName("the Phase 6 gadget slot sits at its pinned position")
     void phaseSixGadgetSlotIsAppended() {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(GadgetSlot.class, types.get(27));
-        assertEquals(28, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(9, NetConfig.PROTOCOL_VERSION);
+        assertTrue(types.size() >= 28, "Phase 6 must append, never replace");
+    }
+
+    @Test
+    @DisplayName("the build-plan M1 command packets are appended last; the list and protocol are frozen")
+    void buildPlanM1CommandPacketsAreAppended() {
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(PacketCommandRequest.class, types.get(28));
+        assertEquals(PacketCommandResponse.class, types.get(29));
+        assertEquals(30, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(10, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("command request and response survive the wire intact")
+    void commandPacketsRoundTrip() {
+        PacketCommandRequest request = roundTrip(new PacketCommandRequest("give iron_carbine"));
+        assertEquals("give iron_carbine", request.line);
+
+        PacketCommandResponse response = roundTrip(new PacketCommandResponse(
+            false, CommandResult.Severity.WARNING.ordinal(),
+            new java.util.ArrayList<>(java.util.List.of("first line", "second line"))));
+        assertFalse(response.ok);
+        assertEquals(CommandResult.Severity.WARNING, response.severity());
+        assertEquals(java.util.List.of("first line", "second line"), response.lines);
+
+        // The severity decode is defensive: an ordinal from a newer protocol never throws.
+        assertEquals(CommandResult.Severity.INFO,
+            new PacketCommandResponse(true, 999, new java.util.ArrayList<>()).severity());
     }
 
     @Test

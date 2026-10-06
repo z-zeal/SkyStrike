@@ -11,6 +11,7 @@ import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
+import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
@@ -18,6 +19,7 @@ import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
+import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
@@ -90,7 +92,11 @@ public final class NetworkRegistration {
         UtilityZone.class,
 
         // Phase 6: the Q/E gadget slots carried inside PlayerLoadout (append-only)
-        GadgetSlot.class);
+        GadgetSlot.class,
+
+        // Build plan M1: raw command line up, execution output back (append-only)
+        PacketCommandRequest.class,
+        PacketCommandResponse.class);
 
     private NetworkRegistration() {
     }

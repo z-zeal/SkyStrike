@@ -35,8 +35,11 @@ public final class NetConfig {
      *
      * <p>9 — Phase 6 increment 2: Q/E gadget press edges and their birth-sequence fields were
      * appended to {@code PacketPlayerInput}. No Kryo registration was reordered or inserted.
+     *
+     * <p>10 — Build plan M1: {@code PacketCommandRequest} and {@code PacketCommandResponse}
+     * appended after {@code GadgetSlot}. No Kryo registration was reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 9;
+    public static final int PROTOCOL_VERSION = 10;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

@@ -2,11 +2,13 @@ package io.github.skystrike.net;
 
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.net.Packet;
+import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
+import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
@@ -58,6 +60,7 @@ public final class ClientSession {
     private Consumer<PacketKillEvent> killListener;
     private Consumer<io.github.skystrike.shared.text.ChatMessage> chatListener;
     private Consumer<PacketCapabilities> capabilityListener;
+    private Consumer<PacketCommandResponse> commandResponseListener;
 
     private final Deque<PacketKillEvent> killFeed = new ArrayDeque<>();
     private PacketDamageEvent lastDamageDealt;
@@ -120,6 +123,24 @@ public final class ClientSession {
     /** Called on the render thread whenever the server pushes a capability change. */
     public void setCapabilityListener(Consumer<PacketCapabilities> listener) {
         this.capabilityListener = listener;
+    }
+
+    /** Called on the render thread for every command response the server sends back. */
+    public void setCommandResponseListener(Consumer<PacketCommandResponse> listener) {
+        this.commandResponseListener = listener;
+    }
+
+    /**
+     * Sends one command line to the server (playable build plan M1 §2.6).
+     *
+     * <p>The payload is the raw line only — no capabilities, no claimed identity. The server
+     * re-parses and re-authorises everything against its own session state.
+     */
+    public void sendCommand(String rawLine) {
+        if (state != ConnectionState.JOINED || rawLine == null || rawLine.isBlank()) {
+            return;
+        }
+        client.sendReliable(new PacketCommandRequest(rawLine));
     }
 
     public PacketGameState latestSnapshot() {
@@ -202,6 +223,10 @@ public final class ClientSession {
         } else if (payload instanceof PacketCapabilities caps) {
             if (capabilityListener != null) {
                 capabilityListener.accept(caps);
+            }
+        } else if (payload instanceof PacketCommandResponse response) {
+            if (commandResponseListener != null) {
+                commandResponseListener.accept(response);
             }
         } else if (payload instanceof PacketPong pong) {
             serverTick = pong.serverTick;
