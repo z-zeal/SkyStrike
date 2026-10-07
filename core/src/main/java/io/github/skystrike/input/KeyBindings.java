@@ -21,11 +21,17 @@ import java.util.function.IntSupplier;
 public final class KeyBindings {
 
     /** One rebindable action: read/write access to the matching key fields plus the default. */
+    private enum InputKind {
+        KEY,
+        BUTTON_OR_KEY
+    }
+
     private record Action(
         IntSupplier get,
         IntConsumer set,
         IntSupplier defaultCode,
-        Runnable restoreDefault
+        Runnable restoreDefault,
+        InputKind inputKind
     ) {
     }
 
@@ -120,8 +126,10 @@ public final class KeyBindings {
         recordSingle("jetpack", () -> jetpackKey, v -> jetpackKey = v, () -> Input.Keys.SPACE);
         // Mouse actions are included in the same registry so the controls screen can enumerate
         // every gameplay action; bind commands may still assign a keyboard key to them.
-        recordSingle("fire", () -> fireButton, v -> fireButton = v, () -> Input.Buttons.LEFT);
-        recordSingle("ads", () -> adsButton, v -> adsButton = v, () -> Input.Buttons.RIGHT);
+        recordPointerOrKey("fire", () -> fireButton, v -> fireButton = v,
+            () -> Input.Buttons.LEFT);
+        recordPointerOrKey("ads", () -> adsButton, v -> adsButton = v,
+            () -> Input.Buttons.RIGHT);
         recordSingle("slot1", () -> slot1, v -> slot1 = v, () -> Input.Keys.NUM_1);
         recordSingle("slot2", () -> slot2, v -> slot2 = v, () -> Input.Keys.NUM_2);
         recordSingle("slot3", () -> slot3, v -> slot3 = v, () -> Input.Keys.NUM_3);
@@ -181,18 +189,41 @@ public final class KeyBindings {
         preferences.flush();
     }
 
+    /** Small concrete reset avoids a second persistence code path for settings and console. */
+    private static final class ResetSingle implements Runnable {
+        private final IntConsumer set;
+        private final IntSupplier defaultCode;
+
+        ResetSingle(IntConsumer set, IntSupplier defaultCode) {
+            this.set = set;
+            this.defaultCode = defaultCode;
+        }
+
+        @Override
+        public void run() {
+            set.accept(defaultCode.getAsInt());
+        }
+    }
+
     /** Single-key action: default is the only default. */
     private void recordSingle(
         String name, IntSupplier get, IntConsumer set, IntSupplier defaultCode) {
         actions.put(name, new Action(get, set, defaultCode,
-            () -> set.accept(defaultCode.getAsInt())));
+            new ResetSingle(set, defaultCode), InputKind.KEY));
+    }
+
+    /** Mouse actions may keep a mouse button or be rebound to a keyboard key. */
+    private void recordPointerOrKey(
+        String name, IntSupplier get, IntConsumer set, IntSupplier defaultCode) {
+        actions.put(name, new Action(get, set, defaultCode,
+            new ResetSingle(set, defaultCode), InputKind.BUTTON_OR_KEY));
     }
 
     /** Action whose reset restores more than the primary key (primaries plus alternates). */
     private void recordPair(
         String name, IntSupplier get, IntConsumer set, IntSupplier defaultCode,
         Runnable restoreDefault) {
-        actions.put(name, new Action(get, set, defaultCode, restoreDefault));
+        actions.put(name, new Action(get, set, defaultCode, restoreDefault, InputKind.KEY));
     }
 
     private Action find(String name) {
@@ -228,7 +259,23 @@ public final class KeyBindings {
         if (found == null) {
             return "unknown action '" + action + "' (bindings: " + String.join(", ", actionNames()) + ")";
         }
-        int code = keycodeFor(keyName);
+        int code = found.inputKind() == InputKind.BUTTON_OR_KEY ? buttonCodeFor(keyName) : -1;
+        if (code < 0) {
+            code = keycodeFor(keyName);
+        }
+        return bind(found, action, code, keyName);
+    }
+
+    /**
+     * Binds an action to an already captured libGDX keyboard code. This is the settings screen's
+     * counterpart to the console's name-based bind command, and both persist through this class.
+     */
+    public String bindKeycode(String action, int keycode) {
+        Action found = find(action);
+        return found == null ? unknownAction(action) : bind(found, action, keycode, null);
+    }
+
+    private String bind(Action found, String action, int code, String keyName) {
         if (code < 0) {
             return "unknown key '" + keyName + "'";
         }
@@ -237,11 +284,16 @@ public final class KeyBindings {
         return null;
     }
 
+    private String unknownAction(String action) {
+        return "unknown action '" + action + "' (bindings: "
+            + String.join(", ", actionNames()) + ")";
+    }
+
     /** Restores the factory binding(s) for {@code action}. */
     public String resetByName(String action) {
         Action found = find(action);
         if (found == null) {
-            return "unknown action '" + action + "' (bindings: " + String.join(", ", actionNames()) + ")";
+            return unknownAction(action);
         }
         found.restoreDefault().run();
         savePreferences();
@@ -251,7 +303,44 @@ public final class KeyBindings {
     /** The display name of {@code action}'s primary key, e.g. {@code ENTER}. */
     public String keyNameFor(String action) {
         Action found = find(action);
-        return found == null ? "?" : Input.Keys.toString(found.get().getAsInt());
+        if (found == null) {
+            return "?";
+        }
+        int code = found.get().getAsInt();
+        if (found.inputKind() == InputKind.BUTTON_OR_KEY && isMouseButton(code)) {
+            return mouseButtonName(code);
+        }
+        String name = Input.Keys.toString(code);
+        return name == null ? "?" : name;
+    }
+
+    private static int buttonCodeFor(String buttonName) {
+        if (buttonName == null) {
+            return -1;
+        }
+        return switch (buttonName.trim().toUpperCase(Locale.ROOT)) {
+            case "MOUSE_LEFT", "LEFT_MOUSE", "LMB" -> Input.Buttons.LEFT;
+            case "MOUSE_RIGHT", "RIGHT_MOUSE", "RMB" -> Input.Buttons.RIGHT;
+            case "MOUSE_MIDDLE", "MIDDLE_MOUSE", "MMB" -> Input.Buttons.MIDDLE;
+            case "MOUSE_BACK", "BACK_MOUSE" -> Input.Buttons.BACK;
+            case "MOUSE_FORWARD", "FORWARD_MOUSE" -> Input.Buttons.FORWARD;
+            default -> -1;
+        };
+    }
+
+    private static boolean isMouseButton(int code) {
+        return code >= Input.Buttons.LEFT && code <= Input.Buttons.FORWARD;
+    }
+
+    private static String mouseButtonName(int code) {
+        return switch (code) {
+            case Input.Buttons.LEFT -> "MOUSE_LEFT";
+            case Input.Buttons.RIGHT -> "MOUSE_RIGHT";
+            case Input.Buttons.MIDDLE -> "MOUSE_MIDDLE";
+            case Input.Buttons.BACK -> "MOUSE_BACK";
+            case Input.Buttons.FORWARD -> "MOUSE_FORWARD";
+            default -> "?";
+        };
     }
 
     /** Parses a key name tolerantly: exact, then upper-case; negative when unresolvable. */
@@ -287,11 +376,15 @@ public final class KeyBindings {
     }
 
     public boolean isFirePressed() {
-        return Gdx.input.isButtonPressed(fireButton);
+        return isPointerOrKeyPressed(fireButton);
     }
 
     public boolean isAdsPressed() {
-        return Gdx.input.isButtonPressed(adsButton);
+        return isPointerOrKeyPressed(adsButton);
+    }
+
+    private static boolean isPointerOrKeyPressed(int code) {
+        return isMouseButton(code) ? Gdx.input.isButtonPressed(code) : Gdx.input.isKeyPressed(code);
     }
 
     /** Edge-triggered: true only on the frame the key goes down. */

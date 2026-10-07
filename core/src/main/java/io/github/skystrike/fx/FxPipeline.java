@@ -31,6 +31,7 @@ public final class FxPipeline implements Disposable {
 
     private int screenWidth;
     private int screenHeight;
+    private boolean disposed;
 
     public FxPipeline(int screenWidth, int screenHeight) {
         this.screenWidth = Math.max(1, screenWidth);
@@ -110,6 +111,10 @@ public final class FxPipeline implements Disposable {
 
     @Override
     public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
         sceneFbo.dispose();
         visibilitySystem.dispose();
         compositePass.dispose();
