@@ -3,39 +3,62 @@ package io.github.skystrike.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import io.github.skystrike.input.KeyBindings;
 import io.github.skystrike.shared.settings.Settings;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Clickable client settings. Video changes are applied by the platform owner, audio values are
- * explicit persisted stubs, and controls edit the exact {@link KeyBindings} instance used by the
- * console and gameplay.
+ * Persisted client settings built from Scene2D controls. The same {@link KeyBindings} instance
+ * remains the source of truth for this screen, the console and gameplay.
  */
 public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScreenAdapter {
 
-    private static final int VIDEO_CONTROL_COUNT = 7;
-    private static final float LEFT = 72f;
-    private static final float ROW_HEIGHT = 25f;
+    private static final float LABEL_WIDTH = 180f;
+    private static final float CONTROL_WIDTH = 280f;
 
     private final Settings settings;
     private final KeyBindings bindings;
     private final Consumer<Settings> changed;
     private final Runnable back;
-    private final SpriteBatch batch = new SpriteBatch();
-    private final BitmapFont font = new BitmapFont();
-    private final InputAdapter input = new SettingsInput();
-    private final List<String> actions;
+    private final Skin skin;
+    private final Stage stage;
+    private final InputMultiplexer input = new InputMultiplexer();
+    private final List<Actor> keyboardOrder = new ArrayList<>();
+    private final Map<Actor, Runnable> buttonActions = new LinkedHashMap<>();
+    private final Map<String, TextButton> bindingButtons = new LinkedHashMap<>();
 
-    /** Video/audio rows first; control rows follow in {@link #actions} order. */
-    private int selectedRow;
-    private int controlScroll;
+    private final SelectBox<String> resolution;
+    private final CheckBox vsync;
+    private final CheckBox fullscreen;
+    private final SelectBox<String> quality;
+    private final Slider masterVolume;
+    private final Slider musicVolume;
+    private final Slider effectsVolume;
+    private final Label masterValue;
+    private final Label musicValue;
+    private final Label effectsValue;
+    private final Label status;
+    private final TextButton backButton;
+
     private String capturingAction;
-    private String status = "Click a row, or use arrows and Enter.";
     private boolean disposed;
 
     public SettingsScreen(
@@ -50,171 +73,318 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
         this.bindings = bindings;
         this.changed = changed;
         this.back = back;
-        this.actions = bindings.actionNames();
+        this.skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
+        this.stage = new Stage(new ScreenViewport());
+
+        resolution = new SelectBox<>(skin);
+        resolution.setItems(resolutionItems().toArray(new String[0]));
+        resolution.setSelected(settings.width + "x" + settings.height);
+        vsync = new CheckBox("Enable VSync", skin);
+        vsync.setChecked(settings.vsync);
+        fullscreen = new CheckBox("Fullscreen", skin);
+        fullscreen.setChecked(settings.fullscreen);
+        quality = new SelectBox<>(skin);
+        quality.setItems("Low", "Medium", "High", "Ultra");
+        quality.setSelectedIndex(settings.qualityTier);
+        masterVolume = volumeSlider(settings.masterVolume);
+        musicVolume = volumeSlider(settings.musicVolume);
+        effectsVolume = volumeSlider(settings.effectsVolume);
+        masterValue = new Label(percent(masterVolume.getValue()), skin);
+        musicValue = new Label(percent(musicVolume.getValue()), skin);
+        effectsValue = new Label(percent(effectsVolume.getValue()), skin);
+        status = new Label("Use Tab to move focus. Choose Rebind to capture a key.", skin);
+        status.setWrap(true);
+        backButton = new TextButton("Back", skin);
+
+        buildLayout();
+        listenForChanges();
+        input.addProcessor(new SettingsKeyboard());
+        input.addProcessor(stage);
         addInputProcessor(input);
+        resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        stage.setKeyboardFocus(resolution);
     }
 
-    @Override
-    public void render(float delta) {
-        Gdx.gl.glClearColor(.025f, .035f, .06f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        float height = Gdx.graphics.getHeight();
-        float top = height - 62f;
+    private Slider volumeSlider(float value) {
+        Slider slider = new Slider(0f, 1f, .05f, false, skin);
+        slider.setValue(value);
+        return slider;
+    }
 
-        batch.begin();
-        font.draw(batch, "SETTINGS", LEFT, top);
-        font.draw(batch, "Video", LEFT, top - ROW_HEIGHT);
-        drawOption(0, "Resolution", settings.width + "x" + settings.height, top - ROW_HEIGHT * 2f);
-        drawOption(1, "VSync", onOff(settings.vsync), top - ROW_HEIGHT * 3f);
-        drawOption(2, "Fullscreen", onOff(settings.fullscreen), top - ROW_HEIGHT * 4f);
-        drawOption(3, "Quality", Settings.qualityTierLabel(settings.qualityTier), top - ROW_HEIGHT * 5f);
-        font.draw(batch, "Audio stubs", LEFT, top - ROW_HEIGHT * 6f);
-        drawOption(4, "Master", percent(settings.masterVolume), top - ROW_HEIGHT * 7f);
-        drawOption(5, "Music", percent(settings.musicVolume), top - ROW_HEIGHT * 8f);
-        drawOption(6, "Effects", percent(settings.effectsVolume), top - ROW_HEIGHT * 9f);
-
-        float controlsTop = top - ROW_HEIGHT * 10.5f;
-        font.draw(batch, "Controls - Enter rebind, Backspace reset", LEFT, controlsTop);
-        int visible = visibleControlRows(controlsTop);
-        keepSelectedControlVisible(visible);
-        for (int row = 0; row < visible && controlScroll + row < actions.size(); row++) {
-            int actionIndex = controlScroll + row;
-            int absoluteRow = VIDEO_CONTROL_COUNT + actionIndex;
-            String action = actions.get(actionIndex);
-            String prefix = selectedRow == absoluteRow ? "> " : "  ";
-            String value = action.equals(capturingAction) ? "Press a key..." : bindings.keyNameFor(action);
-            font.draw(batch, prefix + action + ": " + value,
-                LEFT, controlsTop - ROW_HEIGHT * (row + 1));
+    private List<String> resolutionItems() {
+        List<String> values = new ArrayList<>();
+        for (Settings.Resolution option : Settings.RESOLUTIONS) {
+            values.add(option.label());
         }
-        font.draw(batch, status, LEFT, 34f);
-        batch.end();
-    }
-
-    private void drawOption(int row, String label, String value, float baseline) {
-        String prefix = selectedRow == row ? "> " : "  ";
-        font.draw(batch, prefix + label + ": " + value, LEFT, baseline);
-    }
-
-    private void adjustSelected(int direction) {
-        switch (selectedRow) {
-            case 0 -> settings.cycleResolution(direction);
-            case 1 -> settings.vsync = !settings.vsync;
-            case 2 -> settings.fullscreen = !settings.fullscreen;
-            case 3 -> settings.cycleQualityTier(direction);
-            case 4 -> settings.masterVolume = settings.adjustVolume(settings.masterVolume, direction * .1f);
-            case 5 -> settings.musicVolume = settings.adjustVolume(settings.musicVolume, direction * .1f);
-            case 6 -> settings.effectsVolume = settings.adjustVolume(settings.effectsVolume, direction * .1f);
-            default -> beginCapture(actions.get(selectedRow - VIDEO_CONTROL_COUNT));
+        String current = settings.width + "x" + settings.height;
+        if (!values.contains(current)) {
+            values.add(current);
         }
+        return values;
+    }
+
+    private void buildLayout() {
+        Table root = new Table();
+        root.setFillParent(true);
+        root.top().left().pad(30f);
+        stage.addActor(root);
+
+        root.add(new Label("SETTINGS", skin)).left().padBottom(12f);
+        root.row();
+
+        Table options = new Table();
+        options.top().left();
+        addHeading(options, "Video");
+        addOption(options, "Resolution", resolution);
+        addOption(options, "", vsync);
+        addOption(options, "", fullscreen);
+        addOption(options, "Quality", quality);
+        addHeading(options, "Audio stubs");
+        addVolumeOption(options, "Master", masterVolume, masterValue);
+        addVolumeOption(options, "Music", musicVolume, musicValue);
+        addVolumeOption(options, "Effects", effectsVolume, effectsValue);
+
+        keyboardOrder.add(resolution);
+        keyboardOrder.add(vsync);
+        keyboardOrder.add(fullscreen);
+        keyboardOrder.add(quality);
+        keyboardOrder.add(masterVolume);
+        keyboardOrder.add(musicVolume);
+        keyboardOrder.add(effectsVolume);
+
+        root.add(options).left().fillX();
+        root.row();
+        root.add(new Label("Controls", skin)).left().padTop(14f).padBottom(5f);
+        root.row();
+
+        Table controls = new Table();
+        controls.top().left();
+        for (String actionName : bindings.actionNames()) {
+            addBindingRow(controls, actionName);
+        }
+        ScrollPane controlsScroll = new ScrollPane(controls, skin);
+        controlsScroll.setFadeScrollBars(false);
+        controlsScroll.setScrollingDisabled(true, false);
+        root.add(controlsScroll).left().width(660f).height(250f).fill();
+        root.row();
+
+        Table footer = new Table();
+        footer.add(status).left().width(520f).padRight(14f);
+        backButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                back.run();
+            }
+        });
+        buttonActions.put(backButton, back);
+        keyboardOrder.add(backButton);
+        footer.add(backButton).width(126f).height(36f).right();
+        root.add(footer).left().fillX().padTop(12f);
+    }
+
+    private void addHeading(Table table, String heading) {
+        table.add(new Label(heading, skin)).left().colspan(3).padTop(4f).padBottom(5f);
+        table.row();
+    }
+
+    private void addOption(Table table, String label, Actor control) {
+        table.add(new Label(label, skin)).left().width(LABEL_WIDTH).padBottom(7f);
+        table.add(control).left().width(CONTROL_WIDTH).height(34f).padBottom(7f);
+        table.add().width(80f);
+        table.row();
+    }
+
+    private void addVolumeOption(Table table, String label, Slider slider, Label value) {
+        table.add(new Label(label, skin)).left().width(LABEL_WIDTH).padBottom(7f);
+        table.add(slider).left().width(CONTROL_WIDTH).height(28f).padBottom(7f);
+        table.add(value).left().width(80f).padLeft(8f).padBottom(7f);
+        table.row();
+    }
+
+    private void addBindingRow(Table table, String actionName) {
+        TextButton rebind = new TextButton(bindings.keyNameFor(actionName), skin);
+        TextButton reset = new TextButton("Reset", skin);
+        rebind.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                beginCapture(actionName);
+            }
+        });
+        reset.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                resetBinding(actionName);
+            }
+        });
+        bindingButtons.put(actionName, rebind);
+        buttonActions.put(rebind, () -> beginCapture(actionName));
+        buttonActions.put(reset, () -> resetBinding(actionName));
+        keyboardOrder.add(rebind);
+        keyboardOrder.add(reset);
+
+        table.add(new Label(actionName, skin)).left().expandX().fillX().padBottom(5f);
+        table.add(rebind).width(220f).height(32f).padRight(6f).padBottom(5f);
+        table.add(reset).width(90f).height(32f).padBottom(5f);
+        table.row();
+    }
+
+    private void listenForChanges() {
+        resolution.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                String value = resolution.getSelected();
+                int separator = value == null ? -1 : value.indexOf('x');
+                if (separator <= 0 || separator == value.length() - 1) {
+                    return;
+                }
+                try {
+                    settings.width = Integer.parseInt(value.substring(0, separator));
+                    settings.height = Integer.parseInt(value.substring(separator + 1));
+                    saveSettings("Resolution saved.");
+                } catch (NumberFormatException ignored) {
+                    status.setText("Resolution selection is invalid.");
+                }
+            }
+        });
+        vsync.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                settings.vsync = vsync.isChecked();
+                saveSettings("VSync saved.");
+            }
+        });
+        fullscreen.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                settings.fullscreen = fullscreen.isChecked();
+                saveSettings("Fullscreen saved.");
+            }
+        });
+        quality.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                settings.qualityTier = quality.getSelectedIndex();
+                saveSettings("Quality saved.");
+            }
+        });
+        addVolumeListener(masterVolume, masterValue, value -> settings.masterVolume = value, "Master volume saved.");
+        addVolumeListener(musicVolume, musicValue, value -> settings.musicVolume = value, "Music volume saved.");
+        addVolumeListener(effectsVolume, effectsValue, value -> settings.effectsVolume = value, "Effects volume saved.");
+    }
+
+    private void addVolumeListener(
+        Slider slider, Label valueLabel, Consumer<Float> sink, String confirmation
+    ) {
+        slider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                float value = slider.getValue();
+                sink.accept(value);
+                valueLabel.setText(percent(value));
+                saveSettings(confirmation);
+            }
+        });
+    }
+
+    private void saveSettings(String confirmation) {
         settings.validate();
         changed.accept(settings);
-        if (selectedRow < VIDEO_CONTROL_COUNT) {
-            status = "Saved " + optionName(selectedRow) + ".";
-        }
+        status.setText(confirmation);
     }
 
-    private void activateSelected() {
-        if (selectedRow < VIDEO_CONTROL_COUNT) {
-            adjustSelected(1);
-        } else {
-            beginCapture(actions.get(selectedRow - VIDEO_CONTROL_COUNT));
+    private void beginCapture(String actionName) {
+        capturingAction = actionName;
+        status.setText("Press a key for " + actionName + ", or Escape to cancel.");
+        TextButton button = bindingButtons.get(actionName);
+        if (button != null) {
+            stage.setKeyboardFocus(button);
         }
-    }
-
-    private void beginCapture(String action) {
-        capturingAction = action;
-        status = "Press a key for " + action + ", or Escape to cancel.";
     }
 
     private void finishCapture(int keycode) {
         String error = bindings.bindKeycode(capturingAction, keycode);
-        status = error == null
-            ? "Bound " + capturingAction + " to " + bindings.keyNameFor(capturingAction) + "."
-            : error;
+        if (error == null) {
+            TextButton button = bindingButtons.get(capturingAction);
+            if (button != null) {
+                button.setText(bindings.keyNameFor(capturingAction));
+            }
+            status.setText("Bound " + capturingAction + " to "
+                + bindings.keyNameFor(capturingAction) + ".");
+        } else {
+            status.setText(error);
+        }
         capturingAction = null;
     }
 
-    private void resetSelectedControl() {
-        if (selectedRow < VIDEO_CONTROL_COUNT) {
+    private void resetBinding(String actionName) {
+        String error = bindings.resetByName(actionName);
+        if (error == null) {
+            TextButton button = bindingButtons.get(actionName);
+            if (button != null) {
+                button.setText(bindings.keyNameFor(actionName));
+            }
+            status.setText("Reset " + actionName + " to " + bindings.keyNameFor(actionName) + ".");
+        } else {
+            status.setText(error);
+        }
+    }
+
+    private void moveFocus(int direction) {
+        if (keyboardOrder.isEmpty()) {
             return;
         }
-        String action = actions.get(selectedRow - VIDEO_CONTROL_COUNT);
-        String error = bindings.resetByName(action);
-        status = error == null ? "Reset " + action + " to " + bindings.keyNameFor(action) + "." : error;
-    }
-
-    private void moveSelection(int direction, int visible) {
-        int count = VIDEO_CONTROL_COUNT + actions.size();
-        selectedRow = Math.floorMod(selectedRow + direction, count);
-        keepSelectedControlVisible(visible);
-    }
-
-    private int visibleControlRows(float controlsTop) {
-        return Math.max(1, (int) ((controlsTop - 62f) / ROW_HEIGHT));
-    }
-
-    private void keepSelectedControlVisible(int visible) {
-        if (selectedRow < VIDEO_CONTROL_COUNT) {
-            return;
+        int index = keyboardOrder.indexOf(stage.getKeyboardFocus());
+        if (index < 0) {
+            index = direction < 0 ? 0 : -1;
         }
-        int control = selectedRow - VIDEO_CONTROL_COUNT;
-        if (control < controlScroll) {
-            controlScroll = control;
-        } else if (control >= controlScroll + visible) {
-            controlScroll = control - visible + 1;
-        }
-        controlScroll = Math.max(0, Math.min(Math.max(0, actions.size() - visible), controlScroll));
+        stage.setKeyboardFocus(keyboardOrder.get(
+            Math.floorMod(index + direction, keyboardOrder.size())));
     }
 
-    private int hitRow(float y) {
-        float top = Gdx.graphics.getHeight() - 62f;
-        float[] baselines = {
-            top - ROW_HEIGHT * 2f,
-            top - ROW_HEIGHT * 3f,
-            top - ROW_HEIGHT * 4f,
-            top - ROW_HEIGHT * 5f,
-            top - ROW_HEIGHT * 7f,
-            top - ROW_HEIGHT * 8f,
-            top - ROW_HEIGHT * 9f
-        };
-        for (int i = 0; i < baselines.length; i++) {
-            if (withinRow(y, baselines[i])) {
-                return i;
-            }
+    private void activateFocused() {
+        Runnable action = buttonActions.get(stage.getKeyboardFocus());
+        if (action != null) {
+            action.run();
         }
-        float controlsTop = top - ROW_HEIGHT * 10.5f;
-        int visible = visibleControlRows(controlsTop);
-        for (int row = 0; row < visible && controlScroll + row < actions.size(); row++) {
-            if (withinRow(y, controlsTop - ROW_HEIGHT * (row + 1))) {
-                return VIDEO_CONTROL_COUNT + controlScroll + row;
-            }
-        }
-        return -1;
     }
 
-    private static boolean withinRow(float y, float baseline) {
-        return y >= baseline - ROW_HEIGHT + 2f && y <= baseline + 5f;
+    private void adjustFocused(int direction) {
+        Actor focused = stage.getKeyboardFocus();
+        if (focused == resolution) {
+            select(resolution, direction);
+        } else if (focused == quality) {
+            select(quality, direction);
+        } else if (focused == masterVolume) {
+            masterVolume.setValue(masterVolume.getValue() + direction * .05f);
+        } else if (focused == musicVolume) {
+            musicVolume.setValue(musicVolume.getValue() + direction * .05f);
+        } else if (focused == effectsVolume) {
+            effectsVolume.setValue(effectsVolume.getValue() + direction * .05f);
+        }
     }
 
-    private static String onOff(boolean value) {
-        return value ? "On" : "Off";
+    private static void select(SelectBox<String> selectBox, int direction) {
+        int size = selectBox.getItems().size;
+        if (size > 0) {
+            selectBox.setSelectedIndex(Math.floorMod(selectBox.getSelectedIndex() + direction, size));
+        }
     }
 
     private static String percent(float value) {
         return Math.round(value * 100f) + "%";
     }
 
-    private static String optionName(int row) {
-        return switch (row) {
-            case 0 -> "resolution";
-            case 1 -> "vsync";
-            case 2 -> "fullscreen";
-            case 3 -> "quality";
-            case 4 -> "master volume";
-            case 5 -> "music volume";
-            case 6 -> "effects volume";
-            default -> "setting";
-        };
+    @Override
+    public void render(float delta) {
+        Gdx.gl.glClearColor(.025f, .035f, .06f, 1f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        stage.act(delta);
+        stage.draw();
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        stage.getViewport().update(width, height, true);
     }
 
     @Override
@@ -228,61 +398,76 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
             return;
         }
         disposed = true;
-        batch.dispose();
-        font.dispose();
+        stage.dispose();
+        skin.dispose();
     }
 
-    private final class SettingsInput extends InputAdapter {
+    /** Keeps controls reachable by keyboard without stealing native Scene2D control input. */
+    private final class SettingsKeyboard extends InputAdapter {
+        @Override
+        public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+            // Once a bind button has entered capture mode, the next input must be the captured
+            // key rather than a click that activates another setting behind the prompt.
+            return capturingAction != null;
+        }
+
+        @Override
+        public boolean scrolled(float amountX, float amountY) {
+            return capturingAction != null;
+        }
+
         @Override
         public boolean keyDown(int keycode) {
             if (capturingAction != null) {
                 if (keycode == Input.Keys.ESCAPE) {
-                    status = "Rebind cancelled.";
                     capturingAction = null;
+                    status.setText("Rebind cancelled.");
                 } else {
                     finishCapture(keycode);
                 }
                 return true;
             }
-            float controlsTop = Gdx.graphics.getHeight() - 62f - ROW_HEIGHT * 10.5f;
-            int visible = visibleControlRows(controlsTop);
-            if (keycode == Input.Keys.ESCAPE) {
-                back.run();
-            } else if (keycode == Input.Keys.UP) {
-                moveSelection(-1, visible);
-            } else if (keycode == Input.Keys.DOWN) {
-                moveSelection(1, visible);
-            } else if (keycode == Input.Keys.LEFT) {
-                adjustSelected(-1);
-            } else if (keycode == Input.Keys.RIGHT) {
-                adjustSelected(1);
-            } else if (keycode == Input.Keys.ENTER || keycode == Input.Keys.NUMPAD_ENTER) {
-                activateSelected();
-            } else if (keycode == Input.Keys.BACKSPACE || keycode == Input.Keys.FORWARD_DEL) {
-                resetSelectedControl();
-            } else if (keycode == Input.Keys.PAGE_UP) {
-                moveSelection(-visible, visible);
-            } else if (keycode == Input.Keys.PAGE_DOWN) {
-                moveSelection(visible, visible);
-            }
-            return true;
-        }
-
-        @Override
-        public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-            if (capturingAction != null) {
+            if (keycode == Input.Keys.TAB) {
+                boolean reverse = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+                    || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+                moveFocus(reverse ? -1 : 1);
                 return true;
             }
-            int hit = hitRow(Gdx.graphics.getHeight() - screenY);
-            if (hit >= 0) {
-                selectedRow = hit;
-                if (hit < VIDEO_CONTROL_COUNT) {
-                    adjustSelected(1);
-                } else {
-                    beginCapture(actions.get(hit - VIDEO_CONTROL_COUNT));
-                }
+            if (keycode == Input.Keys.ESCAPE) {
+                back.run();
+                return true;
             }
-            return true;
+            if (keycode == Input.Keys.ENTER || keycode == Input.Keys.NUMPAD_ENTER) {
+                activateFocused();
+                return buttonActions.containsKey(stage.getKeyboardFocus());
+            }
+            if (keycode == Input.Keys.SPACE && stage.getKeyboardFocus() == vsync) {
+                vsync.setChecked(!vsync.isChecked());
+                return true;
+            }
+            if (keycode == Input.Keys.SPACE && stage.getKeyboardFocus() == fullscreen) {
+                fullscreen.setChecked(!fullscreen.isChecked());
+                return true;
+            }
+            if (keycode == Input.Keys.LEFT) {
+                adjustFocused(-1);
+                return stage.getKeyboardFocus() == resolution || stage.getKeyboardFocus() == quality
+                    || stage.getKeyboardFocus() instanceof Slider;
+            }
+            if (keycode == Input.Keys.RIGHT) {
+                adjustFocused(1);
+                return stage.getKeyboardFocus() == resolution || stage.getKeyboardFocus() == quality
+                    || stage.getKeyboardFocus() instanceof Slider;
+            }
+            if (keycode == Input.Keys.UP) {
+                moveFocus(-1);
+                return true;
+            }
+            if (keycode == Input.Keys.DOWN) {
+                moveFocus(1);
+                return true;
+            }
+            return false;
         }
     }
 }

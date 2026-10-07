@@ -83,12 +83,22 @@ public final class ServerCommandModule {
      * server-side {@code help} that describes the result.
      */
     public static void registerAll(CommandRegistry registry, Deps deps) {
+        registerAll(registry, deps, DebugFlags.enabled());
+    }
+
+    /**
+     * Registers commands for a host whose configuration has explicitly enabled debug access.
+     * An ADMIN name grant is as deliberate as {@code --dev}; neither grants authority to clients
+     * by itself, because every request is still resolved by {@link PermissionResolver}.
+     */
+    public static void registerAll(
+        CommandRegistry registry, Deps deps, boolean debugCommandsEnabled
+    ) {
         Map<String, CommandHandler> handlers = handlers(deps);
-        boolean debugEnabled = DebugFlags.enabled();
         for (CommandSpec metadata : ServerCommandCatalog.metadata()) {
-            if (ServerCommandCatalog.isDebugOnly(metadata.name()) && !debugEnabled) {
-                // Build plan M3 §4: with the master switch off, these are invisible, not
-                // refused — never registered, so dispatch reports them exactly like a typo.
+            if (ServerCommandCatalog.isDebugOnly(metadata.name()) && !debugCommandsEnabled) {
+                // With no explicit host debug access, these are invisible, not refused — never
+                // registered, so dispatch reports them exactly like a typo.
                 continue;
             }
             CommandHandler handler = handlers.get(metadata.name());

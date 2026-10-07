@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.command;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -85,5 +86,21 @@ class CompletionEngineTest {
         // An unmatched quote mid-typing is a token in progress, not a parse error.
         CompletionEngine.complete("give \"unterminated", registry(), cvars(), admin);
         CompletionEngine.complete("give trailing\\", registry(), cvars(), admin);
+    }
+
+    @Test
+    void adminOnlyGodmodeIsVisibleOnlyToAnAdmin() {
+        CommandRegistry serverCommands = new CommandRegistry();
+        for (CommandSpec spec : ServerCommandCatalog.metadata()) {
+            serverCommands.register(spec);
+        }
+
+        List<String> adminCandidates = CompletionEngine.complete(
+            "g", serverCommands, null, CommandContext.local(Permission.ADMIN));
+        assertTrue(adminCandidates.contains("godmode"), adminCandidates.toString());
+
+        List<String> moderatorCandidates = CompletionEngine.complete(
+            "g", serverCommands, null, CommandContext.local(Permission.MODERATOR));
+        assertFalse(moderatorCandidates.contains("godmode"), moderatorCandidates.toString());
     }
 }
