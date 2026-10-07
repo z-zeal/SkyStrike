@@ -93,6 +93,9 @@ public final class KeyBindings {
 
     private final Map<String, Action> actions = new LinkedHashMap<>();
 
+    /** Preferences namespace shared by the settings UI and console bind commands. */
+    public static final String PREFERENCES_NAME = "skystrike.keybindings";
+
     public KeyBindings() {
         recordPair("moveLeft",
             () -> moveLeftPrimary, v -> moveLeftPrimary = v,
@@ -148,6 +151,30 @@ public final class KeyBindings {
         recordSingle("fxDebug", () -> fxDebugKey, v -> fxDebugKey = v, () -> Input.Keys.F11);
         recordSingle("uiContrastTest", () -> uiContrastTestKey, v -> uiContrastTestKey = v,
             () -> Input.Keys.F12);
+        loadPreferences();
+    }
+
+    /** Loads user bindings; malformed or unknown entries are ignored safely. */
+    public void loadPreferences() {
+        com.badlogic.gdx.Preferences preferences = Gdx.app == null ? null
+            : Gdx.app.getPreferences(PREFERENCES_NAME);
+        if (preferences == null) return;
+        for (String name : actions.keySet()) {
+            if (preferences.contains(name)) {
+                int code = preferences.getInteger(name, -1);
+                if (code >= 0) actions.get(name).set().accept(code);
+            }
+        }
+    }
+
+    /** Persists every action in the same store used by settings and console commands. */
+    public void savePreferences() {
+        if (Gdx.app == null) return;
+        com.badlogic.gdx.Preferences preferences = Gdx.app.getPreferences(PREFERENCES_NAME);
+        for (Map.Entry<String, Action> entry : actions.entrySet()) {
+            preferences.putInteger(entry.getKey(), entry.getValue().get().getAsInt());
+        }
+        preferences.flush();
     }
 
     /** Single-key action: default is the only default. */
@@ -202,6 +229,7 @@ public final class KeyBindings {
             return "unknown key '" + keyName + "'";
         }
         found.set().accept(code);
+        savePreferences();
         return null;
     }
 
@@ -212,6 +240,7 @@ public final class KeyBindings {
             return "unknown action '" + action + "' (bindings: " + String.join(", ", actionNames()) + ")";
         }
         found.restoreDefault().run();
+        savePreferences();
         return null;
     }
 
