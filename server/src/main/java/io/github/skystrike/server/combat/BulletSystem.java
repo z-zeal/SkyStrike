@@ -1,5 +1,8 @@
 package io.github.skystrike.server.combat;
 
+import io.github.skystrike.server.fx.EffectSink;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.shared.combat.BallisticsMath;
@@ -41,6 +44,12 @@ public final class BulletSystem {
     private final RaycastBulletSystem raycaster;
     private final List<Projectile> projectiles = new ArrayList<>();
 
+    /**
+     * Where impact visuals go (build plan M7 §8.1). Null in geometry-only tests; a missing sink
+     * never changes gameplay, only presentation.
+     */
+    private EffectSink effectSink;
+
     private int nextId = 1;
     private long spawned;
     private long terrainImpacts;
@@ -49,6 +58,11 @@ public final class BulletSystem {
     public BulletSystem(ArenaMap arena) {
         this.arena = arena;
         this.raycaster = new RaycastBulletSystem(arena);
+    }
+
+    /** Installs the effect sink. Null detaches; safe to call more than once. */
+    public void setEffectSink(EffectSink effectSink) {
+        this.effectSink = effectSink;
     }
 
     /**
@@ -129,6 +143,7 @@ public final class BulletSystem {
                     applyHit(projectile, hit, targets, damage);
                 } else {
                     terrainImpacts++;
+                    emitTerrainImpact(projectile);
                 }
                 projectiles.remove(i);
                 continue;
@@ -138,6 +153,20 @@ public final class BulletSystem {
                 projectiles.remove(i);
             }
         }
+    }
+
+    /**
+     * One surface impact effect (build plan M7 §8.1): the impact point, along the round's travel
+     * direction. Every arena solid is concrete today — the metal and wood variants of the effect
+     * catalogue wait on a surface-material pass, and the wire enum already carries them.
+     */
+    private void emitTerrainImpact(Projectile projectile) {
+        if (effectSink == null) {
+            return;
+        }
+        float travelAngle = Angles.toDegrees((float) Math.atan2(projectile.vy, projectile.vx));
+        effectSink.emit(new EffectSpawn(
+            EffectType.BULLET_IMPACT_CONCRETE, projectile.x, projectile.y, travelAngle, 1f));
     }
 
     private void applyHit(

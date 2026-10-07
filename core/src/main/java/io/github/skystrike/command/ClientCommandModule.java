@@ -157,9 +157,9 @@ public final class ClientCommandModule {
 
         // The quality tier is a cvar rather than a command: `/quality` alone prints current,
         // default and range for free, and `/quality low` validates itself. The FX budget reads
-        // it from milestone M7.
+        // it live (milestone M7).
         cvars.register(Cvar.builder("quality", ArgTypes.ENUM(QualityTier.class), "mid")
-            .description("effects quality tier; respected by the FX budget when it lands (M7)")
+            .description("effects quality tier; read live by the FX budget (M7)")
             .build());
 
         // The loadout picker (build plan M4 §5). A real UI feature, not a debug one, so it is
@@ -230,7 +230,7 @@ public final class ClientCommandModule {
             .description("player-light additive intensity from 0 to 1; live-tunable (M6)")
             .build());
         cvars.register(Cvar.builder("fx_debug", ArgTypes.BOOL, "false")
-            .description("pass timings, particle/light counts, draw calls (M7); wired ahead (F11)")
+            .description("particle/light counts and phase queue against the tier budget (M7) (F11)")
             .onChange((prev, next) -> deps.debugState().setFxDebug(Boolean.parseBoolean(next)))
             .build());
         cvars.register(Cvar.builder("ui_contrast_test", ArgTypes.BOOL, "false")

@@ -21,6 +21,17 @@ public final class BlendState {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
     }
 
+    /**
+     * Enables premultiplied alpha blending (ONE, ONE_MINUS_SRC_ALPHA). For shaders that output
+     * colour already multiplied by alpha — the particle fragment shader, the flashbang whiteout —
+     * so the same output is correct under both the scene-pass and post-composite blend modes.
+     */
+    public static void setAlphaPremultiplied() {
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendEquation(GL20.GL_FUNC_ADD);
+        Gdx.gl.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
+    }
+
     /** Enables additive blending (SRC_ALPHA, ONE or ONE, ONE). */
     public static void setAdditive() {
         Gdx.gl.glEnable(GL20.GL_BLEND);

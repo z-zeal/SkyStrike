@@ -10,11 +10,13 @@ import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.utility.StunMath;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,15 +59,25 @@ public final class ClientSession {
     private long serverTick;
     private int serverPlayerCount;
     private long snapshotsReceived;
+    private long effectsReceived;
     private int latencyMillis = -1;
     private PacketGameState latestSnapshot;
     private Consumer<PacketGameState> snapshotListener;
     private Consumer<PacketDamageEvent> damageListener;
     private Consumer<PacketKillEvent> killListener;
+    private Consumer<PacketEffectSpawn> effectListener;
     private Consumer<io.github.skystrike.shared.text.ChatMessage> chatListener;
     private Consumer<PacketCapabilities> capabilityListener;
     private Consumer<PacketCommandResponse> commandResponseListener;
     private Runnable sessionResetListener;
+
+    /**
+     * The local player's blindness, decayed locally between snapshots so the whiteout recovers
+     * smoothly instead of stepping at snapshot rate. Latches when the server reports a stronger
+     * blind than the one still running, exactly like the server's own max-wins rule.
+     */
+    private float blindRemaining;
+    private float blindDuration;
 
     private final Deque<PacketKillEvent> killFeed = new ArrayDeque<>();
     private PacketDamageEvent lastDamageDealt;
@@ -119,6 +131,15 @@ public final class ClientSession {
     }
 
     /**
+     * Called on the render thread for every effect batch the server sends (build plan M7 §8.1).
+     * The listener only enqueues; the FX layer drains on the render thread too, and nothing is
+     * ever spawned from the network thread.
+     */
+    public void setEffectListener(Consumer<PacketEffectSpawn> listener) {
+        this.effectListener = listener;
+    }
+
+    /**
      * Called on the render thread for every chat line addressed to this client.
      *
      * <p>Team scoping already happened server-side: if it arrived, it was meant for us.
@@ -165,6 +186,9 @@ public final class ClientSession {
 
         if (hitMarkerTimer > 0f) {
             hitMarkerTimer = Math.max(0f, hitMarkerTimer - delta);
+        }
+        if (blindRemaining > 0f) {
+            blindRemaining = Math.max(0f, blindRemaining - delta);
         }
 
         if (state == ConnectionState.JOINED) {
@@ -224,8 +248,14 @@ public final class ClientSession {
             serverPlayerCount = snapshot.playerCount;
             snapshotsReceived++;
             latestSnapshot = snapshot;
+            trackBlindness(snapshot);
             if (snapshotListener != null) {
                 snapshotListener.accept(snapshot);
+            }
+        } else if (payload instanceof PacketEffectSpawn effects) {
+            effectsReceived += effects.effectCount();
+            if (effectListener != null) {
+                effectListener.accept(effects);
             }
         } else if (payload instanceof PacketDamageEvent damage) {
             applyDamageEvent(damage);
@@ -252,6 +282,27 @@ public final class ClientSession {
         } else if (payload instanceof PacketPong pong) {
             serverTick = pong.serverTick;
             latencyMillis = (int) (System.currentTimeMillis() - pong.clientTimeMillis);
+        }
+    }
+
+    /**
+     * Latches the local player's blindness from an authoritative snapshot (build plan M7 §8.3).
+     * The server applies the max-wins rule when the flash lands; the client mirrors it so a weaker
+     * flash arriving during a stronger one cannot shorten the whiteout, and decays locally between
+     * snapshots for a smooth exponential recovery.
+     */
+    private void trackBlindness(PacketGameState snapshot) {
+        if (playerId < 0 || snapshot.players == null) {
+            return;
+        }
+        for (io.github.skystrike.shared.model.Player player : snapshot.players) {
+            if (player.id == playerId) {
+                if (player.blindRemaining > blindRemaining) {
+                    blindRemaining = player.blindRemaining;
+                    blindDuration = Math.max(player.blindDuration, player.blindRemaining);
+                }
+                return;
+            }
         }
     }
 
@@ -325,6 +376,8 @@ public final class ClientSession {
         hitMarkerTimer = 0f;
         hitMarkerHeadshot = false;
         hitMarkerLethal = false;
+        blindRemaining = 0f;
+        blindDuration = 0f;
         if (sessionResetListener != null) {
             sessionResetListener.run();
         }
@@ -381,6 +434,19 @@ public final class ClientSession {
 
     public long snapshotsReceived() {
         return snapshotsReceived;
+    }
+
+    /** Effect requests received since the session started; an fx_debug counter. */
+    public long effectsReceived() {
+        return effectsReceived;
+    }
+
+    /**
+     * The current whiteout intensity in {@code [0, 1]}: the shared {@code StunMath} exponential
+     * recovery over the locally decayed blind time. Zero when not blinded.
+     */
+    public float blindIntensity() {
+        return StunMath.blindIntensity(blindRemaining, blindDuration);
     }
 
     public int latencyMillis() {

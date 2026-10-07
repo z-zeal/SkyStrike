@@ -1,7 +1,11 @@
 package io.github.skystrike.server.weapons;
 
+import io.github.skystrike.server.fx.EffectSink;
 import io.github.skystrike.shared.combat.SpreadMath;
+import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.WeaponConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.weapons.FireMode;
@@ -68,9 +72,20 @@ public final class FireController {
     private final Random random;
     private final RecoilService recoilService;
 
+    /**
+     * Where muzzle visuals go (build plan M7 §8.1). Null in fire-mode-only tests; a missing sink
+     * never changes what fires, only what is shown.
+     */
+    private EffectSink effectSink;
+
     public FireController(Random random, RecoilService recoilService) {
         this.random = random == null ? new Random() : random;
         this.recoilService = recoilService == null ? new RecoilService() : recoilService;
+    }
+
+    /** Installs the effect sink. Null detaches; safe to call more than once. */
+    public void setEffectSink(EffectSink effectSink) {
+        this.effectSink = effectSink;
     }
 
     /**
@@ -118,7 +133,25 @@ public final class FireController {
 
         gun.startCooldown();
         gun.countRounds(out.count);
+        emitMuzzleEffects(player);
         return out.count;
+    }
+
+    /**
+     * The muzzle event (build plan M7 §8.1/§8.3): a flash and a shell casing at the barrel, along
+     * the aim. Emitted only when the volley actually produced rounds — a trigger click on cooldown
+     * is silent. The muzzle offset is the same one {@code BulletSystem} spawns rounds at, so the
+     * flash sits where the tracers leave.
+     */
+    private void emitMuzzleEffects(Player player) {
+        if (effectSink == null) {
+            return;
+        }
+        float aimRadians = Angles.toRadians(player.aimAngle);
+        float muzzleX = player.eyeX() + (float) Math.cos(aimRadians) * CombatConfig.MUZZLE_OFFSET;
+        float muzzleY = player.eyeY() + (float) Math.sin(aimRadians) * CombatConfig.MUZZLE_OFFSET;
+        effectSink.emit(new EffectSpawn(EffectType.MUZZLE_FLASH, muzzleX, muzzleY, player.aimAngle, 1f));
+        effectSink.emit(new EffectSpawn(EffectType.SHELL_EJECT, muzzleX, muzzleY, player.aimAngle, 1f));
     }
 
     /** One round, deviated across the live cone by a normal distribution. */
