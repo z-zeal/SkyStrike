@@ -4,7 +4,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
-import com.badlogic.gdx.Screen;
 import io.github.skystrike.chat.ChatClient;
 import io.github.skystrike.chat.ChatMuteList;
 import io.github.skystrike.command.ClientCapabilities;
@@ -61,6 +60,7 @@ import io.github.skystrike.ui.text.MessageSeverity;
 import io.github.skystrike.world.TerrainRenderer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Composition root for a match.
@@ -68,7 +68,7 @@ import java.util.List;
  * <p>Routes input, drives authoritative prediction/interpolation, and coordinates multi-pass
  * rendering across terrain, entities, the occluded visibility pass and the fog composite.
  */
-public final class GameScreen implements Screen {
+public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAdapter {
 
     private static final float PAN_SPEED_UNITS_PER_SECOND = 900f;
     private static final float ZOOM_RATE_PER_SECOND = 1.6f;
@@ -118,12 +118,17 @@ public final class GameScreen implements Screen {
     /** Wall-clock duration of the previous frame, for the {@code fps} command's detail. */
     private float lastDeltaMillis;
 
-    private final KeyBindings bindings = new KeyBindings();
+    private final KeyBindings bindings;
     private final InputRouter inputRouter = new InputRouter();
-    private PauseOverlay pauseOverlay;
-    private final LoadoutController loadoutController = new LoadoutController(bindings, inputRouter);
-    private final InputSampler inputSampler = new InputSampler(bindings, inputRouter, loadoutController);
-    private DebugKeyController debugKeyController;
+    private final InputMultiplexer rootInput = new InputMultiplexer();
+    private final PauseOverlay pauseOverlay;
+    private final LoadoutController loadoutController;
+    private final InputSampler inputSampler;
+    private final DebugKeyController debugKeyController;
+    private final Runnable disconnectToMenu;
+    private final Consumer<GameScreen> settingsOpener;
+    private boolean disposeOnHide = true;
+    private boolean disposed;
 
     /** The wheel reaches the loadout controller as slot cycles; everything else goes via polling. */
     private final InputAdapter scrollForwarder = new InputAdapter() {
@@ -147,15 +152,42 @@ public final class GameScreen implements Screen {
     private float adsAlpha;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
-        this(new ClientSession(playerName), host, tcpPort, udpPort);
+        this(new ClientSession(playerName), host, tcpPort, udpPort, new KeyBindings(), null, null);
     }
 
-    /** Builds the play screen around the session owned by ConnectingScreen. */
+    /** Builds the play screen around the session accepted by {@link ConnectingScreen}. */
     public GameScreen(ClientSession session, String host, int tcpPort, int udpPort) {
+        this(session, host, tcpPort, udpPort, new KeyBindings(), null, null);
+    }
+
+    /**
+     * Builds a routed match. The injected bindings are the same persistent object settings and
+     * console commands edit; disconnect and settings actions go back through Main's screen router.
+     */
+    public GameScreen(
+            ClientSession session,
+            String host,
+            int tcpPort,
+            int udpPort,
+            KeyBindings bindings,
+            Runnable disconnectToMenu,
+            Consumer<GameScreen> settingsOpener) {
+        if (session == null || bindings == null) {
+            throw new IllegalArgumentException("session and bindings are required");
+        }
         this.session = session;
         this.host = host;
         this.tcpPort = tcpPort;
         this.udpPort = udpPort;
+        this.bindings = bindings;
+        this.disconnectToMenu = disconnectToMenu == null ? session::disconnect : disconnectToMenu;
+        this.settingsOpener = settingsOpener == null ? ignored -> { } : settingsOpener;
+        this.loadoutController = new LoadoutController(this.bindings, inputRouter);
+        this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
+        this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
+        rootInput.addProcessor(inputRouter.multiplexer());
+        rootInput.addProcessor(scrollForwarder);
+        addInputProcessor(rootInput);
 
         this.session.setSnapshotListener(this::onGameStateSnapshot);
         this.session.setKillListener(this::onKillEvent);
@@ -186,7 +218,7 @@ public final class GameScreen implements Screen {
             debugState));
         this.commandService.setServerSender(session::sendCommand);
         this.session.setCommandResponseListener(commandService::handleResponse);
-        this.debugKeyController = new DebugKeyController(bindings, commandService);
+        this.debugKeyController = new DebugKeyController(this.bindings, commandService);
 
         this.consoleDialog = new ConsoleDialog(
             commandService,
@@ -210,14 +242,9 @@ public final class GameScreen implements Screen {
         });
     }
 
-    /** The {@code disconnect} client command: sever locally, note it locally. */
+    /** The console disconnect command follows the same teardown route as the pause action. */
     private void disconnectFromConsole() {
-        session.disconnect();
-        chatClient.addSystemLine(
-            System.currentTimeMillis(),
-            ChatChannel.SYSTEM,
-            "Disconnected.",
-            MessageSeverity.INFO);
+        disconnectToMenu.run();
     }
 
     /** Names of everyone in the latest snapshot, for {@code PLAYER} argument completion. */
@@ -319,12 +346,10 @@ public final class GameScreen implements Screen {
     @Override
     public void show() {
         camera.centreOn(arena.mirrorAxisX(), camera.viewportHeight() / 2f);
-        InputMultiplexer root = new InputMultiplexer();
-        root.addProcessor(inputRouter.multiplexer());
-        root.addProcessor(scrollForwarder);
-        Gdx.input.setInputProcessor(root);
-        pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
-        pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        pauseOverlay.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        if (pipeline == null) {
+            pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        }
         session.connect(host, tcpPort, udpPort);
     }
 
@@ -336,7 +361,7 @@ public final class GameScreen implements Screen {
 
         // Escape is polled only while no dialog/modal owns the focus stack.
         if (inputRouter.isGameplayActive() && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            inputRouter.pushFocus(pauseOverlay);
+            pauseOverlay.open();
         }
 
         // Console plan §6.4: the open key is one press, one owner. While the dialog is closed
@@ -458,6 +483,9 @@ public final class GameScreen implements Screen {
 
         // Pass 6: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
+
+        // The visible pause modal is above the HUD and console. Its InputRouter focus owns Escape.
+        pauseOverlay.render();
 
         // ui_contrast_test (F12): a full-screen developer test card, so it wins over everything
         // including the console — exactly the "readable on all four means readable in the game"
@@ -635,6 +663,7 @@ public final class GameScreen implements Screen {
         hud.resize(width, height);
         contrastTestOverlay.resize(width, height);
         consoleDialog.resize(width, height);
+        pauseOverlay.resize(width, height);
         if (pipeline != null) {
             pipeline.resize(width, height);
         }
@@ -645,29 +674,48 @@ public final class GameScreen implements Screen {
         setUiLoadout(true);
     }
 
+    /** Sends a menu-authored picker request only after ConnectingScreen has transferred ownership. */
+    public void requestLoadout(io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate request) {
+        if (request != null && !request.isEmpty()) {
+            session.sendReliable(request);
+        }
+    }
+
+    /** Keep GL and session resources alive for the temporary Game -> Settings -> Game route. */
+    public void suspendForSettings() {
+        disposeOnHide = false;
+    }
+
     private void onPauseAction(String action) {
         if ("Disconnect".equals(action)) {
-            session.disconnect();
+            disconnectToMenu.run();
         } else if ("Loadout".equals(action)) {
             setUiLoadout(true);
+        } else if ("Settings".equals(action)) {
+            settingsOpener.accept(this);
         }
     }
 
     @Override
-    public void pause() {
-    }
-
-    @Override
-    public void resume() {
-    }
-
-    @Override
     public void hide() {
+        if (disposeOnHide) {
+            dispose();
+        } else {
+            // The next hide is a real route away from the retained match.
+            disposeOnHide = true;
+        }
     }
 
     @Override
     public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
+        hud.picker().setOpen(false, null);
         consoleDialog.dispose();
+        pauseOverlay.dispose();
+        inputRouter.clearFocus();
         session.disconnect();
         terrain.dispose();
         playerRenderer.dispose();
@@ -679,6 +727,7 @@ public final class GameScreen implements Screen {
         contrastTestOverlay.dispose();
         if (pipeline != null) {
             pipeline.dispose();
+            pipeline = null;
         }
     }
 }

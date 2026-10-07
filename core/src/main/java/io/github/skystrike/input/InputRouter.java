@@ -57,6 +57,15 @@ public final class InputRouter {
         return multiplexer;
     }
 
+    /** Releases every modal when its owning screen is being disposed. */
+    public void clearFocus() {
+        if (focusStack.isEmpty()) {
+            return;
+        }
+        focusStack.clear();
+        rebuildMultiplexer();
+    }
+
     private void rebuildMultiplexer() {
         multiplexer.clear();
         for (InputProcessor processor : focusStack) {

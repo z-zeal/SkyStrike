@@ -47,6 +47,10 @@ public final class ClientSession {
 
     private ConnectionState state = ConnectionState.OFFLINE;
     private String statusDetail = "";
+    /** Non-null only when the server refused the join request, not on a transport failure. */
+    private String joinRejectReason;
+    /** A NetworkClient was started and must be closed before this session can be forgotten. */
+    private boolean transportStarted;
     private int playerId = -1;
     private String acceptedName = "";
     private int serverTickRateHz;
@@ -85,6 +89,8 @@ public final class ClientSession {
         }
         state = ConnectionState.CONNECTING;
         statusDetail = host + ":" + tcpPort;
+        joinRejectReason = null;
+        transportStarted = true;
         client.connect(host, tcpPort, udpPort);
     }
 
@@ -178,8 +184,15 @@ public final class ClientSession {
                 client.sendReliable(new PacketJoinRequest(NetConfig.PROTOCOL_VERSION, playerName));
             }
             case DISCONNECTED -> {
-                state = ConnectionState.OFFLINE;
-                statusDetail = "connection closed";
+                // JoinReject is followed by a server close. Preserve the authoritative reason
+                // rather than replacing it with the transport's less useful "connection closed".
+                if (joinRejectReason != null) {
+                    state = ConnectionState.FAILED;
+                    statusDetail = joinRejectReason;
+                } else {
+                    state = ConnectionState.OFFLINE;
+                    statusDetail = "connection closed";
+                }
                 resetSessionState();
             }
             case FAILED -> {
@@ -202,7 +215,9 @@ public final class ClientSession {
             serverTick = accept.serverTick;
         } else if (payload instanceof PacketJoinReject reject) {
             state = ConnectionState.FAILED;
-            statusDetail = reject.reason;
+            joinRejectReason = reject.reason == null || reject.reason.isBlank()
+                ? "server rejected the join request" : reject.reason;
+            statusDetail = joinRejectReason;
             resetSessionState();
         } else if (payload instanceof PacketGameState snapshot) {
             serverTick = snapshot.tick;
@@ -315,15 +330,29 @@ public final class ClientSession {
         }
     }
 
-    /** Tells the server we are leaving, then tears the transport down. */
+    /**
+     * Tells the server we are leaving, then tears the transport down. The owning screen may
+     * reach this method again during disposal; only the first call closes the transport and
+     * resets listeners, so one transition has one teardown.
+     */
     public void disconnect() {
+        if (!transportStarted) {
+            return;
+        }
         if (state == ConnectionState.JOINED || state == ConnectionState.JOINING) {
             client.sendReliable(new PacketLeaveRequest());
         }
+        transportStarted = false;
         client.close();
         state = ConnectionState.OFFLINE;
         statusDetail = "";
+        joinRejectReason = null;
         resetSessionState();
+    }
+
+    /** The server's JoinReject text, retained across its immediate close until retry/cancel. */
+    public String joinRejectReason() {
+        return joinRejectReason;
     }
 
     public ConnectionState state() {
