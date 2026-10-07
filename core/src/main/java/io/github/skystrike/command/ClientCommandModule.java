@@ -174,16 +174,16 @@ public final class ClientCommandModule {
     }
 
     /**
-     * The nine debug-toolkit cvars (build plan M3 §4). Eight are invisible — not refused, never
-     * even registered — while the master switch is off, exactly like the server's own gate on
-     * {@code noclip} et al. (console plan §4.2's pattern: an unauthorised feature has no trace,
-     * not a disabled one). Those eight also mirror into {@link DebugState}, whose master-gated
-     * reads make a stray local toggle inert even if the registration gate were bypassed.
+     * Debug-toolkit cvars from build plan M3 §4 and M6. The ten debug cvars are invisible — not
+     * refused, never even registered — while the master switch is off, exactly like the server's
+     * own gate on {@code noclip} et al. Boolean toggles mirror into {@link DebugState}, whose
+     * master-gated reads keep a stray local toggle inert even if registration were bypassed. M6's
+     * radius and intensity are read live from this same registry; they do not create a second
+     * settings path.
      *
-     * <p>{@code r_shadows} is the one exception on both counts: it is a real graphics setting,
-     * not a debug one, so it stays registered regardless of the master switch and defaults to
-     * {@code true} (today's shipped soft-shadow look) rather than going through
-     * {@code DebugState}'s off-by-default, master-gated reads.
+     * <p>{@code r_shadows} is the always-available exception: it is a real graphics setting, not
+     * a debug one, so it stays registered regardless of the master switch and defaults to
+     * {@code true} (the shipped soft-shadow look).
      */
     private static void registerDebugToolkitCvars(CvarRegistry cvars, Deps deps) {
         cvars.register(Cvar.builder("r_shadows", ArgTypes.BOOL, "true")
@@ -210,13 +210,24 @@ public final class ClientCommandModule {
             .onChange((prev, next) -> deps.debugState().setHitboxes(Boolean.parseBoolean(next)))
             .build());
         cvars.register(Cvar.builder("r_player_light", ArgTypes.BOOL, "false")
-            .description("the player light pass (M6); wired ahead of the pipeline (F10)")
+            .description("warm-white local and visible-player lights (M6) (F10)")
             .onChange((prev, next) -> deps.debugState().setPlayerLight(Boolean.parseBoolean(next)))
             .build());
-        cvars.register(Cvar.builder("r_player_light_shadows", ArgTypes.BOOL, "false")
-            .description("shadows cast by the player light (M6); console-only, no key")
+        Cvar playerLightShadows = Cvar.builder("r_player_light_shadows", ArgTypes.BOOL, "true")
+            .description("SDF-shadow player lights; off disables their occlusion sampling")
             .onChange(
                 (prev, next) -> deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(next)))
+            .build();
+        cvars.register(playerLightShadows);
+        // Cvar hooks fire on changes, not on construction; seed the mirrored default explicitly.
+        deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(playerLightShadows.value()));
+        cvars.register(Cvar.builder(
+                "r_player_light_radius", ArgTypes.FLOAT(32f, 512f), "140.0")
+            .description("player-light radius in world units; live-tunable (M6)")
+            .build());
+        cvars.register(Cvar.builder(
+                "r_player_light_intensity", ArgTypes.FLOAT(0f, 1f), "0.35")
+            .description("player-light additive intensity from 0 to 1; live-tunable (M6)")
             .build());
         cvars.register(Cvar.builder("fx_debug", ArgTypes.BOOL, "false")
             .description("pass timings, particle/light counts, draw calls (M7); wired ahead (F11)")
