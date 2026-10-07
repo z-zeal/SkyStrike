@@ -10,10 +10,10 @@ import io.github.skystrike.shared.net.s2c.PacketCapabilities;
  * one the client does not own. It starts at "no console", it only ever changes because a
  * {@link PacketCapabilities} arrived, and nothing here asks for anything.
  *
- * <p>The derived rule lives here too, because it is derived and not stored: a line is a command
- * if, and only if, the console exists for this client <b>and</b> the text begins with exactly one
- * slash. There is no mode to enter, nothing to transition, and nothing that can disagree with
- * what submit will actually do — recompute it on every keystroke and it is always right.
+ * <p>This class exposes the server-grant part of command classification. The complete client
+ * rule also considers the local debug switch and lives in {@link ClientCommandService}, so the
+ * UI can distinguish a locked command attempt from escaped chat without trusting client state as
+ * a server capability.
  */
 public final class ClientCapabilities {
 
@@ -64,10 +64,9 @@ public final class ClientCapabilities {
     }
 
     /**
-     * The whole "is this a command?" rule, recomputed as the player types.
-     *
-     * <p>Without console access a leading slash is ordinary text, which is why the access flag
-     * is the first term rather than an afterthought at submit time.
+     * The server-grant portion of command classification, retained for capability-only callers.
+     * The dialog uses {@link ClientCommandService#isCommandLine(String)} for the complete local
+     * rule, including the debug switch and its visible locked-command explanation.
      */
     public boolean isCommandLine(String text) {
         if (!consoleAccess || text == null) {
