@@ -120,6 +120,7 @@ public final class GameScreen implements Screen {
 
     private final KeyBindings bindings = new KeyBindings();
     private final InputRouter inputRouter = new InputRouter();
+    private PauseOverlay pauseOverlay;
     private final LoadoutController loadoutController = new LoadoutController(bindings, inputRouter);
     private final InputSampler inputSampler = new InputSampler(bindings, inputRouter, loadoutController);
     private DebugKeyController debugKeyController;
@@ -317,6 +318,7 @@ public final class GameScreen implements Screen {
         root.addProcessor(inputRouter.multiplexer());
         root.addProcessor(scrollForwarder);
         Gdx.input.setInputProcessor(root);
+        pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
         pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         session.connect(host, tcpPort, udpPort);
     }
@@ -326,6 +328,11 @@ public final class GameScreen implements Screen {
         session.update(delta);
         lastDeltaMillis = delta * 1000f;
         consoleDialog.update(delta);
+
+        // Escape is polled only while no dialog/modal owns the focus stack.
+        if (inputRouter.isGameplayActive() && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            inputRouter.pushFocus(pauseOverlay);
+        }
 
         // Console plan §6.4: the open key is one press, one owner. While the dialog is closed
         // and gameplay owns input, it opens the dialog; the same keystroke is consumed by the
@@ -625,6 +632,14 @@ public final class GameScreen implements Screen {
         consoleDialog.resize(width, height);
         if (pipeline != null) {
             pipeline.resize(width, height);
+        }
+    }
+
+    private void onPauseAction(String action) {
+        if ("Disconnect".equals(action)) {
+            session.disconnect();
+        } else if ("Loadout".equals(action)) {
+            setUiLoadout(true);
         }
     }
 
