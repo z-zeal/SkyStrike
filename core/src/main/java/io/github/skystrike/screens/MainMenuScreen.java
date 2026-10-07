@@ -113,6 +113,7 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
         // Build the polished initial menu (no permanently visible connection fields) and then
         // the true-modal connection dialog on top.
         Table menuRoot = buildMenuLayout();
+        dialog = new Table(skin);
         overlay = buildDialogOverlay();
 
         // Stage ordering: menu behind, overlay in front when visible.
@@ -129,7 +130,6 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     private TextField field(String value, String message) {
         TextField field = new TextField(value, skin);
         field.setMessageText(message);
-        field.setSelectAllOnFocus(false);
         return field;
     }
 
@@ -214,7 +214,6 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
         // Also intercept hit for empty area so stage.hit returns the overlay and not the menu.
         full.setTouchable(Touchable.enabled);
 
-        dialog = new Table(skin);
         dialog.setBackground(skin.getDrawable("window"));
         dialog.pad(18f);
         dialog.defaults().left();
