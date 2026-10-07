@@ -1,59 +1,70 @@
 package io.github.skystrike;
 
 import com.badlogic.gdx.Game;
-import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.Gdx;
+import io.github.skystrike.net.ClientSession;
+import io.github.skystrike.screens.ConnectingScreen;
 import io.github.skystrike.screens.GameScreen;
+import io.github.skystrike.screens.MainMenuScreen;
+import io.github.skystrike.screens.SettingsScreen;
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.settings.Settings;
 
-/**
- * Application root.
- *
- * <p>Phase 0 goes straight to the match screen. The loading and menu screens, and the platform
- * service injection they need, arrive in Phases 10 and 11.
- */
+/** Application root and the single owner of screen transitions. */
 public final class Main extends Game {
+    private static final String HOST = "skystrike.host";
+    private static final String TCP = "skystrike.tcpPort";
+    private static final String UDP = "skystrike.udpPort";
+    private static final String NAME = "skystrike.name";
 
-    private static final String HOST_PROPERTY = "skystrike.host";
-    private static final String TCP_PORT_PROPERTY = "skystrike.tcpPort";
-    private static final String UDP_PORT_PROPERTY = "skystrike.udpPort";
-    private static final String NAME_PROPERTY = "skystrike.name";
+    private final Settings settings = new Settings();
 
-    @Override
-    public void create() {
-        setScreen(new GameScreen(
-            property(NAME_PROPERTY, "Player"),
-            property(HOST_PROPERTY, NetConfig.DEFAULT_HOST),
-            intProperty(TCP_PORT_PROPERTY, NetConfig.DEFAULT_TCP_PORT),
-            intProperty(UDP_PORT_PROPERTY, NetConfig.DEFAULT_UDP_PORT)));
+    @Override public void create() { showMenu(); }
+
+    private void showMenu() {
+        setScreen(new MainMenuScreen(this::menuAction,
+            property(NAME, "Player"), property(HOST, NetConfig.DEFAULT_HOST),
+            intProperty(TCP, NetConfig.DEFAULT_TCP_PORT), intProperty(UDP, NetConfig.DEFAULT_UDP_PORT)));
     }
 
-    /**
-     * {@code Game.dispose()} only hides the active screen, so the screen's own resources are
-     * released here explicitly.
-     */
-    @Override
-    public void dispose() {
-        Screen current = getScreen();
-        super.dispose();
-        if (current != null) {
-            current.dispose();
+    private void menuAction(String action) {
+        if ("Settings".equals(action)) {
+            setScreen(new SettingsScreen(settings, this::showMenu));
+        } else if ("Play".equals(action)) {
+            connectToGame(false);
+        } else if ("Loadout".equals(action)) {
+            connectToGame(true);
+        } else if ("Quit".equals(action)) {
+            Gdx.app.exit();
         }
+    }
+
+    private void connectToGame(boolean openLoadout) {
+        String name = property(NAME, "Player");
+        String host = property(HOST, NetConfig.DEFAULT_HOST);
+        int tcp = intProperty(TCP, NetConfig.DEFAULT_TCP_PORT);
+        int udp = intProperty(UDP, NetConfig.DEFAULT_UDP_PORT);
+        ClientSession session = new ClientSession(name);
+        Runnable joined = () -> {
+            GameScreen game = new GameScreen(session, host, tcp, udp);
+            setScreen(game);
+            if (openLoadout) game.openLoadout();
+        };
+        Runnable cancelled = this::showMenu;
+        setScreen(new ConnectingScreen(session, host, tcp, udp, joined, cancelled));
+    }
+
+    @Override public void dispose() {
+        // setScreen() disposes the old screen through Game; dispose the current one exactly once.
+        super.dispose();
     }
 
     private static String property(String key, String fallback) {
         String value = System.getProperty(key);
         return value == null || value.isBlank() ? fallback : value;
     }
-
     private static int intProperty(String key, int fallback) {
-        String value = System.getProperty(key);
-        if (value == null || value.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Integer.parseInt(value.trim());
-        } catch (NumberFormatException notANumber) {
-            return fallback;
-        }
+        try { return Integer.parseInt(property(key, Integer.toString(fallback)).trim()); }
+        catch (NumberFormatException ignored) { return fallback; }
     }
 }
