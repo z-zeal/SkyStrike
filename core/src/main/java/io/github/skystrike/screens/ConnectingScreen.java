@@ -19,7 +19,8 @@ public final class ConnectingScreen extends ScreenAdapter {
         this.session=session; this.host=host; this.tcp=tcp; this.udp=udp; this.joined=joined; this.back=back;
     }
     @Override public void show() { session.connect(host, tcp, udp); Gdx.input.setInputProcessor(new com.badlogic.gdx.InputAdapter() {
-        @Override public boolean keyDown(int key) { if (key == Input.Keys.ESCAPE) { session.disconnect(); back.run(); return true; } return true; }
+        @Override public boolean keyDown(int key) { if (key == Input.Keys.ESCAPE) { session.disconnect(); back.run(); return true; } if (key == Input.Keys.R) { session.disconnect(); session.connect(host, tcp, udp); return true; } return true; }
+        @Override public boolean touchDown(int x, int y, int pointer, int button) { session.disconnect(); session.connect(host, tcp, udp); return true; }
     }); }
     @Override public void render(float delta) {
         session.update(delta);

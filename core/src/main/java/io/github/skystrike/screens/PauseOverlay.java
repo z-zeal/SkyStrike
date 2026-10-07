@@ -20,4 +20,13 @@ public final class PauseOverlay extends InputAdapter {
         if (keycode == Input.Keys.D) { action.accept("Disconnect"); return true; }
         return true;
     }
+    @Override public boolean touchDown(int x, int y, int pointer, int button) {
+        // The overlay menu is ordered Resume, Loadout, Settings, Disconnect.
+        int row = y / 64;
+        if (row == 0) { action.accept("Resume"); router.popFocus(); }
+        else if (row == 1) action.accept("Loadout");
+        else if (row == 2) action.accept("Settings");
+        else if (row == 3) { action.accept("Disconnect"); router.popFocus(); }
+        return true;
+    }
 }

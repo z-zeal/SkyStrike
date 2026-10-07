@@ -26,6 +26,12 @@ public final class MainMenuScreen extends ScreenAdapter {
                 if (keycode == Input.Keys.ENTER) action.accept(items[selected]);
                 return true;
             }
+            @Override public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+                float y = Gdx.graphics.getHeight() - screenY;
+                int hit = Math.round((350f - y) / 32f);
+                if (hit >= 0 && hit < items.length) { selected = hit; action.accept(items[selected]); }
+                return true;
+            }
         });
     }
     @Override public void render(float delta) {

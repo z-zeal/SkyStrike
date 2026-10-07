@@ -23,6 +23,12 @@ public final class SettingsScreen extends ScreenAdapter {
                 if (key == Input.Keys.RIGHT) settings.qualityTier++;
                 settings.validate(); return true;
             }
+            @Override public boolean touchDown(int x, int y, int pointer, int button) {
+                int screenY = Gdx.graphics.getHeight() - y;
+                if (screenY > 320 && screenY < 400) settings.qualityTier++;
+                else if (screenY > 220 && screenY < 290) back.run();
+                settings.validate(); return true;
+            }
         });
     }
     @Override public void render(float delta) {
