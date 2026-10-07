@@ -12,7 +12,9 @@ import io.github.skystrike.command.ClientCommandService;
 import io.github.skystrike.command.DebugKeyController;
 import io.github.skystrike.shared.command.CommandException;
 import io.github.skystrike.shared.command.Cvar;
+import io.github.skystrike.fx.FxBudget;
 import io.github.skystrike.fx.FxPipeline;
+import io.github.skystrike.fx.FxStats;
 import io.github.skystrike.fx.lighting.Light;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.audio.GunAudio;
@@ -49,6 +51,7 @@ import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.settings.Settings;
 import io.github.skystrike.shared.text.ChatChannel;
@@ -215,6 +218,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setSnapshotListener(this::onGameStateSnapshot);
         this.session.setKillListener(this::onKillEvent);
         this.session.setDamageListener(this::onDamageEvent);
+        this.session.setEffectListener(this::onEffectSpawn);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
         this.session.setSessionResetListener(() -> {
@@ -319,6 +323,17 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private void onChatMessage(io.github.skystrike.shared.text.ChatMessage message) {
         chatClient.setLocalPlayerId(session.playerId());
         chatClient.receive(message);
+    }
+
+    /**
+     * M7 §8.1: an effect batch arrived. The listener only enqueues into the pipeline's event
+     * queue — the FX update drains it later in this same frame, on this same render thread, and
+     * nothing is ever spawned from the network thread.
+     */
+    private void onEffectSpawn(PacketEffectSpawn packet) {
+        if (pipeline != null) {
+            pipeline.enqueueEffects(packet);
+        }
     }
 
     /**
@@ -464,6 +479,11 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             }
         }
 
+        // M7: the effects tier follows the quality cvar live (falling back to the settings
+        // object's tier), and the FX update drains the effect queue and fires due phases.
+        pipeline.setQualityTier(resolveFxTier());
+        pipeline.updateFx(delta);
+
         // Player-light radius and intensity come from the same live cvar registry as the other
         // graphics controls. Remote sources are filtered by shared vision/LOS before entering
         // the pool, then LightPass masks each fragment against the rendered visibility texture.
@@ -487,6 +507,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         playerRenderer.render(camera, remotePlayers, localPlayer);
         projectileRenderer.render(camera, projectiles);
         thrownUtilityRenderer.render(camera, thrownUtilities);
+        // M7: the alpha particle batch joins the scene, so the fog darkens smoke and dust.
+        pipeline.renderAlphaParticles(camera);
         pipeline.endScene();
 
         // Pass 2: VISIBILITY (Observers + SDF Soft Shadows into half-res visibility buffer)
@@ -502,6 +524,11 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
         // Pass 4: COMPOSITE (scene * max(visibility, ambientFloor) + safe light buffer)
         pipeline.composite();
+
+        // M7: the additive particle batch glows through the fog, gated by the visibility
+        // texture; the flashbang whiteout rides above it, below the HUD.
+        pipeline.renderAdditiveParticles(camera);
+        pipeline.renderBlindness(session.blindIntensity());
 
         // Pass 5: DEBUG OVERLAYS
         if (debugState.sdfView()) {
@@ -602,6 +629,22 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
     }
 
+    /**
+     * The effects quality tier (M7 §8.2): the live {@code quality} cvar wins, the settings
+     * object's tier is the fallback. Re-resolved every frame, so a settings change applies
+     * without leaving the match.
+     */
+    private FxBudget.Tier resolveFxTier() {
+        Cvar quality = commandService.cvars().find("quality");
+        if (quality != null) {
+            FxBudget.Tier tier = FxBudget.parseTier(quality.value());
+            if (tier != null) {
+                return tier;
+            }
+        }
+        return FxBudget.fromSettingsTier(settings.qualityTier);
+    }
+
     private void sampleCameraInput(float delta) {
         float dx = 0f;
         float dy = 0f;
@@ -641,6 +684,23 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 floatCvar("r_player_light_intensity", Light.DEFAULT_PLAYER_INTENSITY),
                 debugState.playerLightShadows(),
                 debugState.fxDebug()));
+        }
+        if (debugState.fxDebug() && pipeline != null) {
+            // The M7 gate: particle and light counts staying inside the tier budget.
+            FxStats stats = pipeline.fxStats();
+            lines.add(String.format(
+                "fx: particles %d/%d alpha + %d/%d add + %d/%d cpu  lights %d/%d  phases %d  events %d  tier %s",
+                stats.alphaParticles(),
+                stats.alphaCapacity(),
+                stats.additiveParticles(),
+                stats.additiveCapacity(),
+                stats.cpuParticles(),
+                stats.cpuCapacity(),
+                stats.effectLights(),
+                stats.effectLightCap(),
+                stats.pendingPhases(),
+                session.effectsReceived(),
+                pipeline.particles().budget().tier()));
         }
         if (localPlayer != null) {
             lines.add(String.format(

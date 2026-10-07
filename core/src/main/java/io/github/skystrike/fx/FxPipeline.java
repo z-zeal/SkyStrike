@@ -12,6 +12,9 @@ import io.github.skystrike.fx.lighting.LightPool;
 import io.github.skystrike.fx.lighting.SmokeVolumes;
 import io.github.skystrike.fx.lighting.VisibilitySystem;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
+import io.github.skystrike.fx.particle.FxClock;
+import io.github.skystrike.fx.particle.GpuParticleSystem;
+import io.github.skystrike.fx.post.BlindnessPass;
 import io.github.skystrike.fx.post.CompositePass;
 import io.github.skystrike.fx.sdf.SdfCache;
 import io.github.skystrike.fx.sdf.SdfDebugView;
@@ -20,6 +23,7 @@ import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.shared.vision.VisionMath;
 import java.util.HashMap;
@@ -47,6 +51,10 @@ public final class FxPipeline implements Disposable {
     private final CompositePass compositePass;
     private final SdfDebugView sdfDebugView;
     private final SmokeVolumes smokeVolumes;
+    /** M7: particles and attached effect lights, sharing the light pool and the SDF field. */
+    private final GpuParticleSystem particles;
+    /** M7: the flashbang whiteout post pass. */
+    private final BlindnessPass blindnessPass;
     private final Map<Integer, Integer> remotePlayerLightHandles = new HashMap<>();
 
     private int localPlayerLightHandle = LightPool.INVALID_HANDLE;
@@ -67,6 +75,9 @@ public final class FxPipeline implements Disposable {
         this.compositePass = new CompositePass(this.shaders);
         this.sdfDebugView = new SdfDebugView(this.shaders);
         this.smokeVolumes = new SmokeVolumes();
+        this.particles = new GpuParticleSystem(
+            new FxClock(), new FxBudget(), this.lightPool, this.sdfTexture.field(), this.shaders);
+        this.blindnessPass = new BlindnessPass(this.shaders);
     }
 
     /** Resizes framebuffer targets to match the window dimensions. */
@@ -197,6 +208,65 @@ public final class FxPipeline implements Disposable {
                 lightPass.texture());
     }
 
+    // --- M7: the FX event channel and particles -------------------------------------------------
+
+    /**
+     * Enqueues a received effect batch. The particle system drains the queue on the render
+     * thread in {@link #updateFx(float)}; nothing is ever spawned from the network thread.
+     */
+    public void enqueueEffects(PacketEffectSpawn packet) {
+        if (packet == null || packet.effects == null || packet.effects.isEmpty()) {
+            return;
+        }
+        particles.enqueueAll(packet.effects);
+    }
+
+    /**
+     * One frame of FX update: advances the effect clock, drains the event queue, fires due
+     * phases, animates the attached lights and steps the CPU tier. Call before the scene pass.
+     */
+    public void updateFx(float deltaSeconds) {
+        particles.update(deltaSeconds);
+    }
+
+    /**
+     * The alpha particle batch, drawn inside the scene pass so the fog composite darkens smoke,
+     * dust and debris. Includes the CPU-tier casings, which are scene content too.
+     */
+    public void renderAlphaParticles(GameCamera camera) {
+        particles.renderAlphaParticles(camera);
+    }
+
+    /**
+     * The additive particle batch, drawn after the composite so sparks, fire and flash glow
+     * through darkness. Gated by the visibility texture, exactly like the light pass.
+     */
+    public void renderAdditiveParticles(GameCamera camera) {
+        particles.renderAdditiveParticles(camera, visibilitySystem.getVisibilityTexture());
+    }
+
+    /**
+     * The flashbang whiteout, drawn above the composite and the additive particles and below the
+     * HUD. The intensity is the shared {@code StunMath} curve over the local player's blind state.
+     */
+    public void renderBlindness(float blindIntensity) {
+        blindnessPass.render(blindIntensity, particles.clock().time());
+    }
+
+    /** Applies a new effects quality tier; buffers resize when the tier's caps move. */
+    public void setQualityTier(FxBudget.Tier tier) {
+        particles.setTier(tier);
+    }
+
+    /** The fx_debug overlay's view: live particle and light counts against the tier budget. */
+    public FxStats fxStats() {
+        return particles.stats();
+    }
+
+    public GpuParticleSystem particles() {
+        return particles;
+    }
+
     private int upsertPlayerLight(
             int handle,
             float x,
@@ -277,6 +347,8 @@ public final class FxPipeline implements Disposable {
         }
         disposed = true;
         clearPlayerLights();
+        particles.dispose();
+        blindnessPass.dispose();
         sceneFbo.dispose();
         visibilitySystem.dispose();
         lightPass.dispose();

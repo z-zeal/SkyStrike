@@ -12,6 +12,8 @@ import com.esotericsoftware.kryo.io.Output;
 import io.github.skystrike.shared.command.CommandResult;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
@@ -32,6 +34,7 @@ import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
@@ -85,8 +88,11 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(HitZone.class));
         assertTrue(NetworkRegistration.isSupportType(PlayerLoadout.class));
         assertTrue(NetworkRegistration.isSupportType(GadgetSlot.class));
+        assertTrue(NetworkRegistration.isSupportType(EffectType.class));
+        assertTrue(NetworkRegistration.isSupportType(EffectSpawn.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
         assertFalse(NetworkRegistration.isSupportType(PacketLoadoutUpdate.class));
+        assertFalse(NetworkRegistration.isSupportType(PacketEffectSpawn.class));
     }
 
     @Test
@@ -154,13 +160,45 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    @DisplayName("the build-plan M1 command packets are appended last; the list and protocol are frozen")
+    @DisplayName("the build-plan M1 command packets sit at their pinned positions")
     void buildPlanM1CommandPacketsAreAppended() {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(PacketCommandRequest.class, types.get(28));
         assertEquals(PacketCommandResponse.class, types.get(29));
-        assertEquals(30, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(10, NetConfig.PROTOCOL_VERSION);
+        assertTrue(types.size() >= 30, "append only, never replace");
+    }
+
+    @Test
+    @DisplayName("the M7 effect-channel types are appended last; the list and protocol are frozen")
+    void buildPlanM7EffectTypesAreAppended() {
+        // Registration order is the wire format: these indices can never move again.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(EffectType.class, types.get(30));
+        assertEquals(EffectSpawn.class, types.get(31));
+        assertEquals(PacketEffectSpawn.class, types.get(32));
+        assertEquals(33, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(11, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("an effect spawn batch survives the wire with types, positions and seeds intact")
+    void effectSpawnPacketsRoundTrip() {
+        PacketEffectSpawn packet = new PacketEffectSpawn(4242L, List.of(
+            new EffectSpawn(EffectType.FRAG_EXPLOSION, 120f, 240f, 35f, 1f),
+            new EffectSpawn(EffectType.MUZZLE_FLASH, 10f, 20f, 90f, 0.5f)));
+        packet.effects.get(0).seed = 7;
+
+        PacketEffectSpawn decoded = roundTrip(packet);
+        assertEquals(4242L, decoded.tick);
+        assertEquals(2, decoded.effectCount());
+        assertEquals(EffectType.FRAG_EXPLOSION, decoded.effects.get(0).type);
+        assertEquals(120f, decoded.effects.get(0).x);
+        assertEquals(240f, decoded.effects.get(0).y);
+        assertEquals(35f, decoded.effects.get(0).angle);
+        assertEquals(1f, decoded.effects.get(0).scale, 1e-6f);
+        assertEquals(7, decoded.effects.get(0).seed);
+        assertEquals(EffectType.MUZZLE_FLASH, decoded.effects.get(1).type);
+        assertEquals(0.5f, decoded.effects.get(1).scale, 1e-6f);
     }
 
     @Test

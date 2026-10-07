@@ -38,8 +38,13 @@ public final class NetConfig {
      *
      * <p>10 — Build plan M1: {@code PacketCommandRequest} and {@code PacketCommandResponse}
      * appended after {@code GadgetSlot}. No Kryo registration was reordered or inserted.
+     *
+     * <p>11 — Build plan M7: {@code EffectType} and {@code EffectSpawn} registered as payload
+     * types and {@code PacketEffectSpawn} appended after {@code PacketCommandResponse}; effect
+     * batches ride the unreliable channel at snapshot cadence. No Kryo registration was
+     * reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 10;
+    public static final int PROTOCOL_VERSION = 11;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

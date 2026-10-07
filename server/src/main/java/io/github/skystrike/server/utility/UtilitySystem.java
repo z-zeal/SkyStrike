@@ -1,10 +1,15 @@
 package io.github.skystrike.server.utility;
 
 import io.github.skystrike.server.combat.DamageService;
+import io.github.skystrike.server.fx.EffectSink;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.UtilityConfig;
+import io.github.skystrike.shared.config.VisionConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.MapQueries;
+import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
@@ -16,6 +21,7 @@ import io.github.skystrike.shared.utility.ExplosionMath;
 import io.github.skystrike.shared.utility.StunMath;
 import io.github.skystrike.shared.utility.ThrowablePhysics;
 import io.github.skystrike.shared.utility.UtilityDefinition;
+import io.github.skystrike.shared.utility.UtilityEffect;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.vision.SmokeVolume;
@@ -41,10 +47,23 @@ import java.util.List;
  */
 public final class UtilitySystem {
 
+    /**
+     * Direction fire-zone effect events carry: straight up. Flames rise regardless of which
+     * surface the molotov splashed on, so the client recipe reads the angle as "up", not as a
+     * surface tangent (M7 §8.1 per-type angle contract).
+     */
+    private static final float FIRE_ZONE_ANGLE_DEGREES = 90f;
+
     private final ArenaMap arena;
     private final List<ThrownUtility> active = new ArrayList<>();
     private final List<UtilityZone> zones = new ArrayList<>();
     private final List<SmokeVolume> smokeVolumes = new ArrayList<>();
+
+    /**
+     * Where detonation visuals go (build plan M7 §8.1). Null in geometry-only tests; a missing
+     * sink never changes gameplay, only presentation.
+     */
+    private EffectSink effectSink;
 
     private int nextThrownId = 1;
     private int nextZoneId = 1;
@@ -55,6 +74,11 @@ public final class UtilitySystem {
             throw new IllegalArgumentException("arena is required");
         }
         this.arena = arena;
+    }
+
+    /** Installs the effect sink. Null detaches; safe to call more than once. */
+    public void setEffectSink(EffectSink effectSink) {
+        this.effectSink = effectSink;
     }
 
     /**
@@ -175,25 +199,80 @@ public final class UtilitySystem {
      */
     void detonate(ThrownUtility thrown, UtilityDefinition definition, Collection<Player> players, DamageService damage) {
         switch (definition.effect()) {
-            case BLAST -> applyBlast(ExplosionMath.Blast.of(definition, thrown.x, thrown.y, thrown.ownerId), players, damage);
-            case DIRECTIONAL_BLAST -> applyDirectionalBlast(
-                DirectionalBlastMath.Blast.of(definition, thrown.x, thrown.y, thrown.aimAngle, thrown.ownerId),
-                players,
-                damage);
-            case STUN -> applyStun(thrown, definition, players);
-            case FLASH -> applyFlash(thrown, definition, players);
-            case SMOKE_CLOUD, TOXIC_CLOUD -> addZone(new UtilityZone(
-                nextZoneId++,
-                thrown.ownerId,
-                thrown.teamIndex,
-                thrown.utilityId,
-                thrown.x,
-                thrown.y,
-                definition.radius(),
-                definition.damage(),
-                definition.durationSeconds()));
-            case FIRE -> addMolotovZones(thrown, definition);
+            case BLAST -> {
+                applyBlast(ExplosionMath.Blast.of(definition, thrown.x, thrown.y, thrown.ownerId), players, damage);
+                // M7 §8.1: the detonation is silent and invisible without this event.
+                emit(definition.id() == UtilityId.IMPACT
+                        ? EffectType.IMPACT_EXPLOSION
+                        : EffectType.FRAG_EXPLOSION,
+                    thrown.x, thrown.y, 0f, 1f);
+            }
+            case DIRECTIONAL_BLAST -> {
+                applyDirectionalBlast(
+                    DirectionalBlastMath.Blast.of(definition, thrown.x, thrown.y, thrown.aimAngle, thrown.ownerId),
+                    players,
+                    damage);
+                emit(EffectType.CLAYMORE_BLAST, thrown.x, thrown.y, thrown.aimAngle, 1f);
+            }
+            case STUN -> {
+                applyStun(thrown, definition, players);
+                // The blind itself is server state on the player; the event is the white burst.
+                emit(EffectType.FLASH_DETONATION, thrown.x, thrown.y, 0f, 1f);
+            }
+            case FLASH -> {
+                applyFlash(thrown, definition, players);
+                emit(EffectType.FLASH_DETONATION, thrown.x, thrown.y, 0f, 1f);
+            }
+            case SMOKE_CLOUD, TOXIC_CLOUD -> {
+                addZone(new UtilityZone(
+                    nextZoneId++,
+                    thrown.ownerId,
+                    thrown.teamIndex,
+                    thrown.utilityId,
+                    thrown.x,
+                    thrown.y,
+                    definition.radius(),
+                    definition.damage(),
+                    definition.durationSeconds()));
+                // The cloud grows into the zone's own radius, so the visual and the shader
+                // circle stay the same thing (M7 §8.3).
+                emit(definition.effect() == UtilityEffect.SMOKE_CLOUD
+                        ? EffectType.SMOKE_BURST
+                        : EffectType.POISON_BURST,
+                    thrown.x, thrown.y, 0f, cloudScale(definition));
+            }
+            case FIRE -> {
+                // The splash is the impact itself; the zones (and their per-zone flame events)
+                // follow as the fire spreads along the surface.
+                emit(EffectType.MOLOTOV_SPLASH, thrown.x, thrown.y, tangentAngleDegrees(thrown), 1f);
+                addMolotovZones(thrown, definition);
+            }
         }
+    }
+
+    /** One effect request to the sink, if any is installed. Never throws, never blocks. */
+    private void emit(EffectType type, float x, float y, float angle, float scale) {
+        if (effectSink != null) {
+            effectSink.emit(new EffectSpawn(type, x, y, angle, scale));
+        }
+    }
+
+    /**
+     * The cloud scale for smoke and poison: the zone radius in units of the shared default, so
+     * the client's recipe grows its puffs to exactly the radius the snapshot carries.
+     */
+    private static float cloudScale(UtilityDefinition definition) {
+        return definition.radius() / VisionConfig.DEFAULT_SMOKE_RADIUS;
+    }
+
+    /**
+     * The surface tangent at impact, as a direction in degrees: the molotov's fire splash runs
+     * along it, so the spread reads correctly on floors, ramps and vertical walls alike.
+     */
+    private static float tangentAngleDegrees(ThrownUtility thrown) {
+        float normalX = thrown.hasContactNormal() ? thrown.contactNormalX : 0f;
+        float normalY = thrown.hasContactNormal() ? thrown.contactNormalY : 1f;
+        return Angles.toDegrees((float) Math.atan2(normalX, -normalY));
     }
 
     private boolean place(Player owner, UtilityDefinition definition) {
@@ -329,7 +408,7 @@ public final class UtilitySystem {
     }
 
     private void addMolotovZones(ThrownUtility thrown, UtilityDefinition definition) {
-        addZone(new UtilityZone(
+        if (addZone(new UtilityZone(
             nextZoneId++,
             thrown.ownerId,
             thrown.teamIndex,
@@ -338,7 +417,10 @@ public final class UtilitySystem {
             thrown.y,
             UtilityConfig.FIRE_ZONE_RADIUS,
             definition.damage(),
-            definition.durationSeconds()));
+            definition.durationSeconds()))) {
+            // M7 §8.3: one flickering attached light per fire zone, carried by the event.
+            emit(EffectType.FIRE_ZONE, thrown.x, thrown.y, FIRE_ZONE_ANGLE_DEGREES, 1f);
+        }
 
         // A contact normal's perpendicular is the surface tangent. The shared physics records
         // the normal at impact, so the exact same fire spread works on floors, ceilings and walls.
@@ -350,24 +432,31 @@ public final class UtilitySystem {
             for (int index = 1; index <= UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE; index++) {
                 float distance = index * UtilityConfig.FIRE_SPREAD_OFFSET
                     + deterministicJitter(thrown.id, side * index);
-                addZone(new UtilityZone(
+                float zoneX = thrown.x + tangentX * side * distance;
+                float zoneY = thrown.y + tangentY * side * distance;
+                if (addZone(new UtilityZone(
                     nextZoneId++,
                     thrown.ownerId,
                     thrown.teamIndex,
                     thrown.utilityId,
-                    thrown.x + tangentX * side * distance,
-                    thrown.y + tangentY * side * distance,
+                    zoneX,
+                    zoneY,
                     UtilityConfig.FIRE_ZONE_RADIUS,
                     UtilityConfig.FIRE_SPREAD_DAMAGE,
-                    definition.durationSeconds()));
+                    definition.durationSeconds()))) {
+                    emit(EffectType.FIRE_ZONE, zoneX, zoneY, FIRE_ZONE_ANGLE_DEGREES, 1f);
+                }
             }
         }
     }
 
-    private void addZone(UtilityZone zone) {
+    /** @return true when the zone was actually added, false at the active-zone cap */
+    private boolean addZone(UtilityZone zone) {
         if (zone != null && zones.size() < UtilityConfig.MAX_ACTIVE_ZONES) {
             zones.add(zone);
+            return true;
         }
+        return false;
     }
 
     private void updateZones(float dt) {

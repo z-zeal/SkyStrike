@@ -1,0 +1,155 @@
+package io.github.skystrike.server.fx;
+
+import io.github.skystrike.shared.config.VisionConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.vision.SmokeVolume;
+import io.github.skystrike.shared.vision.VisionMath;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Accumulates the tick's effect requests and culls them per recipient (build plan M7 §8.1).
+ *
+ * <p>Systems emit into this sink during the tick; when the snapshot broadcast runs, the server
+ * drains the window once and sends each recipient only the effects that recipient can plausibly
+ * see. Culling samples the same {@link VisionMath} the entity and combat code uses, on a disc
+ * around the effect whose radius is the type's {@link io.github.skystrike.shared.effect.EffectType#cullRadius()
+ * cull radius} — the reach of what is visible (the attached light), not the particle spread — so
+ * an explosion just behind a wall still reaches observers who can see the wall face its light
+ * lands on, while a fully hidden detonation sends nothing at all.
+ *
+ * <p>The visibility bar is the same one M6's player lights use: the peripheral floor is not
+ * enough. An effect outside the observer's cone is culled, which is what keeps additive particles
+ * from glowing at observers who cannot see the source. Gameplay state is never culled this way —
+ * only these ephemeral visuals.
+ *
+ * <p>Threading: emit and drain both run on the tick thread. The pending list is deliberately not
+ * synchronised, like the rest of the simulation.
+ */
+public final class EffectBroadcaster implements EffectSink {
+
+    /**
+     * Upper bound on requests buffered between two snapshot broadcasts, so an effect spam loop
+     * cannot exhaust the heap. Effects are presentation; dropping the excess is correct.
+     */
+    public static final int MAX_PENDING_SPAWNS = 512;
+
+    /** Sample points on the culling disc sit at this fraction of its radius. */
+    private static final float DISC_SAMPLE_FRACTION = 0.75f;
+
+    private static final int DISC_SAMPLE_COUNT = 8;
+
+    private final List<EffectSpawn> pending = new ArrayList<>();
+    private int nextSeed = 1;
+
+    /**
+     * Records one effect request. Assigns the deterministic layout seed here, in one place, so
+     * every client that receives the event lays out the same particles.
+     */
+    @Override
+    public void emit(EffectSpawn spawn) {
+        if (spawn == null || pending.size() >= MAX_PENDING_SPAWNS) {
+            return;
+        }
+        spawn.seed = nextSeed++;
+        pending.add(spawn);
+    }
+
+    /**
+     * Hands the accumulated window over and starts a new one. Returns an immutable empty list
+     * when nothing was emitted, so callers can skip the per-recipient work entirely.
+     */
+    public List<EffectSpawn> drain() {
+        if (pending.isEmpty()) {
+            return List.of();
+        }
+        List<EffectSpawn> drained = List.copyOf(pending);
+        pending.clear();
+        return drained;
+    }
+
+    /** Drops everything buffered; used on shutdown so a reused broadcaster starts clean. */
+    public void clear() {
+        pending.clear();
+    }
+
+    public int pendingCount() {
+        return pending.size();
+    }
+
+    /**
+     * The subset of {@code spawns} the given observer can plausibly see: any sample point on the
+     * effect's culling disc must clear the same visibility bar M6's player lights use (inside the
+     * cone, hard line of sight, smoke counts).
+     *
+     * @param observer the recipient's authoritative player state
+     * @param smoke    live smoke volumes, exactly as gameplay sight queries see them
+     */
+    public List<EffectSpawn> cullFor(
+            List<EffectSpawn> spawns,
+            Player observer,
+            ArenaMap arena,
+            List<SmokeVolume> smoke) {
+        if (spawns == null || spawns.isEmpty() || observer == null || arena == null) {
+            return List.of();
+        }
+        float reach = observer.ads ? VisionConfig.REACH_ADS : VisionConfig.REACH_HIP;
+        List<EffectSpawn> visible = new ArrayList<>(spawns.size());
+        for (EffectSpawn spawn : spawns) {
+            if (spawn == null || spawn.type == null) {
+                continue;
+            }
+            float radius = spawn.type.cullRadius() * Math.max(0.25f, spawn.scale);
+            if (isAnySampleVisible(observer, spawn.x, spawn.y, radius, arena, smoke, reach)) {
+                visible.add(spawn);
+            }
+        }
+        return visible;
+    }
+
+    private static boolean isAnySampleVisible(
+            Player observer,
+            float x,
+            float y,
+            float radius,
+            ArenaMap arena,
+            List<SmokeVolume> smoke,
+            float reach) {
+        if (isVisibleFrom(observer, x, y, arena, smoke, reach)) {
+            return true;
+        }
+        for (int i = 0; i < DISC_SAMPLE_COUNT; i++) {
+            double angle = i * (Math.PI * 2.0 / DISC_SAMPLE_COUNT);
+            float px = x + (float) (Math.cos(angle) * radius * DISC_SAMPLE_FRACTION);
+            float py = y + (float) (Math.sin(angle) * radius * DISC_SAMPLE_FRACTION);
+            if (isVisibleFrom(observer, px, py, arena, smoke, reach)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isVisibleFrom(
+            Player observer,
+            float x,
+            float y,
+            ArenaMap arena,
+            List<SmokeVolume> smoke,
+            float reach) {
+        float visibility = VisionMath.calculateVisibility(
+            observer.eyeX(),
+            observer.eyeY(),
+            observer.aimAngle,
+            reach,
+            x,
+            y,
+            arena,
+            smoke);
+        // The shared vision function retains a faint peripheral floor outside the cone. An effect
+        // must clear that floor, exactly like M6's player-light sources, so additive particles
+        // never identify a detonation the observer cannot see.
+        return visibility > VisionConfig.PERIPHERAL_FLOOR + 0.001f;
+    }
+}

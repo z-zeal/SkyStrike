@@ -14,6 +14,7 @@ import io.github.skystrike.server.net.NetworkEndpoint;
 import io.github.skystrike.server.net.NetworkEvent;
 import io.github.skystrike.server.net.PacketRouter;
 import io.github.skystrike.server.combat.MeleeSystem;
+import io.github.skystrike.server.fx.EffectBroadcaster;
 import io.github.skystrike.server.gadget.FuelTankSystem;
 import io.github.skystrike.server.gadget.ShieldSystem;
 import io.github.skystrike.server.net.handlers.ChatRequestHandler;
@@ -37,6 +38,7 @@ import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.debug.DebugState;
+import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
@@ -51,6 +53,7 @@ import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.physics.PlayerInput;
@@ -89,6 +92,8 @@ public final class GameServer {
 
     private final BulletSystem bulletSystem;
     private final UtilitySystem utilitySystem;
+    /** M7 §8.1: one effect broadcaster behind every combat system's visual events. */
+    private final EffectBroadcaster effectBroadcaster;
     private final ShieldSystem shieldSystem;
     private final FuelTankSystem fuelTankSystem;
     private final KillFeedService killFeed;
@@ -120,6 +125,11 @@ public final class GameServer {
 
         this.bulletSystem = new BulletSystem(this.arena);
         this.utilitySystem = new UtilitySystem(this.arena);
+        // M7 §8.1: detonations, impacts and muzzle events all flow through one broadcaster,
+        // culled per recipient when the snapshot broadcast runs.
+        this.effectBroadcaster = new EffectBroadcaster();
+        this.bulletSystem.setEffectSink(this.effectBroadcaster);
+        this.utilitySystem.setEffectSink(this.effectBroadcaster);
         this.shieldSystem = new ShieldSystem();
         this.fuelTankSystem = new FuelTankSystem(this.arena);
         this.killFeed = new KillFeedService();
@@ -130,8 +140,10 @@ public final class GameServer {
             return session != null && session.godmode();
         });
         RecoilService recoilService = new RecoilService();
+        FireController fireController = new FireController(new Random(), recoilService);
+        fireController.setEffectSink(this.effectBroadcaster);
         this.loadoutSystem = new LoadoutSystem(
-            new FireController(new Random(), recoilService),
+            fireController,
             new MeleeSystem(),
             this.bulletSystem,
             this.utilitySystem,
@@ -263,6 +275,10 @@ public final class GameServer {
         return utilitySystem;
     }
 
+    public EffectBroadcaster effectBroadcaster() {
+        return effectBroadcaster;
+    }
+
     public ShieldSystem shieldSystem() {
         return shieldSystem;
     }
@@ -326,6 +342,7 @@ public final class GameServer {
             players.clear();
             bulletSystem.clear();
             utilitySystem.clear();
+            effectBroadcaster.clear();
             chatService.clear();
             capabilities.clear();
             System.out.println("[server] stopped");
@@ -485,6 +502,9 @@ public final class GameServer {
      * a tracer flickering in and out mid-flight would be the same bug with a shorter lifetime.
      */
     private void broadcastSnapshot(SimulationClock clock) {
+        // M7 §8.1: drain the effect window even with nobody connected, so the accumulator can
+        // never grow stale between matches.
+        List<EffectSpawn> effectSpawns = effectBroadcaster.drain();
         if (connections.count() == 0) {
             return;
         }
@@ -518,6 +538,28 @@ public final class GameServer {
                 snapshot.utilityZones.add(zone.copy());
             }
             endpoint.sendUnreliable(conn, snapshot);
+
+            if (!effectSpawns.isEmpty()) {
+                sendEffectSpawns(entry, effectSpawns, tick);
+            }
+        }
+    }
+
+    /**
+     * Sends one recipient their culled share of the tick's effect batch (M7 §8.1). Culling uses
+     * the same {@code VisionMath} the rest of the server judges visibility with, so a detonation
+     * the recipient cannot see is never described to their client — and the client's own
+     * per-particle occlusion test is the second line of defence.
+     */
+    private void sendEffectSpawns(ConnectionRegistry.Entry entry, List<EffectSpawn> effectSpawns, long tick) {
+        PlayerSession session = players.byPlayerId(entry.playerId());
+        if (session == null) {
+            return;
+        }
+        List<EffectSpawn> visible = effectBroadcaster.cullFor(
+            effectSpawns, session.player(), arena, utilitySystem.smokeVolumes());
+        if (!visible.isEmpty()) {
+            endpoint.sendUnreliable(entry.connection(), new PacketEffectSpawn(tick, visible));
         }
     }
 }

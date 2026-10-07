@@ -1,6 +1,8 @@
 package io.github.skystrike.shared.net;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
@@ -21,6 +23,7 @@ import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
@@ -96,7 +99,13 @@ public final class NetworkRegistration {
 
         // Build plan M1: raw command line up, execution output back (append-only)
         PacketCommandRequest.class,
-        PacketCommandResponse.class);
+        PacketCommandResponse.class,
+
+        // Build plan M7: the FX event channel — payload types then the batched s2c packet
+        // (append-only)
+        EffectType.class,
+        EffectSpawn.class,
+        PacketEffectSpawn.class);
 
     private NetworkRegistration() {
     }
