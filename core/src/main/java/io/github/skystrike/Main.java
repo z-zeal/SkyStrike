@@ -100,7 +100,8 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
             connection.udpPort(),
             bindings,
             this::showMenu,
-            this::showGameSettings);
+            this::showGameSettings,
+            settings);
         if (!pendingLoadout.isEmpty()) {
             game.requestLoadout(pendingLoadout);
             pendingLoadout = new PacketLoadoutUpdate();

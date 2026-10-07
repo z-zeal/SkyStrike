@@ -379,6 +379,13 @@ public final class KeyBindings {
         return isPointerOrKeyPressed(fireButton);
     }
 
+    /** Edge-triggered: true only on the frame the fire binding goes down. */
+    public boolean isFireJustPressed() {
+        return isMouseButton(fireButton)
+            ? Gdx.input.isButtonJustPressed(fireButton)
+            : Gdx.input.isKeyJustPressed(fireButton);
+    }
+
     public boolean isAdsPressed() {
         return isPointerOrKeyPressed(adsButton);
     }
