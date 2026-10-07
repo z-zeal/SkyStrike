@@ -1,8 +1,12 @@
 package io.github.skystrike;
 
 import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import io.github.skystrike.screens.GameScreen;
+import io.github.skystrike.screens.MainMenuScreen;
+import io.github.skystrike.screens.SettingsScreen;
+import io.github.skystrike.shared.settings.Settings;
 import io.github.skystrike.shared.config.NetConfig;
 
 /**
@@ -18,13 +22,24 @@ public final class Main extends Game {
     private static final String UDP_PORT_PROPERTY = "skystrike.udpPort";
     private static final String NAME_PROPERTY = "skystrike.name";
 
+    private final Settings settings = new Settings();
+
     @Override
     public void create() {
-        setScreen(new GameScreen(
-            property(NAME_PROPERTY, "Player"),
-            property(HOST_PROPERTY, NetConfig.DEFAULT_HOST),
-            intProperty(TCP_PORT_PROPERTY, NetConfig.DEFAULT_TCP_PORT),
-            intProperty(UDP_PORT_PROPERTY, NetConfig.DEFAULT_UDP_PORT)));
+        setScreen(new MainMenuScreen(this::menuAction));
+    }
+
+    private void menuAction(String action) {
+        if ("Settings".equals(action)) {
+            setScreen(new SettingsScreen(settings, () -> setScreen(new MainMenuScreen(this::menuAction))));
+        } else if ("Play".equals(action)) {
+            setScreen(new GameScreen(property(NAME_PROPERTY, "Player"),
+                property(HOST_PROPERTY, NetConfig.DEFAULT_HOST),
+                intProperty(TCP_PORT_PROPERTY, NetConfig.DEFAULT_TCP_PORT),
+                intProperty(UDP_PORT_PROPERTY, NetConfig.DEFAULT_UDP_PORT)));
+        } else if ("Quit".equals(action)) {
+            Gdx.app.exit();
+        }
     }
 
     /**
