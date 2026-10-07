@@ -68,6 +68,13 @@ public final class KeyBindings {
      */
     public int openChat = Input.Keys.ENTER;
 
+    /**
+     * Opens the loadout picker (build plan M4 §5: {@code ui_loadout}, default {@code L}). Like
+     * the chat key this only matters as the opener — the picker's own processor owns the
+     * keyboard once it has focus.
+     */
+    public int uiLoadout = Input.Keys.L;
+
     // Debug toolkit (build plan M3 §4): one key per cvar/command, bound exactly like any other
     // action. DebugKeyController polls these and submits the matching command line — nothing
     // here ever flips a debug boolean directly.
@@ -122,6 +129,7 @@ public final class KeyBindings {
         recordSingle("viewCycle", () -> viewCycle, v -> viewCycle = v, () -> Input.Keys.NUM_6);
         recordSingle("viewExit", () -> viewExit, v -> viewExit = v, () -> Input.Keys.ESCAPE);
         recordSingle("openChat", () -> openChat, v -> openChat = v, () -> Input.Keys.ENTER);
+        recordSingle("uiLoadout", () -> uiLoadout, v -> uiLoadout = v, () -> Input.Keys.L);
 
         recordSingle("clDebugOverlay", () -> clDebugOverlayKey, v -> clDebugOverlayKey = v,
             () -> Input.Keys.F1);
@@ -276,6 +284,11 @@ public final class KeyBindings {
     /** Edge-triggered: true only on the frame the chat key goes down. */
     public boolean isOpenChatJustPressed() {
         return Gdx.input.isKeyJustPressed(openChat);
+    }
+
+    /** Edge-triggered: true only on the frame the loadout-picker key goes down. */
+    public boolean isUiLoadoutJustPressed() {
+        return Gdx.input.isKeyJustPressed(uiLoadout);
     }
 
     // --- Debug toolkit (build plan M3 §4), each edge-triggered like every other action ---------

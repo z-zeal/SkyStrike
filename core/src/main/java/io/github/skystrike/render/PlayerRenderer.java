@@ -52,6 +52,15 @@ public final class PlayerRenderer implements Disposable {
     public PlayerRenderer() {
     }
 
+    /**
+     * The held-weapon atlas, shared with the HUD's loadout picker (build plan M4 §5) so
+     * browsing the catalogue does not fill a second texture cache with the same sprites. This
+     * renderer stays the owner: it loads them lazily and disposes them.
+     */
+    public WeaponSprites weaponSprites() {
+        return weaponSprites;
+    }
+
     /** Renders all active players in world space; the composite pass supplies illumination. */
     public void render(GameCamera camera, List<Player> remotePlayers, Player localPlayer) {
         shapes.setProjectionMatrix(camera.combined());

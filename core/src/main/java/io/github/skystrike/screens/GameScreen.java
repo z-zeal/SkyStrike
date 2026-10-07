@@ -11,6 +11,7 @@ import io.github.skystrike.command.ClientCapabilities;
 import io.github.skystrike.command.ClientCommandModule;
 import io.github.skystrike.command.ClientCommandService;
 import io.github.skystrike.command.DebugKeyController;
+import io.github.skystrike.shared.command.CommandException;
 import io.github.skystrike.shared.command.Cvar;
 import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
@@ -28,7 +29,6 @@ import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.ProjectileRenderer;
 import io.github.skystrike.render.ThrownUtilityRenderer;
 import io.github.skystrike.render.TrajectoryRenderer;
-import io.github.skystrike.render.StatusOverlay;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.PlayerConfig;
@@ -47,11 +47,14 @@ import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
+import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.ui.console.ConsoleDialog;
+import io.github.skystrike.ui.hud.HudFrame;
+import io.github.skystrike.ui.hud.HudStage;
 import io.github.skystrike.ui.text.ContrastTestOverlay;
 import io.github.skystrike.ui.text.MessageBuffer;
 import io.github.skystrike.ui.text.MessageSeverity;
@@ -77,10 +80,16 @@ public final class GameScreen implements Screen {
     private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
     private final ThrownUtilityRenderer thrownUtilityRenderer = new ThrownUtilityRenderer();
     private final TrajectoryRenderer trajectoryRenderer = new TrajectoryRenderer();
-    private final StatusOverlay overlay = new StatusOverlay();
     private final HitboxOverlay hitboxOverlay = new HitboxOverlay();
     private final ContrastTestOverlay contrastTestOverlay = new ContrastTestOverlay();
     private final ClientSession session;
+
+    /**
+     * The HUD (build plan M4 §5): bars, loadout bar, crosshair, kill feed, damage vignette,
+     * the debug panel that absorbed {@code StatusOverlay}, and the loadout picker. Built in the
+     * constructor because it needs the session's sender and the player renderer's sprite atlas.
+     */
+    private final HudStage hud;
 
     /**
      * The debug toolkit's local mirror (build plan M3 §4): every F-key/cvar pair writes here
@@ -104,6 +113,8 @@ public final class GameScreen implements Screen {
 
     /** Frame id of the last console close, so the closing keypress cannot re-open it (§6.4). */
     private long consoleClosedFrameId = -1L;
+    /** The same guard for the loadout picker: L closes it, and must not re-open it. */
+    private long pickerClosedFrameId = -1L;
     /** Wall-clock duration of the previous frame, for the {@code fps} command's detail. */
     private float lastDeltaMillis;
 
@@ -142,6 +153,7 @@ public final class GameScreen implements Screen {
 
         this.session.setSnapshotListener(this::onGameStateSnapshot);
         this.session.setKillListener(this::onKillEvent);
+        this.session.setDamageListener(this::onDamageEvent);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
         this.session.setSessionResetListener(capabilities::reset);
@@ -182,6 +194,14 @@ public final class GameScreen implements Screen {
             this::connectedPlayerNames);
         this.consoleDialog.setCloseListener(
             () -> consoleClosedFrameId = Gdx.graphics.getFrameId());
+
+        // The HUD borrows the player renderer's weapon atlas rather than loading a second copy,
+        // and sends picker requests down the same reliable channel as every other c2s packet.
+        this.hud = new HudStage(inputRouter, session::sendReliable, playerRenderer.weaponSprites());
+        this.hud.picker().setCloseRequest(() -> {
+            pickerClosedFrameId = Gdx.graphics.getFrameId();
+            setUiLoadout(false);
+        });
     }
 
     /** The {@code disconnect} client command: sever locally, note it locally. */
@@ -275,8 +295,19 @@ public final class GameScreen implements Screen {
         }
     }
 
+    /** The kill feed is a HUD widget now (M4 §5); the log line stays for headless debugging. */
     private void onKillEvent(PacketKillEvent kill) {
+        hud.onKill(kill, System.currentTimeMillis());
         Gdx.app.log("SkyStrike", kill.feedLine());
+    }
+
+    /**
+     * Damage taken drives the directional vignette. Damage dealt arrives on the same event and
+     * is deliberately ignored here: the hit marker already reports it, and the session owns
+     * that timer.
+     */
+    private void onDamageEvent(PacketDamageEvent damage) {
+        hud.onDamage(damage, prediction.predicted());
     }
 
     @Override
@@ -309,10 +340,16 @@ public final class GameScreen implements Screen {
         // identically to the console itself — one owner of the keyboard at a time.
         if (consoleDialog.isGameplayActive()) {
             debugKeyController.update();
+            pollLoadoutPickerKey();
         }
 
         Player localPlayer = prediction.predicted();
         float visionReach = VisionConfig.REACH_HIP;
+
+        // The HUD's non-drawing frame work: font lifecycle, vignette decay, and the picker's
+        // open state, which follows the ui_loadout cvar rather than a flag of its own.
+        hud.setLocalPlayerId(session.playerId());
+        hud.update(delta, isUiLoadoutOpen(), localPlayer == null ? null : localPlayer.loadout);
 
         // cl_freecam (F2): input packets keep sending zeroed intent even while detached.
         inputSampler.setFreecamActive(debugState.freecam());
@@ -390,10 +427,22 @@ public final class GameScreen implements Screen {
             hitboxOverlay.render(camera, remotePlayers, localPlayer);
         }
 
-        // Pass 5: HUD & OVERLAY (drawn unoccluded over composite)
-        if (debugState.overlay()) {
-            overlay.render(statusLines(localPlayer, visionReach, projectiles.size()));
-        }
+        // Pass 5: the HUD, drawn unoccluded over the composite and under the console (M4 §5).
+        // The debug readout is one widget inside it now, gated by cl_debug_overlay, so there is
+        // a single screen-space projection for everything the player reads.
+        hud.render(new HudFrame(
+            localPlayer,
+            adsAlpha,
+            session.hitMarkerActive(),
+            session.hitMarkerAlpha(),
+            session.hitMarkerHeadshot(),
+            session.hitMarkerLethal(),
+            System.currentTimeMillis(),
+            delta,
+            debugState.overlay(),
+            debugState.overlay()
+                ? statusLines(localPlayer, visionReach, projectiles.size())
+                : List.of()));
 
         // Pass 6: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
@@ -403,6 +452,43 @@ public final class GameScreen implements Screen {
         // validation the console plan asks for.
         if (debugState.contrastTest()) {
             contrastTestOverlay.render();
+        }
+    }
+
+    /**
+     * The loadout-picker key (build plan M4 §5: {@code ui_loadout}, default {@code L}). It only
+     * ever opens the picker: once open, the picker holds input focus and owns the key that
+     * closes it, exactly as the console dialog does with Enter.
+     */
+    private void pollLoadoutPickerKey() {
+        if (bindings.isUiLoadoutJustPressed()
+            && Gdx.graphics.getFrameId() != pickerClosedFrameId) {
+            setUiLoadout(true);
+        }
+    }
+
+    /** {@code ui_loadout}: the cvar is the picker's open flag, so this is the only read. */
+    private boolean isUiLoadoutOpen() {
+        Cvar cvar = commandService.cvars().find("ui_loadout");
+        return cvar != null && Boolean.parseBoolean(cvar.value());
+    }
+
+    /**
+     * Writes {@code ui_loadout}. Unlike the M3 debug keys this does not go through
+     * {@code commandService.submit}: the picker is a normal UI feature that must work on a
+     * server granting no console at all, and echoing {@code /ui_loadout true} into the chat
+     * scrollback every time a player glances at their guns would be noise, not transparency.
+     */
+    private void setUiLoadout(boolean value) {
+        Cvar cvar = commandService.cvars().find("ui_loadout");
+        if (cvar == null) {
+            return;
+        }
+        try {
+            cvar.set(String.valueOf(value));
+        } catch (CommandException impossible) {
+            // A BOOL cvar cannot reject "true"/"false"; nothing useful to tell the player.
+            Gdx.app.error("SkyStrike", "ui_loadout rejected a boolean", impossible);
         }
     }
 
@@ -441,7 +527,7 @@ public final class GameScreen implements Screen {
 
     private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike — Phase 5 (Throwables and Zones)");
+        lines.add("SkyStrike - Phase 5 (Throwables and Zones)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
             // M6/M7 aren't built yet; the toggles are wired ahead of the pipeline (build plan M3
@@ -483,7 +569,7 @@ public final class GameScreen implements Screen {
                     projectileCount,
                     localPlayer.alive
                         ? ""
-                        : String.format("  [DEAD — respawn in %.1fs]", localPlayer.respawnTimer)));
+                        : String.format("  [DEAD - respawn in %.1fs]", localPlayer.respawnTimer)));
             PlayerLoadout loadout = localPlayer.loadout;
             if (loadout != null) {
                 WeaponItem item = loadout.activeItem();
@@ -510,9 +596,6 @@ public final class GameScreen implements Screen {
                     lines.add(pendingPress);
                 }
             }
-            for (PacketKillEvent kill : session.killFeed()) {
-                lines.add("  " + kill.feedLine());
-            }
         } else {
             lines.add(String.format(
                     "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
@@ -537,7 +620,7 @@ public final class GameScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         camera.resize(width, height);
-        overlay.resize(width, height);
+        hud.resize(width, height);
         contrastTestOverlay.resize(width, height);
         consoleDialog.resize(width, height);
         if (pipeline != null) {
@@ -566,7 +649,7 @@ public final class GameScreen implements Screen {
         projectileRenderer.dispose();
         thrownUtilityRenderer.dispose();
         trajectoryRenderer.dispose();
-        overlay.dispose();
+        hud.dispose();
         hitboxOverlay.dispose();
         contrastTestOverlay.dispose();
         if (pipeline != null) {

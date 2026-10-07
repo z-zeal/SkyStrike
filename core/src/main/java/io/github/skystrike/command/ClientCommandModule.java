@@ -162,6 +162,14 @@ public final class ClientCommandModule {
             .description("effects quality tier; respected by the FX budget when it lands (M7)")
             .build());
 
+        // The loadout picker (build plan M4 §5). A real UI feature, not a debug one, so it is
+        // registered whatever the master debug switch says — and it holds its own state: the
+        // cvar *is* the picker's open flag, which is what keeps the L key, the console and the
+        // HUD from each believing something different about whether the picker is up.
+        cvars.register(Cvar.builder("ui_loadout", ArgTypes.BOOL, "false")
+            .description("the loadout picker; changes apply at your next respawn (L)")
+            .build());
+
         registerDebugToolkitCvars(cvars, deps);
     }
 

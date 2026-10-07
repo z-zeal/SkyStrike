@@ -20,6 +20,22 @@ public final class PlayerMotion {
     }
 
     /**
+     * The jetpack tank size for this player: the ordinary capacity, multiplied while a worn,
+     * intact fuel tank is in the loadout (mechanics §7).
+     *
+     * <p>Public because the HUD's fuel bar has to divide by exactly this number. A second copy
+     * of the multiplier rule would put a full bar and a full tank out of step the moment a tank
+     * breaks, which is precisely the kind of disagreement the M4 gate forbids.
+     */
+    public static float fuelCapacity(Player p) {
+        boolean hasFuelTank = p != null && p.loadout != null && p.loadout.hasFuelTank();
+        return PlayerConfig.MAX_FUEL
+            * (hasFuelTank
+                ? io.github.skystrike.shared.config.GadgetConfig.FUEL_TANK_CAPACITY_MULTIPLIER
+                : 1f);
+    }
+
+    /**
      * Steps player state forward by {@code dt} seconds given {@code input} and {@code map}.
      *
      * <p>Pure function: leaves {@code state} untouched and returns a newly stepped instance.
@@ -87,8 +103,7 @@ public final class PlayerMotion {
         // only the shared jetpack function; both server authority and local prediction call this
         // same code. A tank breaking also clamps fuel back to the ordinary capacity immediately.
         boolean hasFuelTank = p.loadout != null && p.loadout.hasFuelTank();
-        float fuelCapacity = PlayerConfig.MAX_FUEL
-            * (hasFuelTank ? io.github.skystrike.shared.config.GadgetConfig.FUEL_TANK_CAPACITY_MULTIPLIER : 1f);
+        float fuelCapacity = fuelCapacity(p);
         p.fuel = Math.min(Math.max(0f, p.fuel), fuelCapacity);
 
         if (input != null && input.jump && (p.grounded || p.coyoteTimer > 0f)) {
