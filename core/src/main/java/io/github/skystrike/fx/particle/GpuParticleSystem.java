@@ -315,7 +315,7 @@ public final class GpuParticleSystem implements Disposable {
             // evict the oldest ordinary effect light to make room.
             EffectLightInstance victim = null;
             for (EffectLightInstance light : lights) {
-                if (!light.highPriority && (victim == null || light.age > victim.age)) {
+                if (!light.spec.highPriority() && (victim == null || light.age > victim.age)) {
                     victim = light;
                 }
             }
