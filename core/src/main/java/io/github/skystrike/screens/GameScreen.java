@@ -126,6 +126,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final InputRouter inputRouter = new InputRouter();
     private final InputMultiplexer rootInput = new InputMultiplexer();
     private final PauseOverlay pauseOverlay;
+    private final GameSettingsDialog settingsDialog;
     private final LoadoutController loadoutController;
     private final InputSampler inputSampler;
     private final DebugKeyController debugKeyController;
@@ -204,6 +205,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.loadoutController = new LoadoutController(this.bindings, inputRouter);
         this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
+        this.settingsDialog = new GameSettingsDialog(inputRouter, this.settings, this.bindings);
         rootInput.addProcessor(inputRouter.multiplexer());
         rootInput.addProcessor(scrollForwarder);
         addInputProcessor(rootInput);
@@ -511,6 +513,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
         // The visible pause modal is above the HUD and console. Its InputRouter focus owns Escape.
         pauseOverlay.render(delta);
+        // In-game settings dialog: true-modal, dim+window, same grouped controls as
+        // SettingsScreen but without routing away from the match.
+        settingsDialog.render(delta);
 
         // ui_contrast_test (F12): a full-screen developer test card, so it wins over everything
         // including the console — exactly the "readable on all four means readable in the game"
@@ -689,6 +694,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         contrastTestOverlay.resize(width, height);
         consoleDialog.resize(width, height);
         pauseOverlay.resize(width, height);
+        settingsDialog.resize(width, height);
         if (pipeline != null) {
             pipeline.resize(width, height);
         }
@@ -717,8 +723,18 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         } else if ("Loadout".equals(action)) {
             setUiLoadout(true);
         } else if ("Settings".equals(action)) {
-            settingsOpener.accept(this);
+            // In-game settings no longer routes to a full SettingsScreen. The pause
+            // Settings entry now opens a true-modal settings dialog that mirrors the
+            // visual hierarchy of PauseOverlay and SettingsScreen (dim + window panel,
+            // grouped Video/Audio/Controls, scrollable binds) but stays inside the
+            // match. This preserves suspendForSettings/retainedGame for the main-menu
+            // path while keeping the match alive.
+            openInGameSettings();
         }
+    }
+
+    private void openInGameSettings() {
+        settingsDialog.open();
     }
 
     @Override
@@ -740,6 +756,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         hud.picker().setOpen(false, null);
         consoleDialog.dispose();
         pauseOverlay.dispose();
+        settingsDialog.dispose();
         inputRouter.clearFocus();
         session.disconnect();
         gunAudio.dispose();
