@@ -14,6 +14,7 @@ import io.github.skystrike.shared.command.CommandException;
 import io.github.skystrike.shared.command.Cvar;
 import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
+import io.github.skystrike.audio.GunAudio;
 import io.github.skystrike.gameplay.LoadoutController;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.InputSampler;
@@ -48,6 +49,7 @@ import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
+import io.github.skystrike.shared.settings.Settings;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
@@ -78,6 +80,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
     private final PlayerRenderer playerRenderer = new PlayerRenderer();
     private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
+    private final GunAudio gunAudio;
     private final ThrownUtilityRenderer thrownUtilityRenderer = new ThrownUtilityRenderer();
     private final TrajectoryRenderer trajectoryRenderer = new TrajectoryRenderer();
     private final HitboxOverlay hitboxOverlay = new HitboxOverlay();
@@ -119,6 +122,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private float lastDeltaMillis;
 
     private final KeyBindings bindings;
+    private final Settings settings;
     private final InputRouter inputRouter = new InputRouter();
     private final InputMultiplexer rootInput = new InputMultiplexer();
     private final PauseOverlay pauseOverlay;
@@ -152,12 +156,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private float adsAlpha;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
-        this(new ClientSession(playerName), host, tcpPort, udpPort, new KeyBindings(), null, null);
+        this(new ClientSession(playerName), host, tcpPort, udpPort, new KeyBindings(), null, null, new Settings());
     }
 
     /** Builds the play screen around the session accepted by {@link ConnectingScreen}. */
     public GameScreen(ClientSession session, String host, int tcpPort, int udpPort) {
-        this(session, host, tcpPort, udpPort, new KeyBindings(), null, null);
+        this(session, host, tcpPort, udpPort, new KeyBindings(), null, null, new Settings());
     }
 
     /**
@@ -172,6 +176,19 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             KeyBindings bindings,
             Runnable disconnectToMenu,
             Consumer<GameScreen> settingsOpener) {
+        this(session, host, tcpPort, udpPort, bindings, disconnectToMenu, settingsOpener, new Settings());
+    }
+
+    /** Builds a routed match with the settings object already owned by the application root. */
+    public GameScreen(
+            ClientSession session,
+            String host,
+            int tcpPort,
+            int udpPort,
+            KeyBindings bindings,
+            Runnable disconnectToMenu,
+            Consumer<GameScreen> settingsOpener,
+            Settings settings) {
         if (session == null || bindings == null) {
             throw new IllegalArgumentException("session and bindings are required");
         }
@@ -180,8 +197,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.tcpPort = tcpPort;
         this.udpPort = udpPort;
         this.bindings = bindings;
+        this.settings = settings == null ? new Settings() : settings;
         this.disconnectToMenu = disconnectToMenu == null ? session::disconnect : disconnectToMenu;
         this.settingsOpener = settingsOpener == null ? ignored -> { } : settingsOpener;
+        this.gunAudio = new GunAudio(this.settings);
         this.loadoutController = new LoadoutController(this.bindings, inputRouter);
         this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
@@ -194,7 +213,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setDamageListener(this::onDamageEvent);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
-        this.session.setSessionResetListener(capabilities::reset);
+        this.session.setSessionResetListener(() -> {
+            capabilities.reset();
+            gunAudio.reset();
+        });
         this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
 
@@ -315,6 +337,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     private void onGameStateSnapshot(PacketGameState snapshot) {
         stateBuffer.addSnapshot(snapshot);
+        gunAudio.onSnapshot(snapshot, session.playerId());
 
         int localId = session.playerId();
         if (localId >= 0 && snapshot.players != null) {
@@ -355,6 +378,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     @Override
     public void render(float delta) {
+        gunAudio.updateVolumes(settings);
         session.update(delta);
         lastDeltaMillis = delta * 1000f;
         consoleDialog.update(delta);
@@ -397,6 +421,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
             // 2. Sample input and simulate predicted local motion
             PacketPlayerInput input = inputSampler.sample(localPlayer, camera);
+            gunAudio.onLocalInput(input, localPlayer, bindings.isFireJustPressed());
             localPlayer = prediction.predict(input, delta, arena);
             session.sendUnreliable(input);
 
@@ -717,6 +742,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         pauseOverlay.dispose();
         inputRouter.clearFocus();
         session.disconnect();
+        gunAudio.dispose();
         terrain.dispose();
         playerRenderer.dispose();
         projectileRenderer.dispose();

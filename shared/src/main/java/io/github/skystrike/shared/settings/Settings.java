@@ -41,7 +41,7 @@ public final class Settings {
     public boolean vsync = true;
     public boolean fullscreen;
     public int qualityTier = 2;
-    /** Audio wiring arrives later; these values are retained now so the UI never lies. */
+    /** Client audio buses; the core audio owner applies these values at runtime. */
     public float masterVolume = 1f;
     public float musicVolume = 1f;
     public float effectsVolume = 1f;
@@ -99,7 +99,7 @@ public final class Settings {
         qualityTier = Math.floorMod(qualityTier + (direction > 0 ? 1 : -1), MAX_QUALITY_TIER + 1);
     }
 
-    /** Adjusts an audio stub without leaking an invalid gain into a future audio backend. */
+    /** Adjusts an audio bus without leaking an invalid gain into the audio backend. */
     public float adjustVolume(float current, float amount) {
         return clamp(current + amount, 0f, 1f);
     }

@@ -141,7 +141,7 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
         addOption(options, "", vsync);
         addOption(options, "", fullscreen);
         addOption(options, "Quality", quality);
-        addHeading(options, "Audio stubs");
+        addHeading(options, "Audio");
         addVolumeOption(options, "Master", masterVolume, masterValue);
         addVolumeOption(options, "Music", musicVolume, musicValue);
         addVolumeOption(options, "Effects", effectsVolume, effectsValue);

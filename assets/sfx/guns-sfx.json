@@ -1,1438 +1,1367 @@
 {
-  "version": 1,
-  "sampleRate": 22050,
+  "version": 2,
+  "source": "OpenGameArt.org The Free Firearm Sound Library",
+  "license": "CC0 1.0",
   "format": "wav",
+  "sampleRate": 22050,
   "channels": 1,
   "bitDepth": 16,
-  "root": "/sounds/guns",
-  "common": [
-    "fire",
-    "reload",
-    "empty",
-    "ads-in",
-    "ads-out"
-  ],
+  "root": "sfx/guns",
+  "fireVariants": {
+    "ASSAULT_RIFLE": "sfx/guns/fire/assault-rifle.wav",
+    "BATTLE_RIFLE": "sfx/guns/fire/battle-rifle.wav",
+    "DMR": "sfx/guns/fire/dmr.wav",
+    "LMG": "sfx/guns/fire/lmg.wav",
+    "PDW": "sfx/guns/fire/pdw.wav",
+    "PISTOL": "sfx/guns/fire/pistol.wav",
+    "REVOLVER": "sfx/guns/fire/revolver.wav",
+    "SHOTGUN": "sfx/guns/fire/shotgun.wav",
+    "SMG": "sfx/guns/fire/smg.wav",
+    "SNIPER": "sfx/guns/fire/sniper.wav"
+  },
+  "shared": {
+    "reload": "sfx/guns/shared/reload.wav",
+    "empty": "sfx/guns/shared/empty.wav",
+    "equip": "sfx/guns/shared/equip.wav",
+    "cycle": "sfx/guns/shared/cycle.wav",
+    "ads-in": "sfx/guns/shared/ads-in.wav",
+    "ads-out": "sfx/guns/shared/ads-out.wav"
+  },
   "guns": {
     "iron-sidearm": {
       "id": "iron-sidearm",
       "name": "Iron Sidearm",
       "class": "pistol",
-      "dir": "/sounds/guns/iron-sidearm",
-      "files": {
-        "fire": "/sounds/guns/iron-sidearm/fire.wav",
-        "reload": "/sounds/guns/iron-sidearm/reload.wav",
-        "empty": "/sounds/guns/iron-sidearm/empty.wav",
-        "ads-in": "/sounds/guns/iron-sidearm/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-sidearm/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "vesper-9": {
       "id": "vesper-9",
       "name": "Vesper 9",
       "class": "pistol",
-      "dir": "/sounds/guns/vesper-9",
-      "files": {
-        "fire": "/sounds/guns/vesper-9/fire.wav",
-        "reload": "/sounds/guns/vesper-9/reload.wav",
-        "empty": "/sounds/guns/vesper-9/empty.wav",
-        "ads-in": "/sounds/guns/vesper-9/ads-in.wav",
-        "ads-out": "/sounds/guns/vesper-9/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "nest-hawk": {
       "id": "nest-hawk",
       "name": "Nest Hawk",
       "class": "pistol",
-      "dir": "/sounds/guns/nest-hawk",
-      "files": {
-        "fire": "/sounds/guns/nest-hawk/fire.wav",
-        "reload": "/sounds/guns/nest-hawk/reload.wav",
-        "empty": "/sounds/guns/nest-hawk/empty.wav",
-        "ads-in": "/sounds/guns/nest-hawk/ads-in.wav",
-        "ads-out": "/sounds/guns/nest-hawk/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "cobalt-compact": {
       "id": "cobalt-compact",
       "name": "Cobalt Compact",
       "class": "pistol",
-      "dir": "/sounds/guns/cobalt-compact",
-      "files": {
-        "fire": "/sounds/guns/cobalt-compact/fire.wav",
-        "reload": "/sounds/guns/cobalt-compact/reload.wav",
-        "empty": "/sounds/guns/cobalt-compact/empty.wav",
-        "ads-in": "/sounds/guns/cobalt-compact/ads-in.wav",
-        "ads-out": "/sounds/guns/cobalt-compact/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "ashen-service": {
       "id": "ashen-service",
       "name": "Ashen Service",
       "class": "pistol",
-      "dir": "/sounds/guns/ashen-service",
-      "files": {
-        "fire": "/sounds/guns/ashen-service/fire.wav",
-        "reload": "/sounds/guns/ashen-service/reload.wav",
-        "empty": "/sounds/guns/ashen-service/empty.wav",
-        "ads-in": "/sounds/guns/ashen-service/ads-in.wav",
-        "ads-out": "/sounds/guns/ashen-service/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "redline-45": {
       "id": "redline-45",
       "name": "Redline .45",
       "class": "pistol",
-      "dir": "/sounds/guns/redline-45",
-      "files": {
-        "fire": "/sounds/guns/redline-45/fire.wav",
-        "reload": "/sounds/guns/redline-45/reload.wav",
-        "empty": "/sounds/guns/redline-45/empty.wav",
-        "ads-in": "/sounds/guns/redline-45/ads-in.wav",
-        "ads-out": "/sounds/guns/redline-45/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "glass-needler": {
       "id": "glass-needler",
       "name": "Glass Needler",
       "class": "pistol",
-      "dir": "/sounds/guns/glass-needler",
-      "files": {
-        "fire": "/sounds/guns/glass-needler/fire.wav",
-        "reload": "/sounds/guns/glass-needler/reload.wav",
-        "empty": "/sounds/guns/glass-needler/empty.wav",
-        "ads-in": "/sounds/guns/glass-needler/ads-in.wav",
-        "ads-out": "/sounds/guns/glass-needler/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "harbor-19": {
       "id": "harbor-19",
       "name": "Harbor 19",
       "class": "pistol",
-      "dir": "/sounds/guns/harbor-19",
-      "files": {
-        "fire": "/sounds/guns/harbor-19/fire.wav",
-        "reload": "/sounds/guns/harbor-19/reload.wav",
-        "empty": "/sounds/guns/harbor-19/empty.wav",
-        "ads-in": "/sounds/guns/harbor-19/ads-in.wav",
-        "ads-out": "/sounds/guns/harbor-19/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "night-clerk": {
       "id": "night-clerk",
       "name": "Night Clerk",
       "class": "pistol",
-      "dir": "/sounds/guns/night-clerk",
-      "files": {
-        "fire": "/sounds/guns/night-clerk/fire.wav",
-        "reload": "/sounds/guns/night-clerk/reload.wav",
-        "empty": "/sounds/guns/night-clerk/empty.wav",
-        "ads-in": "/sounds/guns/night-clerk/ads-in.wav",
-        "ads-out": "/sounds/guns/night-clerk/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "rust-marshal": {
       "id": "rust-marshal",
       "name": "Rust Marshal",
       "class": "pistol",
-      "dir": "/sounds/guns/rust-marshal",
-      "files": {
-        "fire": "/sounds/guns/rust-marshal/fire.wav",
-        "reload": "/sounds/guns/rust-marshal/reload.wav",
-        "empty": "/sounds/guns/rust-marshal/empty.wav",
-        "ads-in": "/sounds/guns/rust-marshal/ads-in.wav",
-        "ads-out": "/sounds/guns/rust-marshal/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "twin-peak": {
       "id": "twin-peak",
       "name": "Twin Peak",
       "class": "pistol",
-      "dir": "/sounds/guns/twin-peak",
-      "files": {
-        "fire": "/sounds/guns/twin-peak/fire.wav",
-        "reload": "/sounds/guns/twin-peak/reload.wav",
-        "empty": "/sounds/guns/twin-peak/empty.wav",
-        "ads-in": "/sounds/guns/twin-peak/ads-in.wav",
-        "ads-out": "/sounds/guns/twin-peak/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "quiet-ledger": {
       "id": "quiet-ledger",
       "name": "Quiet Ledger",
       "class": "pistol",
-      "dir": "/sounds/guns/quiet-ledger",
-      "files": {
-        "fire": "/sounds/guns/quiet-ledger/fire.wav",
-        "reload": "/sounds/guns/quiet-ledger/reload.wav",
-        "empty": "/sounds/guns/quiet-ledger/empty.wav",
-        "ads-in": "/sounds/guns/quiet-ledger/ads-in.wav",
-        "ads-out": "/sounds/guns/quiet-ledger/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pistol.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "brass-judge": {
       "id": "brass-judge",
       "name": "Brass Judge",
       "class": "revolver",
-      "dir": "/sounds/guns/brass-judge",
-      "files": {
-        "fire": "/sounds/guns/brass-judge/fire.wav",
-        "reload": "/sounds/guns/brass-judge/reload.wav",
-        "empty": "/sounds/guns/brass-judge/empty.wav",
-        "ads-in": "/sounds/guns/brass-judge/ads-in.wav",
-        "ads-out": "/sounds/guns/brass-judge/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "ember-wheel": {
       "id": "ember-wheel",
       "name": "Ember Wheel",
       "class": "revolver",
-      "dir": "/sounds/guns/ember-wheel",
-      "files": {
-        "fire": "/sounds/guns/ember-wheel/fire.wav",
-        "reload": "/sounds/guns/ember-wheel/reload.wav",
-        "empty": "/sounds/guns/ember-wheel/empty.wav",
-        "ads-in": "/sounds/guns/ember-wheel/ads-in.wav",
-        "ads-out": "/sounds/guns/ember-wheel/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "dust-cylinder": {
       "id": "dust-cylinder",
       "name": "Dust Cylinder",
       "class": "revolver",
-      "dir": "/sounds/guns/dust-cylinder",
-      "files": {
-        "fire": "/sounds/guns/dust-cylinder/fire.wav",
-        "reload": "/sounds/guns/dust-cylinder/reload.wav",
-        "empty": "/sounds/guns/dust-cylinder/empty.wav",
-        "ads-in": "/sounds/guns/dust-cylinder/ads-in.wav",
-        "ads-out": "/sounds/guns/dust-cylinder/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "longspur-44": {
       "id": "longspur-44",
       "name": "Longspur .44",
       "class": "revolver",
-      "dir": "/sounds/guns/longspur-44",
-      "files": {
-        "fire": "/sounds/guns/longspur-44/fire.wav",
-        "reload": "/sounds/guns/longspur-44/reload.wav",
-        "empty": "/sounds/guns/longspur-44/empty.wav",
-        "ads-in": "/sounds/guns/longspur-44/ads-in.wav",
-        "ads-out": "/sounds/guns/longspur-44/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "grave-orbit": {
       "id": "grave-orbit",
       "name": "Grave Orbit",
       "class": "revolver",
-      "dir": "/sounds/guns/grave-orbit",
-      "files": {
-        "fire": "/sounds/guns/grave-orbit/fire.wav",
-        "reload": "/sounds/guns/grave-orbit/reload.wav",
-        "empty": "/sounds/guns/grave-orbit/empty.wav",
-        "ads-in": "/sounds/guns/grave-orbit/ads-in.wav",
-        "ads-out": "/sounds/guns/grave-orbit/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "copper-law": {
       "id": "copper-law",
       "name": "Copper Law",
       "class": "revolver",
-      "dir": "/sounds/guns/copper-law",
-      "files": {
-        "fire": "/sounds/guns/copper-law/fire.wav",
-        "reload": "/sounds/guns/copper-law/reload.wav",
-        "empty": "/sounds/guns/copper-law/empty.wav",
-        "ads-in": "/sounds/guns/copper-law/ads-in.wav",
-        "ads-out": "/sounds/guns/copper-law/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "breakdawn": {
       "id": "breakdawn",
       "name": "Breakdawn",
       "class": "revolver",
-      "dir": "/sounds/guns/breakdawn",
-      "files": {
-        "fire": "/sounds/guns/breakdawn/fire.wav",
-        "reload": "/sounds/guns/breakdawn/reload.wav",
-        "empty": "/sounds/guns/breakdawn/empty.wav",
-        "ads-in": "/sounds/guns/breakdawn/ads-in.wav",
-        "ads-out": "/sounds/guns/breakdawn/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "iron-six": {
       "id": "iron-six",
       "name": "Iron Six",
       "class": "revolver",
-      "dir": "/sounds/guns/iron-six",
-      "files": {
-        "fire": "/sounds/guns/iron-six/fire.wav",
-        "reload": "/sounds/guns/iron-six/reload.wav",
-        "empty": "/sounds/guns/iron-six/empty.wav",
-        "ads-in": "/sounds/guns/iron-six/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-six/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/revolver.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "wasp-nest": {
       "id": "wasp-nest",
       "name": "Wasp Nest",
       "class": "smg",
-      "dir": "/sounds/guns/wasp-nest",
-      "files": {
-        "fire": "/sounds/guns/wasp-nest/fire.wav",
-        "reload": "/sounds/guns/wasp-nest/reload.wav",
-        "empty": "/sounds/guns/wasp-nest/empty.wav",
-        "ads-in": "/sounds/guns/wasp-nest/ads-in.wav",
-        "ads-out": "/sounds/guns/wasp-nest/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "rattle-cage": {
       "id": "rattle-cage",
       "name": "Rattle Cage",
       "class": "smg",
-      "dir": "/sounds/guns/rattle-cage",
-      "files": {
-        "fire": "/sounds/guns/rattle-cage/fire.wav",
-        "reload": "/sounds/guns/rattle-cage/reload.wav",
-        "empty": "/sounds/guns/rattle-cage/empty.wav",
-        "ads-in": "/sounds/guns/rattle-cage/ads-in.wav",
-        "ads-out": "/sounds/guns/rattle-cage/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "smoke-stitch": {
       "id": "smoke-stitch",
       "name": "Smoke Stitch",
       "class": "pdw",
-      "dir": "/sounds/guns/smoke-stitch",
-      "files": {
-        "fire": "/sounds/guns/smoke-stitch/fire.wav",
-        "reload": "/sounds/guns/smoke-stitch/reload.wav",
-        "empty": "/sounds/guns/smoke-stitch/empty.wav",
-        "ads-in": "/sounds/guns/smoke-stitch/ads-in.wav",
-        "ads-out": "/sounds/guns/smoke-stitch/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pdw.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "metro-spray": {
       "id": "metro-spray",
       "name": "Metro Spray",
       "class": "smg",
-      "dir": "/sounds/guns/metro-spray",
-      "files": {
-        "fire": "/sounds/guns/metro-spray/fire.wav",
-        "reload": "/sounds/guns/metro-spray/reload.wav",
-        "empty": "/sounds/guns/metro-spray/empty.wav",
-        "ads-in": "/sounds/guns/metro-spray/ads-in.wav",
-        "ads-out": "/sounds/guns/metro-spray/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "velvet-buzz": {
       "id": "velvet-buzz",
       "name": "Velvet Buzz",
       "class": "smg",
-      "dir": "/sounds/guns/velvet-buzz",
-      "files": {
-        "fire": "/sounds/guns/velvet-buzz/fire.wav",
-        "reload": "/sounds/guns/velvet-buzz/reload.wav",
-        "empty": "/sounds/guns/velvet-buzz/empty.wav",
-        "ads-in": "/sounds/guns/velvet-buzz/ads-in.wav",
-        "ads-out": "/sounds/guns/velvet-buzz/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "grid-hornet": {
       "id": "grid-hornet",
       "name": "Grid Hornet",
       "class": "pdw",
-      "dir": "/sounds/guns/grid-hornet",
-      "files": {
-        "fire": "/sounds/guns/grid-hornet/fire.wav",
-        "reload": "/sounds/guns/grid-hornet/reload.wav",
-        "empty": "/sounds/guns/grid-hornet/empty.wav",
-        "ads-in": "/sounds/guns/grid-hornet/ads-in.wav",
-        "ads-out": "/sounds/guns/grid-hornet/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pdw.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "cinder-smg": {
       "id": "cinder-smg",
       "name": "Cinder SMG",
       "class": "smg",
-      "dir": "/sounds/guns/cinder-smg",
-      "files": {
-        "fire": "/sounds/guns/cinder-smg/fire.wav",
-        "reload": "/sounds/guns/cinder-smg/reload.wav",
-        "empty": "/sounds/guns/cinder-smg/empty.wav",
-        "ads-in": "/sounds/guns/cinder-smg/ads-in.wav",
-        "ads-out": "/sounds/guns/cinder-smg/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "pocket-storm": {
       "id": "pocket-storm",
       "name": "Pocket Storm",
       "class": "smg",
-      "dir": "/sounds/guns/pocket-storm",
-      "files": {
-        "fire": "/sounds/guns/pocket-storm/fire.wav",
-        "reload": "/sounds/guns/pocket-storm/reload.wav",
-        "empty": "/sounds/guns/pocket-storm/empty.wav",
-        "ads-in": "/sounds/guns/pocket-storm/ads-in.wav",
-        "ads-out": "/sounds/guns/pocket-storm/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "wire-choir": {
       "id": "wire-choir",
       "name": "Wire Choir",
       "class": "smg",
-      "dir": "/sounds/guns/wire-choir",
-      "files": {
-        "fire": "/sounds/guns/wire-choir/fire.wav",
-        "reload": "/sounds/guns/wire-choir/reload.wav",
-        "empty": "/sounds/guns/wire-choir/empty.wav",
-        "ads-in": "/sounds/guns/wire-choir/ads-in.wav",
-        "ads-out": "/sounds/guns/wire-choir/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "ash-hopper": {
       "id": "ash-hopper",
       "name": "Ash Hopper",
       "class": "smg",
-      "dir": "/sounds/guns/ash-hopper",
-      "files": {
-        "fire": "/sounds/guns/ash-hopper/fire.wav",
-        "reload": "/sounds/guns/ash-hopper/reload.wav",
-        "empty": "/sounds/guns/ash-hopper/empty.wav",
-        "ads-in": "/sounds/guns/ash-hopper/ads-in.wav",
-        "ads-out": "/sounds/guns/ash-hopper/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "clip-daisy": {
       "id": "clip-daisy",
       "name": "Clip Daisy",
       "class": "smg",
-      "dir": "/sounds/guns/clip-daisy",
-      "files": {
-        "fire": "/sounds/guns/clip-daisy/fire.wav",
-        "reload": "/sounds/guns/clip-daisy/reload.wav",
-        "empty": "/sounds/guns/clip-daisy/empty.wav",
-        "ads-in": "/sounds/guns/clip-daisy/ads-in.wav",
-        "ads-out": "/sounds/guns/clip-daisy/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "neon-chatter": {
       "id": "neon-chatter",
       "name": "Neon Chatter",
       "class": "smg",
-      "dir": "/sounds/guns/neon-chatter",
-      "files": {
-        "fire": "/sounds/guns/neon-chatter/fire.wav",
-        "reload": "/sounds/guns/neon-chatter/reload.wav",
-        "empty": "/sounds/guns/neon-chatter/empty.wav",
-        "ads-in": "/sounds/guns/neon-chatter/ads-in.wav",
-        "ads-out": "/sounds/guns/neon-chatter/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "harbor-swarm": {
       "id": "harbor-swarm",
       "name": "Harbor Swarm",
       "class": "smg",
-      "dir": "/sounds/guns/harbor-swarm",
-      "files": {
-        "fire": "/sounds/guns/harbor-swarm/fire.wav",
-        "reload": "/sounds/guns/harbor-swarm/reload.wav",
-        "empty": "/sounds/guns/harbor-swarm/empty.wav",
-        "ads-in": "/sounds/guns/harbor-swarm/ads-in.wav",
-        "ads-out": "/sounds/guns/harbor-swarm/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "soft-ratchet": {
       "id": "soft-ratchet",
       "name": "Soft Ratchet",
       "class": "smg",
-      "dir": "/sounds/guns/soft-ratchet",
-      "files": {
-        "fire": "/sounds/guns/soft-ratchet/fire.wav",
-        "reload": "/sounds/guns/soft-ratchet/reload.wav",
-        "empty": "/sounds/guns/soft-ratchet/empty.wav",
-        "ads-in": "/sounds/guns/soft-ratchet/ads-in.wav",
-        "ads-out": "/sounds/guns/soft-ratchet/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/smg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "coat-needle": {
       "id": "coat-needle",
       "name": "Coat Needle",
       "class": "pdw",
-      "dir": "/sounds/guns/coat-needle",
-      "files": {
-        "fire": "/sounds/guns/coat-needle/fire.wav",
-        "reload": "/sounds/guns/coat-needle/reload.wav",
-        "empty": "/sounds/guns/coat-needle/empty.wav",
-        "ads-in": "/sounds/guns/coat-needle/ads-in.wav",
-        "ads-out": "/sounds/guns/coat-needle/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pdw.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "briefcase": {
       "id": "briefcase",
       "name": "Briefcase",
       "class": "pdw",
-      "dir": "/sounds/guns/briefcase",
-      "files": {
-        "fire": "/sounds/guns/briefcase/fire.wav",
-        "reload": "/sounds/guns/briefcase/reload.wav",
-        "empty": "/sounds/guns/briefcase/empty.wav",
-        "ads-in": "/sounds/guns/briefcase/ads-in.wav",
-        "ads-out": "/sounds/guns/briefcase/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pdw.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "iron-carbine": {
       "id": "iron-carbine",
       "name": "Iron Carbine",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/iron-carbine",
-      "files": {
-        "fire": "/sounds/guns/iron-carbine/fire.wav",
-        "reload": "/sounds/guns/iron-carbine/reload.wav",
-        "empty": "/sounds/guns/iron-carbine/empty.wav",
-        "ads-in": "/sounds/guns/iron-carbine/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-carbine/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "ridgeback": {
       "id": "ridgeback",
       "name": "Ridgeback",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/ridgeback",
-      "files": {
-        "fire": "/sounds/guns/ridgeback/fire.wav",
-        "reload": "/sounds/guns/ridgeback/reload.wav",
-        "empty": "/sounds/guns/ridgeback/empty.wav",
-        "ads-in": "/sounds/guns/ridgeback/ads-in.wav",
-        "ads-out": "/sounds/guns/ridgeback/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "pale-lance": {
       "id": "pale-lance",
       "name": "Pale Lance",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/pale-lance",
-      "files": {
-        "fire": "/sounds/guns/pale-lance/fire.wav",
-        "reload": "/sounds/guns/pale-lance/reload.wav",
-        "empty": "/sounds/guns/pale-lance/empty.wav",
-        "ads-in": "/sounds/guns/pale-lance/ads-in.wav",
-        "ads-out": "/sounds/guns/pale-lance/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "sand-viper": {
       "id": "sand-viper",
       "name": "Sand Viper",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/sand-viper",
-      "files": {
-        "fire": "/sounds/guns/sand-viper/fire.wav",
-        "reload": "/sounds/guns/sand-viper/reload.wav",
-        "empty": "/sounds/guns/sand-viper/empty.wav",
-        "ads-in": "/sounds/guns/sand-viper/ads-in.wav",
-        "ads-out": "/sounds/guns/sand-viper/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "black-corridor": {
       "id": "black-corridor",
       "name": "Black Corridor",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/black-corridor",
-      "files": {
-        "fire": "/sounds/guns/black-corridor/fire.wav",
-        "reload": "/sounds/guns/black-corridor/reload.wav",
-        "empty": "/sounds/guns/black-corridor/empty.wav",
-        "ads-in": "/sounds/guns/black-corridor/ads-in.wav",
-        "ads-out": "/sounds/guns/black-corridor/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "oakline-rifle": {
       "id": "oakline-rifle",
       "name": "Oakline Rifle",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/oakline-rifle",
-      "files": {
-        "fire": "/sounds/guns/oakline-rifle/fire.wav",
-        "reload": "/sounds/guns/oakline-rifle/reload.wav",
-        "empty": "/sounds/guns/oakline-rifle/empty.wav",
-        "ads-in": "/sounds/guns/oakline-rifle/ads-in.wav",
-        "ads-out": "/sounds/guns/oakline-rifle/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "halcyon-16": {
       "id": "halcyon-16",
       "name": "Halcyon 16",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/halcyon-16",
-      "files": {
-        "fire": "/sounds/guns/halcyon-16/fire.wav",
-        "reload": "/sounds/guns/halcyon-16/reload.wav",
-        "empty": "/sounds/guns/halcyon-16/empty.wav",
-        "ads-in": "/sounds/guns/halcyon-16/ads-in.wav",
-        "ads-out": "/sounds/guns/halcyon-16/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BURST"
     },
     "brine-carbine": {
       "id": "brine-carbine",
       "name": "Brine Carbine",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/brine-carbine",
-      "files": {
-        "fire": "/sounds/guns/brine-carbine/fire.wav",
-        "reload": "/sounds/guns/brine-carbine/reload.wav",
-        "empty": "/sounds/guns/brine-carbine/empty.wav",
-        "ads-in": "/sounds/guns/brine-carbine/ads-in.wav",
-        "ads-out": "/sounds/guns/brine-carbine/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "solar-spine": {
       "id": "solar-spine",
       "name": "Solar Spine",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/solar-spine",
-      "files": {
-        "fire": "/sounds/guns/solar-spine/fire.wav",
-        "reload": "/sounds/guns/solar-spine/reload.wav",
-        "empty": "/sounds/guns/solar-spine/empty.wav",
-        "ads-in": "/sounds/guns/solar-spine/ads-in.wav",
-        "ads-out": "/sounds/guns/solar-spine/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "frost-receiver": {
       "id": "frost-receiver",
       "name": "Frost Receiver",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/frost-receiver",
-      "files": {
-        "fire": "/sounds/guns/frost-receiver/fire.wav",
-        "reload": "/sounds/guns/frost-receiver/reload.wav",
-        "empty": "/sounds/guns/frost-receiver/empty.wav",
-        "ads-in": "/sounds/guns/frost-receiver/ads-in.wav",
-        "ads-out": "/sounds/guns/frost-receiver/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "ember-path": {
       "id": "ember-path",
       "name": "Ember Path",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/ember-path",
-      "files": {
-        "fire": "/sounds/guns/ember-path/fire.wav",
-        "reload": "/sounds/guns/ember-path/reload.wav",
-        "empty": "/sounds/guns/ember-path/empty.wav",
-        "ads-in": "/sounds/guns/ember-path/ads-in.wav",
-        "ads-out": "/sounds/guns/ember-path/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "kestrel-ar": {
       "id": "kestrel-ar",
       "name": "Kestrel AR",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/kestrel-ar",
-      "files": {
-        "fire": "/sounds/guns/kestrel-ar/fire.wav",
-        "reload": "/sounds/guns/kestrel-ar/reload.wav",
-        "empty": "/sounds/guns/kestrel-ar/empty.wav",
-        "ads-in": "/sounds/guns/kestrel-ar/ads-in.wav",
-        "ads-out": "/sounds/guns/kestrel-ar/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "dusk-fold": {
       "id": "dusk-fold",
       "name": "Dusk Fold",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/dusk-fold",
-      "files": {
-        "fire": "/sounds/guns/dusk-fold/fire.wav",
-        "reload": "/sounds/guns/dusk-fold/reload.wav",
-        "empty": "/sounds/guns/dusk-fold/empty.wav",
-        "ads-in": "/sounds/guns/dusk-fold/ads-in.wav",
-        "ads-out": "/sounds/guns/dusk-fold/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "copper-thread": {
       "id": "copper-thread",
       "name": "Copper Thread",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/copper-thread",
-      "files": {
-        "fire": "/sounds/guns/copper-thread/fire.wav",
-        "reload": "/sounds/guns/copper-thread/reload.wav",
-        "empty": "/sounds/guns/copper-thread/empty.wav",
-        "ads-in": "/sounds/guns/copper-thread/ads-in.wav",
-        "ads-out": "/sounds/guns/copper-thread/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "yard-dog": {
       "id": "yard-dog",
       "name": "Yard Dog",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/yard-dog",
-      "files": {
-        "fire": "/sounds/guns/yard-dog/fire.wav",
-        "reload": "/sounds/guns/yard-dog/reload.wav",
-        "empty": "/sounds/guns/yard-dog/empty.wav",
-        "ads-in": "/sounds/guns/yard-dog/ads-in.wav",
-        "ads-out": "/sounds/guns/yard-dog/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "quiet-hollow": {
       "id": "quiet-hollow",
       "name": "Quiet Hollow",
       "class": "assault_rifle",
-      "dir": "/sounds/guns/quiet-hollow",
-      "files": {
-        "fire": "/sounds/guns/quiet-hollow/fire.wav",
-        "reload": "/sounds/guns/quiet-hollow/reload.wav",
-        "empty": "/sounds/guns/quiet-hollow/empty.wav",
-        "ads-in": "/sounds/guns/quiet-hollow/ads-in.wav",
-        "ads-out": "/sounds/guns/quiet-hollow/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/assault-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "vest-sting": {
       "id": "vest-sting",
       "name": "Vest Sting",
       "class": "pdw",
-      "dir": "/sounds/guns/vest-sting",
-      "files": {
-        "fire": "/sounds/guns/vest-sting/fire.wav",
-        "reload": "/sounds/guns/vest-sting/reload.wav",
-        "empty": "/sounds/guns/vest-sting/empty.wav",
-        "ads-in": "/sounds/guns/vest-sting/ads-in.wav",
-        "ads-out": "/sounds/guns/vest-sting/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pdw.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "metro-fold": {
       "id": "metro-fold",
       "name": "Metro Fold",
       "class": "pdw",
-      "dir": "/sounds/guns/metro-fold",
-      "files": {
-        "fire": "/sounds/guns/metro-fold/fire.wav",
-        "reload": "/sounds/guns/metro-fold/reload.wav",
-        "empty": "/sounds/guns/metro-fold/empty.wav",
-        "ads-in": "/sounds/guns/metro-fold/ads-in.wav",
-        "ads-out": "/sounds/guns/metro-fold/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/pdw.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "long-mile": {
       "id": "long-mile",
       "name": "Long Mile",
       "class": "dmr",
-      "dir": "/sounds/guns/long-mile",
-      "files": {
-        "fire": "/sounds/guns/long-mile/fire.wav",
-        "reload": "/sounds/guns/long-mile/reload.wav",
-        "empty": "/sounds/guns/long-mile/empty.wav",
-        "ads-in": "/sounds/guns/long-mile/ads-in.wav",
-        "ads-out": "/sounds/guns/long-mile/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "glass-ridge": {
       "id": "glass-ridge",
       "name": "Glass Ridge",
       "class": "dmr",
-      "dir": "/sounds/guns/glass-ridge",
-      "files": {
-        "fire": "/sounds/guns/glass-ridge/fire.wav",
-        "reload": "/sounds/guns/glass-ridge/reload.wav",
-        "empty": "/sounds/guns/glass-ridge/empty.wav",
-        "ads-in": "/sounds/guns/glass-ridge/ads-in.wav",
-        "ads-out": "/sounds/guns/glass-ridge/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "thorn-dmr": {
       "id": "thorn-dmr",
       "name": "Thorn DMR",
       "class": "dmr",
-      "dir": "/sounds/guns/thorn-dmr",
-      "files": {
-        "fire": "/sounds/guns/thorn-dmr/fire.wav",
-        "reload": "/sounds/guns/thorn-dmr/reload.wav",
-        "empty": "/sounds/guns/thorn-dmr/empty.wav",
-        "ads-in": "/sounds/guns/thorn-dmr/ads-in.wav",
-        "ads-out": "/sounds/guns/thorn-dmr/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "harbor-marksman": {
       "id": "harbor-marksman",
       "name": "Harbor Marksman",
       "class": "dmr",
-      "dir": "/sounds/guns/harbor-marksman",
-      "files": {
-        "fire": "/sounds/guns/harbor-marksman/fire.wav",
-        "reload": "/sounds/guns/harbor-marksman/reload.wav",
-        "empty": "/sounds/guns/harbor-marksman/empty.wav",
-        "ads-in": "/sounds/guns/harbor-marksman/ads-in.wav",
-        "ads-out": "/sounds/guns/harbor-marksman/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "iron-ledger": {
       "id": "iron-ledger",
       "name": "Iron Ledger",
       "class": "battle_rifle",
-      "dir": "/sounds/guns/iron-ledger",
-      "files": {
-        "fire": "/sounds/guns/iron-ledger/fire.wav",
-        "reload": "/sounds/guns/iron-ledger/reload.wav",
-        "empty": "/sounds/guns/iron-ledger/empty.wav",
-        "ads-in": "/sounds/guns/iron-ledger/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-ledger/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/battle-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "pale-witness": {
       "id": "pale-witness",
       "name": "Pale Witness",
       "class": "dmr",
-      "dir": "/sounds/guns/pale-witness",
-      "files": {
-        "fire": "/sounds/guns/pale-witness/fire.wav",
-        "reload": "/sounds/guns/pale-witness/reload.wav",
-        "empty": "/sounds/guns/pale-witness/empty.wav",
-        "ads-in": "/sounds/guns/pale-witness/ads-in.wav",
-        "ads-out": "/sounds/guns/pale-witness/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "range-clerk": {
       "id": "range-clerk",
       "name": "Range Clerk",
       "class": "dmr",
-      "dir": "/sounds/guns/range-clerk",
-      "files": {
-        "fire": "/sounds/guns/range-clerk/fire.wav",
-        "reload": "/sounds/guns/range-clerk/reload.wav",
-        "empty": "/sounds/guns/range-clerk/empty.wav",
-        "ads-in": "/sounds/guns/range-clerk/ads-in.wav",
-        "ads-out": "/sounds/guns/range-clerk/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "ash-pin": {
       "id": "ash-pin",
       "name": "Ash Pin",
       "class": "dmr",
-      "dir": "/sounds/guns/ash-pin",
-      "files": {
-        "fire": "/sounds/guns/ash-pin/fire.wav",
-        "reload": "/sounds/guns/ash-pin/reload.wav",
-        "empty": "/sounds/guns/ash-pin/empty.wav",
-        "ads-in": "/sounds/guns/ash-pin/ads-in.wav",
-        "ads-out": "/sounds/guns/ash-pin/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "copper-span": {
       "id": "copper-span",
       "name": "Copper Span",
       "class": "battle_rifle",
-      "dir": "/sounds/guns/copper-span",
-      "files": {
-        "fire": "/sounds/guns/copper-span/fire.wav",
-        "reload": "/sounds/guns/copper-span/reload.wav",
-        "empty": "/sounds/guns/copper-span/empty.wav",
-        "ads-in": "/sounds/guns/copper-span/ads-in.wav",
-        "ads-out": "/sounds/guns/copper-span/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/battle-rifle.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BURST"
     },
     "high-bench": {
       "id": "high-bench",
       "name": "High Bench",
       "class": "dmr",
-      "dir": "/sounds/guns/high-bench",
-      "files": {
-        "fire": "/sounds/guns/high-bench/fire.wav",
-        "reload": "/sounds/guns/high-bench/reload.wav",
-        "empty": "/sounds/guns/high-bench/empty.wav",
-        "ads-in": "/sounds/guns/high-bench/ads-in.wav",
-        "ads-out": "/sounds/guns/high-bench/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/dmr.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "night-glass": {
       "id": "night-glass",
       "name": "Night Glass",
       "class": "sniper",
-      "dir": "/sounds/guns/night-glass",
-      "files": {
-        "fire": "/sounds/guns/night-glass/fire.wav",
-        "reload": "/sounds/guns/night-glass/reload.wav",
-        "empty": "/sounds/guns/night-glass/empty.wav",
-        "ads-in": "/sounds/guns/night-glass/ads-in.wav",
-        "ads-out": "/sounds/guns/night-glass/ads-out.wav",
-        "cycle": "/sounds/guns/night-glass/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "winter-bolt": {
       "id": "winter-bolt",
       "name": "Winter Bolt",
       "class": "sniper",
-      "dir": "/sounds/guns/winter-bolt",
-      "files": {
-        "fire": "/sounds/guns/winter-bolt/fire.wav",
-        "reload": "/sounds/guns/winter-bolt/reload.wav",
-        "empty": "/sounds/guns/winter-bolt/empty.wav",
-        "ads-in": "/sounds/guns/winter-bolt/ads-in.wav",
-        "ads-out": "/sounds/guns/winter-bolt/ads-out.wav",
-        "cycle": "/sounds/guns/winter-bolt/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "cathedral": {
       "id": "cathedral",
       "name": "Cathedral",
       "class": "sniper",
-      "dir": "/sounds/guns/cathedral",
-      "files": {
-        "fire": "/sounds/guns/cathedral/fire.wav",
-        "reload": "/sounds/guns/cathedral/reload.wav",
-        "empty": "/sounds/guns/cathedral/empty.wav",
-        "ads-in": "/sounds/guns/cathedral/ads-in.wav",
-        "ads-out": "/sounds/guns/cathedral/ads-out.wav",
-        "cycle": "/sounds/guns/cathedral/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "long-silence": {
       "id": "long-silence",
       "name": "Long Silence",
       "class": "sniper",
-      "dir": "/sounds/guns/long-silence",
-      "files": {
-        "fire": "/sounds/guns/long-silence/fire.wav",
-        "reload": "/sounds/guns/long-silence/reload.wav",
-        "empty": "/sounds/guns/long-silence/empty.wav",
-        "ads-in": "/sounds/guns/long-silence/ads-in.wav",
-        "ads-out": "/sounds/guns/long-silence/ads-out.wav",
-        "cycle": "/sounds/guns/long-silence/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "magpie": {
       "id": "magpie",
       "name": "Magpie",
       "class": "sniper",
-      "dir": "/sounds/guns/magpie",
-      "files": {
-        "fire": "/sounds/guns/magpie/fire.wav",
-        "reload": "/sounds/guns/magpie/reload.wav",
-        "empty": "/sounds/guns/magpie/empty.wav",
-        "ads-in": "/sounds/guns/magpie/ads-in.wav",
-        "ads-out": "/sounds/guns/magpie/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "ice-spine": {
       "id": "ice-spine",
       "name": "Ice Spine",
       "class": "sniper",
-      "dir": "/sounds/guns/ice-spine",
-      "files": {
-        "fire": "/sounds/guns/ice-spine/fire.wav",
-        "reload": "/sounds/guns/ice-spine/reload.wav",
-        "empty": "/sounds/guns/ice-spine/empty.wav",
-        "ads-in": "/sounds/guns/ice-spine/ads-in.wav",
-        "ads-out": "/sounds/guns/ice-spine/ads-out.wav",
-        "cycle": "/sounds/guns/ice-spine/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "distant-clerk": {
       "id": "distant-clerk",
       "name": "Distant Clerk",
       "class": "sniper",
-      "dir": "/sounds/guns/distant-clerk",
-      "files": {
-        "fire": "/sounds/guns/distant-clerk/fire.wav",
-        "reload": "/sounds/guns/distant-clerk/reload.wav",
-        "empty": "/sounds/guns/distant-clerk/empty.wav",
-        "ads-in": "/sounds/guns/distant-clerk/ads-in.wav",
-        "ads-out": "/sounds/guns/distant-clerk/ads-out.wav",
-        "cycle": "/sounds/guns/distant-clerk/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "black-horizon": {
       "id": "black-horizon",
       "name": "Black Horizon",
       "class": "sniper",
-      "dir": "/sounds/guns/black-horizon",
-      "files": {
-        "fire": "/sounds/guns/black-horizon/fire.wav",
-        "reload": "/sounds/guns/black-horizon/reload.wav",
-        "empty": "/sounds/guns/black-horizon/empty.wav",
-        "ads-in": "/sounds/guns/black-horizon/ads-in.wav",
-        "ads-out": "/sounds/guns/black-horizon/ads-out.wav",
-        "cycle": "/sounds/guns/black-horizon/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "ember-glass": {
       "id": "ember-glass",
       "name": "Ember Glass",
       "class": "sniper",
-      "dir": "/sounds/guns/ember-glass",
-      "files": {
-        "fire": "/sounds/guns/ember-glass/fire.wav",
-        "reload": "/sounds/guns/ember-glass/reload.wav",
-        "empty": "/sounds/guns/ember-glass/empty.wav",
-        "ads-in": "/sounds/guns/ember-glass/ads-in.wav",
-        "ads-out": "/sounds/guns/ember-glass/ads-out.wav",
-        "cycle": "/sounds/guns/ember-glass/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "tide-needle": {
       "id": "tide-needle",
       "name": "Tide Needle",
       "class": "sniper",
-      "dir": "/sounds/guns/tide-needle",
-      "files": {
-        "fire": "/sounds/guns/tide-needle/fire.wav",
-        "reload": "/sounds/guns/tide-needle/reload.wav",
-        "empty": "/sounds/guns/tide-needle/empty.wav",
-        "ads-in": "/sounds/guns/tide-needle/ads-in.wav",
-        "ads-out": "/sounds/guns/tide-needle/ads-out.wav",
-        "cycle": "/sounds/guns/tide-needle/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/sniper.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BOLT"
     },
     "door-hymn": {
       "id": "door-hymn",
       "name": "Door Hymn",
       "class": "shotgun",
-      "dir": "/sounds/guns/door-hymn",
-      "files": {
-        "fire": "/sounds/guns/door-hymn/fire.wav",
-        "reload": "/sounds/guns/door-hymn/reload.wav",
-        "empty": "/sounds/guns/door-hymn/empty.wav",
-        "ads-in": "/sounds/guns/door-hymn/ads-in.wav",
-        "ads-out": "/sounds/guns/door-hymn/ads-out.wav",
-        "cycle": "/sounds/guns/door-hymn/cycle.wav"
-      }
-    },
-    "brick-salt": {
-      "id": "brick-salt",
-      "name": "Brick Salt",
-      "class": "shotgun",
-      "dir": "/sounds/guns/brick-salt",
-      "files": {
-        "fire": "/sounds/guns/brick-salt/fire.wav",
-        "reload": "/sounds/guns/brick-salt/reload.wav",
-        "empty": "/sounds/guns/brick-salt/empty.wav",
-        "ads-in": "/sounds/guns/brick-salt/ads-in.wav",
-        "ads-out": "/sounds/guns/brick-salt/ads-out.wav",
-        "cycle": "/sounds/guns/brick-salt/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "PUMP"
     },
     "room-sweeper": {
       "id": "room-sweeper",
       "name": "Room Sweeper",
       "class": "shotgun",
-      "dir": "/sounds/guns/room-sweeper",
-      "files": {
-        "fire": "/sounds/guns/room-sweeper/fire.wav",
-        "reload": "/sounds/guns/room-sweeper/reload.wav",
-        "empty": "/sounds/guns/room-sweeper/empty.wav",
-        "ads-in": "/sounds/guns/room-sweeper/ads-in.wav",
-        "ads-out": "/sounds/guns/room-sweeper/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "iron-goose": {
       "id": "iron-goose",
       "name": "Iron Goose",
       "class": "shotgun",
-      "dir": "/sounds/guns/iron-goose",
-      "files": {
-        "fire": "/sounds/guns/iron-goose/fire.wav",
-        "reload": "/sounds/guns/iron-goose/reload.wav",
-        "empty": "/sounds/guns/iron-goose/empty.wav",
-        "ads-in": "/sounds/guns/iron-goose/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-goose/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "scatter-bench": {
       "id": "scatter-bench",
       "name": "Scatter Bench",
       "class": "shotgun",
-      "dir": "/sounds/guns/scatter-bench",
-      "files": {
-        "fire": "/sounds/guns/scatter-bench/fire.wav",
-        "reload": "/sounds/guns/scatter-bench/reload.wav",
-        "empty": "/sounds/guns/scatter-bench/empty.wav",
-        "ads-in": "/sounds/guns/scatter-bench/ads-in.wav",
-        "ads-out": "/sounds/guns/scatter-bench/ads-out.wav",
-        "cycle": "/sounds/guns/scatter-bench/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "PUMP"
     },
     "pump-chapel": {
       "id": "pump-chapel",
       "name": "Pump Chapel",
       "class": "shotgun",
-      "dir": "/sounds/guns/pump-chapel",
-      "files": {
-        "fire": "/sounds/guns/pump-chapel/fire.wav",
-        "reload": "/sounds/guns/pump-chapel/reload.wav",
-        "empty": "/sounds/guns/pump-chapel/empty.wav",
-        "ads-in": "/sounds/guns/pump-chapel/ads-in.wav",
-        "ads-out": "/sounds/guns/pump-chapel/ads-out.wav",
-        "cycle": "/sounds/guns/pump-chapel/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "PUMP"
     },
     "magpie-12": {
       "id": "magpie-12",
       "name": "Magpie 12",
       "class": "shotgun",
-      "dir": "/sounds/guns/magpie-12",
-      "files": {
-        "fire": "/sounds/guns/magpie-12/fire.wav",
-        "reload": "/sounds/guns/magpie-12/reload.wav",
-        "empty": "/sounds/guns/magpie-12/empty.wav",
-        "ads-in": "/sounds/guns/magpie-12/ads-in.wav",
-        "ads-out": "/sounds/guns/magpie-12/ads-out.wav",
-        "cycle": "/sounds/guns/magpie-12/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BREAK"
     },
     "harbor-gate": {
       "id": "harbor-gate",
       "name": "Harbor Gate",
       "class": "shotgun",
-      "dir": "/sounds/guns/harbor-gate",
-      "files": {
-        "fire": "/sounds/guns/harbor-gate/fire.wav",
-        "reload": "/sounds/guns/harbor-gate/reload.wav",
-        "empty": "/sounds/guns/harbor-gate/empty.wav",
-        "ads-in": "/sounds/guns/harbor-gate/ads-in.wav",
-        "ads-out": "/sounds/guns/harbor-gate/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "SEMI"
     },
     "cinder-tube": {
       "id": "cinder-tube",
       "name": "Cinder Tube",
       "class": "shotgun",
-      "dir": "/sounds/guns/cinder-tube",
-      "files": {
-        "fire": "/sounds/guns/cinder-tube/fire.wav",
-        "reload": "/sounds/guns/cinder-tube/reload.wav",
-        "empty": "/sounds/guns/cinder-tube/empty.wav",
-        "ads-in": "/sounds/guns/cinder-tube/ads-in.wav",
-        "ads-out": "/sounds/guns/cinder-tube/ads-out.wav",
-        "cycle": "/sounds/guns/cinder-tube/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BREAK"
     },
     "short-gospel": {
       "id": "short-gospel",
       "name": "Short Gospel",
       "class": "shotgun",
-      "dir": "/sounds/guns/short-gospel",
-      "files": {
-        "fire": "/sounds/guns/short-gospel/fire.wav",
-        "reload": "/sounds/guns/short-gospel/reload.wav",
-        "empty": "/sounds/guns/short-gospel/empty.wav",
-        "ads-in": "/sounds/guns/short-gospel/ads-in.wav",
-        "ads-out": "/sounds/guns/short-gospel/ads-out.wav",
-        "cycle": "/sounds/guns/short-gospel/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "PUMP"
     },
     "twin-barrel": {
       "id": "twin-barrel",
       "name": "Twin Barrel",
       "class": "shotgun",
-      "dir": "/sounds/guns/twin-barrel",
-      "files": {
-        "fire": "/sounds/guns/twin-barrel/fire.wav",
-        "reload": "/sounds/guns/twin-barrel/reload.wav",
-        "empty": "/sounds/guns/twin-barrel/empty.wav",
-        "ads-in": "/sounds/guns/twin-barrel/ads-in.wav",
-        "ads-out": "/sounds/guns/twin-barrel/ads-out.wav",
-        "cycle": "/sounds/guns/twin-barrel/cycle.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "BREAK"
     },
     "ash-hopper-12": {
       "id": "ash-hopper-12",
       "name": "Ash Hopper 12",
       "class": "shotgun",
-      "dir": "/sounds/guns/ash-hopper-12",
-      "files": {
-        "fire": "/sounds/guns/ash-hopper-12/fire.wav",
-        "reload": "/sounds/guns/ash-hopper-12/reload.wav",
-        "empty": "/sounds/guns/ash-hopper-12/empty.wav",
-        "ads-in": "/sounds/guns/ash-hopper-12/ads-in.wav",
-        "ads-out": "/sounds/guns/ash-hopper-12/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/shotgun.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "millstone": {
       "id": "millstone",
       "name": "Millstone",
       "class": "lmg",
-      "dir": "/sounds/guns/millstone",
-      "files": {
-        "fire": "/sounds/guns/millstone/fire.wav",
-        "reload": "/sounds/guns/millstone/reload.wav",
-        "empty": "/sounds/guns/millstone/empty.wav",
-        "ads-in": "/sounds/guns/millstone/ads-in.wav",
-        "ads-out": "/sounds/guns/millstone/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/lmg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "belt-hymn": {
       "id": "belt-hymn",
       "name": "Belt Hymn",
       "class": "lmg",
-      "dir": "/sounds/guns/belt-hymn",
-      "files": {
-        "fire": "/sounds/guns/belt-hymn/fire.wav",
-        "reload": "/sounds/guns/belt-hymn/reload.wav",
-        "empty": "/sounds/guns/belt-hymn/empty.wav",
-        "ads-in": "/sounds/guns/belt-hymn/ads-in.wav",
-        "ads-out": "/sounds/guns/belt-hymn/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/lmg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "iron-rain": {
       "id": "iron-rain",
       "name": "Iron Rain",
       "class": "lmg",
-      "dir": "/sounds/guns/iron-rain",
-      "files": {
-        "fire": "/sounds/guns/iron-rain/fire.wav",
-        "reload": "/sounds/guns/iron-rain/reload.wav",
-        "empty": "/sounds/guns/iron-rain/empty.wav",
-        "ads-in": "/sounds/guns/iron-rain/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-rain/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/lmg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     },
     "yard-saw": {
       "id": "yard-saw",
       "name": "Yard Saw",
       "class": "lmg",
-      "dir": "/sounds/guns/yard-saw",
-      "files": {
-        "fire": "/sounds/guns/yard-saw/fire.wav",
-        "reload": "/sounds/guns/yard-saw/reload.wav",
-        "empty": "/sounds/guns/yard-saw/empty.wav",
-        "ads-in": "/sounds/guns/yard-saw/ads-in.wav",
-        "ads-out": "/sounds/guns/yard-saw/ads-out.wav"
-      }
-    },
-    "copper-drum": {
-      "id": "copper-drum",
-      "name": "Copper Drum",
-      "class": "lmg",
-      "dir": "/sounds/guns/copper-drum",
-      "files": {
-        "fire": "/sounds/guns/copper-drum/fire.wav",
-        "reload": "/sounds/guns/copper-drum/reload.wav",
-        "empty": "/sounds/guns/copper-drum/empty.wav",
-        "ads-in": "/sounds/guns/copper-drum/ads-in.wav",
-        "ads-out": "/sounds/guns/copper-drum/ads-out.wav"
-      }
-    },
-    "long-choir": {
-      "id": "long-choir",
-      "name": "Long Choir",
-      "class": "lmg",
-      "dir": "/sounds/guns/long-choir",
-      "files": {
-        "fire": "/sounds/guns/long-choir/fire.wav",
-        "reload": "/sounds/guns/long-choir/reload.wav",
-        "empty": "/sounds/guns/long-choir/empty.wav",
-        "ads-in": "/sounds/guns/long-choir/ads-in.wav",
-        "ads-out": "/sounds/guns/long-choir/ads-out.wav"
-      }
-    },
-    "ember-box": {
-      "id": "ember-box",
-      "name": "Ember Box",
-      "class": "lmg",
-      "dir": "/sounds/guns/ember-box",
-      "files": {
-        "fire": "/sounds/guns/ember-box/fire.wav",
-        "reload": "/sounds/guns/ember-box/reload.wav",
-        "empty": "/sounds/guns/ember-box/empty.wav",
-        "ads-in": "/sounds/guns/ember-box/ads-in.wav",
-        "ads-out": "/sounds/guns/ember-box/ads-out.wav"
-      }
-    },
-    "harbor-mill": {
-      "id": "harbor-mill",
-      "name": "Harbor Mill",
-      "class": "lmg",
-      "dir": "/sounds/guns/harbor-mill",
-      "files": {
-        "fire": "/sounds/guns/harbor-mill/fire.wav",
-        "reload": "/sounds/guns/harbor-mill/reload.wav",
-        "empty": "/sounds/guns/harbor-mill/empty.wav",
-        "ads-in": "/sounds/guns/harbor-mill/ads-in.wav",
-        "ads-out": "/sounds/guns/harbor-mill/ads-out.wav"
-      }
-    },
-    "soft-fold": {
-      "id": "soft-fold",
-      "name": "Soft Fold",
-      "class": "pdw",
-      "dir": "/sounds/guns/soft-fold",
-      "files": {
-        "fire": "/sounds/guns/soft-fold/fire.wav",
-        "reload": "/sounds/guns/soft-fold/reload.wav",
-        "empty": "/sounds/guns/soft-fold/empty.wav",
-        "ads-in": "/sounds/guns/soft-fold/ads-in.wav",
-        "ads-out": "/sounds/guns/soft-fold/ads-out.wav"
-      }
-    },
-    "pocket-clerk": {
-      "id": "pocket-clerk",
-      "name": "Pocket Clerk",
-      "class": "pdw",
-      "dir": "/sounds/guns/pocket-clerk",
-      "files": {
-        "fire": "/sounds/guns/pocket-clerk/fire.wav",
-        "reload": "/sounds/guns/pocket-clerk/reload.wav",
-        "empty": "/sounds/guns/pocket-clerk/empty.wav",
-        "ads-in": "/sounds/guns/pocket-clerk/ads-in.wav",
-        "ads-out": "/sounds/guns/pocket-clerk/ads-out.wav"
-      }
-    },
-    "roof-bell": {
-      "id": "roof-bell",
-      "name": "Roof Bell",
-      "class": "launcher",
-      "dir": "/sounds/guns/roof-bell",
-      "files": {
-        "fire": "/sounds/guns/roof-bell/fire.wav",
-        "reload": "/sounds/guns/roof-bell/reload.wav",
-        "empty": "/sounds/guns/roof-bell/empty.wav",
-        "ads-in": "/sounds/guns/roof-bell/ads-in.wav",
-        "ads-out": "/sounds/guns/roof-bell/ads-out.wav"
-      }
-    },
-    "tube-hymn": {
-      "id": "tube-hymn",
-      "name": "Tube Hymn",
-      "class": "launcher",
-      "dir": "/sounds/guns/tube-hymn",
-      "files": {
-        "fire": "/sounds/guns/tube-hymn/fire.wav",
-        "reload": "/sounds/guns/tube-hymn/reload.wav",
-        "empty": "/sounds/guns/tube-hymn/empty.wav",
-        "ads-in": "/sounds/guns/tube-hymn/ads-in.wav",
-        "ads-out": "/sounds/guns/tube-hymn/ads-out.wav"
-      }
-    },
-    "iron-bloom": {
-      "id": "iron-bloom",
-      "name": "Iron Bloom",
-      "class": "launcher",
-      "dir": "/sounds/guns/iron-bloom",
-      "files": {
-        "fire": "/sounds/guns/iron-bloom/fire.wav",
-        "reload": "/sounds/guns/iron-bloom/reload.wav",
-        "empty": "/sounds/guns/iron-bloom/empty.wav",
-        "ads-in": "/sounds/guns/iron-bloom/ads-in.wav",
-        "ads-out": "/sounds/guns/iron-bloom/ads-out.wav"
-      }
-    },
-    "harbor-arc": {
-      "id": "harbor-arc",
-      "name": "Harbor Arc",
-      "class": "launcher",
-      "dir": "/sounds/guns/harbor-arc",
-      "files": {
-        "fire": "/sounds/guns/harbor-arc/fire.wav",
-        "reload": "/sounds/guns/harbor-arc/reload.wav",
-        "empty": "/sounds/guns/harbor-arc/empty.wav",
-        "ads-in": "/sounds/guns/harbor-arc/ads-in.wav",
-        "ads-out": "/sounds/guns/harbor-arc/ads-out.wav"
-      }
-    },
-    "ember-pipe": {
-      "id": "ember-pipe",
-      "name": "Ember Pipe",
-      "class": "launcher",
-      "dir": "/sounds/guns/ember-pipe",
-      "files": {
-        "fire": "/sounds/guns/ember-pipe/fire.wav",
-        "reload": "/sounds/guns/ember-pipe/reload.wav",
-        "empty": "/sounds/guns/ember-pipe/empty.wav",
-        "ads-in": "/sounds/guns/ember-pipe/ads-in.wav",
-        "ads-out": "/sounds/guns/ember-pipe/ads-out.wav"
-      }
-    },
-    "yard-bell": {
-      "id": "yard-bell",
-      "name": "Yard Bell",
-      "class": "launcher",
-      "dir": "/sounds/guns/yard-bell",
-      "files": {
-        "fire": "/sounds/guns/yard-bell/fire.wav",
-        "reload": "/sounds/guns/yard-bell/reload.wav",
-        "empty": "/sounds/guns/yard-bell/empty.wav",
-        "ads-in": "/sounds/guns/yard-bell/ads-in.wav",
-        "ads-out": "/sounds/guns/yard-bell/ads-out.wav"
-      }
-    },
-    "glass-howl": {
-      "id": "glass-howl",
-      "name": "Glass Howl",
-      "class": "special",
-      "dir": "/sounds/guns/glass-howl",
-      "files": {
-        "fire": "/sounds/guns/glass-howl/fire.wav",
-        "reload": "/sounds/guns/glass-howl/reload.wav",
-        "empty": "/sounds/guns/glass-howl/empty.wav",
-        "ads-in": "/sounds/guns/glass-howl/ads-in.wav",
-        "ads-out": "/sounds/guns/glass-howl/ads-out.wav"
-      }
-    },
-    "quiet-coil": {
-      "id": "quiet-coil",
-      "name": "Quiet Coil",
-      "class": "special",
-      "dir": "/sounds/guns/quiet-coil",
-      "files": {
-        "fire": "/sounds/guns/quiet-coil/fire.wav",
-        "reload": "/sounds/guns/quiet-coil/reload.wav",
-        "empty": "/sounds/guns/quiet-coil/empty.wav",
-        "ads-in": "/sounds/guns/quiet-coil/ads-in.wav",
-        "ads-out": "/sounds/guns/quiet-coil/ads-out.wav"
-      }
-    },
-    "ember-spit": {
-      "id": "ember-spit",
-      "name": "Ember Spit",
-      "class": "special",
-      "dir": "/sounds/guns/ember-spit",
-      "files": {
-        "fire": "/sounds/guns/ember-spit/fire.wav",
-        "reload": "/sounds/guns/ember-spit/reload.wav",
-        "empty": "/sounds/guns/ember-spit/empty.wav",
-        "ads-in": "/sounds/guns/ember-spit/ads-in.wav",
-        "ads-out": "/sounds/guns/ember-spit/ads-out.wav"
-      }
-    },
-    "needle-choir": {
-      "id": "needle-choir",
-      "name": "Needle Choir",
-      "class": "special",
-      "dir": "/sounds/guns/needle-choir",
-      "files": {
-        "fire": "/sounds/guns/needle-choir/fire.wav",
-        "reload": "/sounds/guns/needle-choir/reload.wav",
-        "empty": "/sounds/guns/needle-choir/empty.wav",
-        "ads-in": "/sounds/guns/needle-choir/ads-in.wav",
-        "ads-out": "/sounds/guns/needle-choir/ads-out.wav"
-      }
-    },
-    "pale-arc": {
-      "id": "pale-arc",
-      "name": "Pale Arc",
-      "class": "special",
-      "dir": "/sounds/guns/pale-arc",
-      "files": {
-        "fire": "/sounds/guns/pale-arc/fire.wav",
-        "reload": "/sounds/guns/pale-arc/reload.wav",
-        "empty": "/sounds/guns/pale-arc/empty.wav",
-        "ads-in": "/sounds/guns/pale-arc/ads-in.wav",
-        "ads-out": "/sounds/guns/pale-arc/ads-out.wav"
-      }
-    },
-    "frost-spool": {
-      "id": "frost-spool",
-      "name": "Frost Spool",
-      "class": "special",
-      "dir": "/sounds/guns/frost-spool",
-      "files": {
-        "fire": "/sounds/guns/frost-spool/fire.wav",
-        "reload": "/sounds/guns/frost-spool/reload.wav",
-        "empty": "/sounds/guns/frost-spool/empty.wav",
-        "ads-in": "/sounds/guns/frost-spool/ads-in.wav",
-        "ads-out": "/sounds/guns/frost-spool/ads-out.wav"
-      }
+      "fire": "sfx/guns/fire/lmg.wav",
+      "events": {
+        "reload": "sfx/guns/shared/reload.wav",
+        "empty": "sfx/guns/shared/empty.wav",
+        "equip": "sfx/guns/shared/equip.wav",
+        "cycle": "sfx/guns/shared/cycle.wav",
+        "ads-in": "sfx/guns/shared/ads-in.wav",
+        "ads-out": "sfx/guns/shared/ads-out.wav"
+      },
+      "fireMode": "AUTO"
     }
   }
 }
