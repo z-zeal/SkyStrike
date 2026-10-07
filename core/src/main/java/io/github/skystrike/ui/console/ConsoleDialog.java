@@ -325,6 +325,19 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
         return completion.candidatesFor(body);
     }
 
+    /** Short two-line notice shown in the input-adjacent completion space when access is missing. */
+    private String unavailableCommandHint() {
+        if (commands.isUnavailableCommandAttempt(field.text())) {
+            return "Commands unavailable. Client: --dev or -Dskystrike.debug=true.\n"
+                + "Server: --dev or --grant <name>=ADMIN. Use //text for chat.";
+        }
+        if (field.isCommand() && commands.serverCommandAccessUnavailable()) {
+            return "Server commands unavailable. Client dev mode only enables this UI.\n"
+                + "Server owner: --dev or --grant <name>=ADMIN.";
+        }
+        return "";
+    }
+
     /** Writes the selected completion back into the field, preserving what came before. */
     private void acceptCompletion() {
         String candidate = completion.selectedCandidate();
@@ -346,9 +359,9 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
     }
 
     /**
-     * Enter. Non-empty lines leave as a command or as a chat line and the bar closes; an empty
-     * bar just closes. A command never produces a chat packet, and a chat line never reaches the
-     * command engine — one submit, one destination, decided by the same rule the bar displays.
+     * Enter. Non-empty lines leave as a command, chat line, or an explicit locked-command notice;
+     * an empty bar just closes. A command never produces a chat packet, and {@code //text} is the
+     * explicit route for chat beginning with a slash.
      */
     private void submit() {
         String text = field.text().trim();
@@ -358,6 +371,14 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
         }
         if (commands.isCommandLine(text)) {
             commands.submit(text);
+        } else if (commands.isUnavailableCommandAttempt(text)) {
+            // A lone slash is a command attempt, not an accidental chat broadcast. The inline
+            // notice uses the same message while typing; this scrollback line survives closing.
+            chatClient.addSystemLine(
+                System.currentTimeMillis(),
+                ChatChannel.SYSTEM,
+                commands.unavailableCommandMessage(),
+                MessageSeverity.WARNING);
         } else {
             // ChatClient owns the //x -> /x unescape and the sanitising client-side preview.
             boolean sent = chatClient.send(targetButton.target(), text);
@@ -644,46 +665,54 @@ public final class ConsoleDialog extends InputAdapter implements Disposable {
         List<VisualLine> wrapped = wrappedScrollback(wrapWidth);
         float lineHeight = font.getLineHeight();
         float strut = theme.lineGap * scale;
-        int visibleCap = (int) ((panelHeight - theme.innerPadding * scale) / (lineHeight + strut));
+        float fieldX = targetButton.x() + targetButton.width() + theme.innerPadding * scale * 0.5f;
+        float fieldTextY = margin + inputHeight * 0.68f;
+
+        // Completion is calculated and drawn on every open frame. It used to be drawn at the
+        // far edge of the scrollback panel, where it could be obscured and appeared only after
+        // Tab; reserve space immediately above the input instead.
+        List<String> candidates = currentCandidates();
+        int completionRows = candidates.isEmpty() ? 0
+            : ConsoleCompletionPopup.visibleCount(candidates, theme.completionMaxRows);
+        String unavailable = unavailableCommandHint();
+        int unavailableRows = unavailable.isEmpty() ? 0 : 2;
+        float completionHeight = Math.max(completionRows, unavailableRows) * (lineHeight + strut);
+        int visibleCap = Math.max(0, (int) ((panelHeight - theme.innerPadding * scale
+            - completionHeight) / (lineHeight + strut)));
         int top = wrapped.size() - 1 - Math.min(scrollOffsetLines, maxScrollOffset());
-        float y = panelBottom + theme.innerPadding * scale * 0.5f + lineHeight;
+        float y = panelBottom + completionHeight + theme.innerPadding * scale * 0.5f + lineHeight;
         for (int i = top, drawn = 0; i >= 0 && drawn < visibleCap; i--, drawn++) {
             drawRunLine(font, wrapped.get(i).runs(), textMargin, y, alpha);
             y += lineHeight + strut;
         }
 
-        // The hint line, flush above the panel.
-        float fieldX = targetButton.x() + targetButton.width() + theme.innerPadding * scale * 0.5f;
-        float fieldTextY = margin + inputHeight * 0.68f;
-        if (alpha > 0.4f) {
-            String hint = hintLine.hintFor(field.text());
-            if (!hint.isEmpty()) {
-                font.setColor(theme.clampedText(theme.hintText));
-                font.draw(batch, hint, fieldX, panelBottom + panelHeight + lineHeight * 0.75f);
+        // The hint line remains above the panel while the candidate rows live beside the input.
+        String hint = hintLine.hintFor(field.text());
+        if (!hint.isEmpty()) {
+            font.setColor(theme.clampedText(theme.hintText));
+            font.draw(batch, hint, fieldX, panelBottom + panelHeight + lineHeight * 0.75f);
+        }
+
+        completionHits.clear();
+        if (!candidates.isEmpty()) {
+            int first = Math.max(0, Math.min(
+                completion.selected() - completionRows + 1, candidates.size() - completionRows));
+            for (int r = 0; r < completionRows; r++) {
+                int index = first + r;
+                String candidate = candidates.get(index);
+                Color c = index == completion.selected()
+                    ? theme.clampedText(theme.inputTextCommand)
+                    : theme.clampedText(theme.hintText);
+                font.setColor(c);
+                float baseline = panelBottom + lineHeight + r * (lineHeight + strut);
+                font.draw(batch, candidate, fieldX, baseline);
+                measurer.setText(font, candidate);
+                completionHits.add(new CompletionHit(
+                    index, fieldX, baseline - lineHeight, measurer.width, lineHeight));
             }
-            List<String> candidates = currentCandidates();
-            completionHits.clear();
-            if (!candidates.isEmpty()) {
-                int rows = ConsoleCompletionPopup.visibleCount(
-                    candidates, theme.completionMaxRows);
-                int first = Math.max(0, Math.min(
-                    completion.selected() - rows + 1, candidates.size() - rows));
-                for (int r = 0; r < rows; r++) {
-                    int index = first + r;
-                    String candidate = candidates.get(index);
-                    Color c = index == completion.selected()
-                        ? theme.clampedText(theme.inputTextCommand)
-                        : theme.clampedText(theme.hintText);
-                    font.setColor(c);
-                    float baseline = panelBottom + panelHeight + lineHeight * (r + 1.75f);
-                    font.draw(batch, candidate, fieldX, baseline);
-                    measurer.setText(font, candidate);
-                    completionHits.add(new CompletionHit(
-                        index, fieldX, baseline - lineHeight, measurer.width, lineHeight));
-                }
-            }
-        } else {
-            completionHits.clear();
+        } else if (!unavailable.isEmpty()) {
+            font.setColor(theme.clampedText(theme.hintText));
+            font.draw(batch, unavailable, fieldX, panelBottom + lineHeight);
         }
 
         // The ALL/TEAM label.

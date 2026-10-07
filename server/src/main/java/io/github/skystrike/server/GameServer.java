@@ -33,6 +33,7 @@ import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
 import io.github.skystrike.server.weapons.LoadoutSystem;
 import io.github.skystrike.server.weapons.RecoilService;
+import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.debug.DebugState;
@@ -99,13 +100,14 @@ public final class GameServer {
     private final ServerCommandService commandService;
 
     /** The debug toolkit's one piece of genuinely global state (build plan M3 §4): timescale. */
-    private final DebugState debugState = new DebugState(DebugFlags.enabled());
+    private final DebugState debugState;
 
     /** Reused per tick so the combat systems do not allocate a player list 60 times a second. */
     private final List<Player> playerStates = new ArrayList<>();
 
     public GameServer(ServerConfig config) {
         this.config = config;
+        this.debugState = new DebugState(debugCommandsEnabled(config));
         this.arena = ArenaMap.standard();
         this.endpoint = new NetworkEndpoint(config.tcpPort(), config.udpPort());
         this.connections = new ConnectionRegistry(config.maxPlayers());
@@ -154,9 +156,26 @@ public final class GameServer {
                 this.chatService,
                 this::sendToPlayer,
                 this::prepareForLife,
-                this.debugState));
+                this.debugState),
+            debugCommandsEnabled(config));
 
         registerHandlers();
+    }
+
+    /**
+     * Debug metadata is available only when the server itself opted into dev mode or configured
+     * an ADMIN identity. The resolver remains the authoritative per-request permission check.
+     */
+    private static boolean debugCommandsEnabled(ServerConfig config) {
+        if (DebugFlags.enabled() || config.devMode()) {
+            return true;
+        }
+        for (Permission level : config.grants().values()) {
+            if (level == Permission.ADMIN) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void registerHandlers() {

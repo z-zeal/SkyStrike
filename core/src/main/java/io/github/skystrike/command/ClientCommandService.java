@@ -32,8 +32,8 @@ import java.util.function.Supplier;
  *
  * <p>Output lands in the scrollback like any other line, on the two console channels: the line
  * as typed on {@link ChatChannel#COMMAND_ECHO}, result and response lines on
- * {@link ChatChannel#CONSOLE}. Both are invisible to a client without access, and such a client
- * never reaches this service — {@code /leak} is chat text for them, sent by the dialog.
+ * {@link ChatChannel#CONSOLE}. A locked client never reaches this service: the dialog explains
+ * the gate for a lone slash, while {@code //text} remains the explicit chat escape.
  */
 public final class ClientCommandService {
 
@@ -87,9 +87,9 @@ public final class ClientCommandService {
     }
 
     /**
-     * The whole "is this line a command?" rule, recomputed on every keystroke. With no console
-     * this is false and a leading slash is ordinary chat text; with the console, exactly one
-     * leading slash makes a command and a doubled one is chat reading {@code /something}.
+     * The whole "is this line a command?" rule, recomputed on every keystroke. With the console,
+     * exactly one leading slash makes a command and a doubled one is chat reading
+     * {@code /something}.
      */
     public boolean isCommandLine(String text) {
         return unlocked()
@@ -99,13 +99,39 @@ public final class ClientCommandService {
     }
 
     /**
-     * Permission used by local help, hints and completion. A local dev console may describe the
-     * full command surface even when the connected server grants no console; the server still
-     * re-authorises every forwarded line against its own permission resolver.
+     * A single slash still means "I intended a command" when the local console is locked. The UI
+     * uses this to explain the gate and avoid accidentally broadcasting a failed command as chat;
+     * {@code //text} remains the explicit chat escape for everyone.
+     */
+    public boolean isUnavailableCommandAttempt(String text) {
+        return !unlocked()
+            && text != null
+            && text.startsWith(ClientCapabilities.COMMAND_PREFIX)
+            && !text.startsWith(ClientCapabilities.COMMAND_PREFIX + ClientCapabilities.COMMAND_PREFIX);
+    }
+
+    /** Concise, non-authoritative guidance shown beside a locked command attempt. */
+    public String unavailableCommandMessage() {
+        return "Commands unavailable. Enable client --dev or -Dskystrike.debug=true; "
+            + "the server owner must use --dev or --grant <name>=ADMIN. Use //text for chat.";
+    }
+
+    /**
+     * A client dev flag may unlock local commands before the server grants any console access.
+     * Keep that UI useful, but label server commands as unavailable instead of implying the flag
+     * can grant remote authority.
+     */
+    public boolean serverCommandAccessUnavailable() {
+        return DebugFlags.enabled() && !capabilities.consoleAccess();
+    }
+
+    /**
+     * Permission used by local help, hints and completion. Debug mode enables the local console
+     * UI, but it cannot manufacture a server capability, so visible metadata always follows the
+     * last capability level the server actually granted.
      */
     public Permission localPermission() {
-        return DebugFlags.enabled() && !capabilities.consoleAccess()
-            ? Permission.ADMIN : capabilities.level();
+        return capabilities.level();
     }
 
     /**

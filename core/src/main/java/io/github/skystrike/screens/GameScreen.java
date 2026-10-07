@@ -485,7 +485,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         consoleDialog.render(System.currentTimeMillis());
 
         // The visible pause modal is above the HUD and console. Its InputRouter focus owns Escape.
-        pauseOverlay.render();
+        pauseOverlay.render(delta);
 
         // ui_contrast_test (F12): a full-screen developer test card, so it wins over everything
         // including the console — exactly the "readable on all four means readable in the game"

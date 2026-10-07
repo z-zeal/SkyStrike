@@ -11,6 +11,7 @@ import io.github.skystrike.shared.command.CommandResult;
 import io.github.skystrike.shared.command.CommandSide;
 import io.github.skystrike.shared.command.CvarRegistry;
 import io.github.skystrike.shared.command.Permission;
+import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.text.RateLimiter;
 import io.github.skystrike.shared.text.TextLimits;
 import java.util.ArrayList;
@@ -43,12 +44,25 @@ public final class ServerCommandService {
     private final Map<Integer, RateLimiter> limiters = new HashMap<>();
 
     public ServerCommandService(PlayerRegistry players, PermissionResolver resolver, ServerCommandModule.Deps deps) {
+        this(players, resolver, deps, DebugFlags.enabled());
+    }
+
+    /**
+     * Creates a service with debug metadata only when the host explicitly enabled it through
+     * development mode or an ADMIN grant. Permission checks still run for every request.
+     */
+    public ServerCommandService(
+        PlayerRegistry players,
+        PermissionResolver resolver,
+        ServerCommandModule.Deps deps,
+        boolean debugCommandsEnabled
+    ) {
         if (players == null || resolver == null || deps == null) {
             throw new IllegalArgumentException("players, resolver and deps are required");
         }
         this.players = players;
         this.resolver = resolver;
-        ServerCommandModule.registerAll(registry, deps);
+        ServerCommandModule.registerAll(registry, deps, debugCommandsEnabled);
         this.dispatcher = new CommandDispatcher(registry, cvars);
     }
 
