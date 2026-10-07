@@ -205,10 +205,7 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 // Only consume touches on the overlay background itself, not children (the dialog).
                 // The event's target will be the overlay when the click misses the dialog.
-                if (event.getTarget() == full) {
-                    return true;
-                }
-                return false;
+                return event.getTarget() == full;
             }
         });
         // Also intercept hit for empty area so stage.hit returns the overlay and not the menu.
