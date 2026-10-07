@@ -32,11 +32,13 @@ public final class Main extends Game {
     private void menuAction(String action) {
         if ("Settings".equals(action)) {
             setScreen(new SettingsScreen(settings, () -> setScreen(new MainMenuScreen(this::menuAction))));
-        } else if ("Play".equals(action)) {
-            setScreen(new GameScreen(property(NAME_PROPERTY, "Player"),
+        } else if ("Play".equals(action) || "Loadout".equals(action)) {
+            GameScreen game = new GameScreen(property(NAME_PROPERTY, "Player"),
                 property(HOST_PROPERTY, NetConfig.DEFAULT_HOST),
                 intProperty(TCP_PORT_PROPERTY, NetConfig.DEFAULT_TCP_PORT),
-                intProperty(UDP_PORT_PROPERTY, NetConfig.DEFAULT_UDP_PORT)));
+                intProperty(UDP_PORT_PROPERTY, NetConfig.DEFAULT_UDP_PORT));
+            setScreen(game);
+            if ("Loadout".equals(action)) game.openLoadout();
         } else if ("Quit".equals(action)) {
             Gdx.app.exit();
         }

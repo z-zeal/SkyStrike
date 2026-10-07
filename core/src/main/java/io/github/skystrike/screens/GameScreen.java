@@ -635,6 +635,11 @@ public final class GameScreen implements Screen {
         }
     }
 
+    /** Opens the existing M4 picker, including its weapon artwork and focus handling. */
+    public void openLoadout() {
+        setUiLoadout(true);
+    }
+
     private void onPauseAction(String action) {
         if ("Disconnect".equals(action)) {
             session.disconnect();
