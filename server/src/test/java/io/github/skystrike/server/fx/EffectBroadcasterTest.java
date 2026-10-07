@@ -112,13 +112,15 @@ class EffectBroadcasterTest {
     }
 
     @Test
-    @DisplayName("scale widens the culling disc: a wall-edge impact reaches observers only when scaled up")
+    @DisplayName("scale widens the culling disc: a gap impact reaches observers only when scaled up")
     void scaleWidensTheCullingDisc() {
-        // Just east of the room's right wall: the impact itself is occluded from inside the
-        // room, but a scaled-up disc samples points on the observer's side of the wall.
+        // In the gap between the room's inner pillar (x 1800..1816, y 300..430) and its right
+        // wall (x 1856..1880): the observer inside the room cannot see the impact itself, the
+        // pillar blocks every sample of the small disc, but a scaled-up disc samples points
+        // west of the pillar and above it, which are clearly visible.
         Player observer = player(1300f, 400f, 0f);
-        EffectSpawn unscaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1900f, 400f, 0f, 1f);
-        EffectSpawn scaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1900f, 400f, 0f, 3f);
+        EffectSpawn unscaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1830f, 400f, 0f, 1f);
+        EffectSpawn scaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1830f, 400f, 0f, 3f);
 
         assertTrue(broadcaster.cullFor(List.of(unscaled), observer, arena, null).isEmpty());
         assertEquals(1, broadcaster.cullFor(List.of(scaled), observer, arena, null).size());
