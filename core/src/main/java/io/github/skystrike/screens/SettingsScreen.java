@@ -42,8 +42,10 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
     private final Stage stage;
     private final InputMultiplexer input = new InputMultiplexer();
     private final List<Actor> keyboardOrder = new ArrayList<>();
+    private final List<Actor> scrollableControlButtons = new ArrayList<>();
     private final Map<Actor, Runnable> buttonActions = new LinkedHashMap<>();
     private final Map<String, TextButton> bindingButtons = new LinkedHashMap<>();
+    private ScrollPane controlsScroll;
 
     private final SelectBox<String> resolution;
     private final CheckBox vsync;
@@ -162,7 +164,7 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
         for (String actionName : bindings.actionNames()) {
             addBindingRow(controls, actionName);
         }
-        ScrollPane controlsScroll = new ScrollPane(controls, skin);
+        controlsScroll = new ScrollPane(controls, skin);
         controlsScroll.setFadeScrollBars(false);
         controlsScroll.setScrollingDisabled(true, false);
         root.add(controlsScroll).left().width(660f).height(250f).fill();
@@ -221,6 +223,8 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
         buttonActions.put(reset, () -> resetBinding(actionName));
         keyboardOrder.add(rebind);
         keyboardOrder.add(reset);
+        scrollableControlButtons.add(rebind);
+        scrollableControlButtons.add(reset);
 
         table.add(new Label(actionName, skin)).left().expandX().fillX().padBottom(5f);
         table.add(rebind).width(220f).height(32f).padRight(6f).padBottom(5f);
@@ -297,7 +301,7 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
         status.setText("Press a key for " + actionName + ", or Escape to cancel.");
         TextButton button = bindingButtons.get(actionName);
         if (button != null) {
-            stage.setKeyboardFocus(button);
+            setFocus(button);
         }
     }
 
@@ -337,8 +341,16 @@ public final class SettingsScreen extends de.eskalon.commons.screen.ManagedScree
         if (index < 0) {
             index = direction < 0 ? 0 : -1;
         }
-        stage.setKeyboardFocus(keyboardOrder.get(
-            Math.floorMod(index + direction, keyboardOrder.size())));
+        setFocus(keyboardOrder.get(Math.floorMod(index + direction, keyboardOrder.size())));
+    }
+
+    /** Keeps a Tab-focused rebind action visible inside the real ScrollPane. */
+    private void setFocus(Actor actor) {
+        stage.setKeyboardFocus(actor);
+        if (controlsScroll != null && scrollableControlButtons.contains(actor)) {
+            controlsScroll.scrollTo(
+                actor.getX(), actor.getY(), actor.getWidth(), actor.getHeight(), false, true);
+        }
     }
 
     private void activateFocused() {
