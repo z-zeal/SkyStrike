@@ -498,7 +498,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         pipeline.renderVisibility(camera, observers, !isShadowsOn());
 
         // Pass 3: LIGHTS (half-resolution additive player lights, SDF-shadowed and vision-gated)
-        pipeline.renderLights(camera, !isShadowsOn());
+        pipeline.renderLights(camera, localPlayer, !isShadowsOn());
 
         // Pass 4: COMPOSITE (scene * max(visibility, ambientFloor) + safe light buffer)
         pipeline.composite();

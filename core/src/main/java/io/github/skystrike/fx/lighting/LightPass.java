@@ -12,7 +12,10 @@ import io.github.skystrike.fx.gl.RenderTarget;
 import io.github.skystrike.fx.gl.ShaderLibrary;
 import io.github.skystrike.fx.sdf.SdfTexture;
 import io.github.skystrike.render.GameCamera;
+import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.VisionConfig;
+import io.github.skystrike.shared.math.Angles;
+import io.github.skystrike.shared.model.Player;
 
 /**
  * Half-resolution additive player-light pass. Each active light draws one radius-sized quad into
@@ -58,7 +61,8 @@ public final class LightPass implements Disposable {
     /**
      * Renders the active lights. The visibility texture is sampled in the same screen-space
      * coordinates as the visibility target, and values at/below its peripheral floor are rejected
-     * so player lights cannot brighten pixels outside the local vision cone or behind a wall.
+     * so lights cannot brighten hidden pixels. The local light has a body-only mask exception,
+     * keeping the local silhouette readable without illuminating arbitrary pixels beyond the cone.
      *
      * @param hardShadows true when {@code r_shadows} is off; this changes SDF penumbrae to hard
      *     edges but does not disable SDF occlusion
@@ -68,6 +72,8 @@ public final class LightPass implements Disposable {
             SdfTexture sdfTexture,
             Texture visibilityTexture,
             LightPool lights,
+            int localPlayerLightHandle,
+            Player localPlayer,
             boolean hardShadows) {
         lightFbo.begin();
         try {
@@ -76,11 +82,13 @@ public final class LightPass implements Disposable {
                 return;
             }
 
-            if (camera == null || sdfTexture == null || visibilityTexture == null) {
-                throw new IllegalArgumentException("camera, SDF and visibility texture are required");
+            if (camera == null || sdfTexture == null || visibilityTexture == null || localPlayer == null) {
+                throw new IllegalArgumentException(
+                        "camera, SDF, visibility texture and local player are required");
             }
             if (shader == null) {
-                shader = shaders.load("light_radial", "light/visibility.vert", "light/light_radial.frag");
+                shader = shaders.load(
+                        "light_radial", "light/visibility.vert", "light/light_radial.frag");
             }
 
             shader.bind();
@@ -93,6 +101,12 @@ public final class LightPass implements Disposable {
             shader.setUniformi("u_maxMarchSteps", VisionConfig.MARCH_STEPS_DESKTOP);
             shader.setUniformf("u_visibilityFloor", VisionConfig.PERIPHERAL_FLOOR);
             shader.setUniformf("u_visibilityFeather", VISIBILITY_GATE_FEATHER);
+            shader.setUniformf("u_selfBodyCenter", localPlayer.centerX(), localPlayer.centerY());
+            shader.setUniformf(
+                    "u_selfBodyHalfSize",
+                    PlayerConfig.WIDTH * 0.5f,
+                    localPlayer.currentHeight() * 0.5f);
+            shader.setUniformf("u_selfBodyRotation", Angles.toRadians(localPlayer.rotation));
 
             sdfTexture.bind(0);
             shader.setUniformi("u_sdfTexture", 0);
@@ -118,6 +132,9 @@ public final class LightPass implements Disposable {
                 shader.setUniformf("u_lightIntensity", light.intensity());
                 shader.setUniformf("u_falloff", light.falloff());
                 shader.setUniformi("u_castsShadow", light.castsShadow() ? 1 : 0);
+                shader.setUniformi(
+                        "u_isLocalPlayerLight",
+                        lights.handleAtSlot(slot) == localPlayerLightHandle ? 1 : 0);
 
                 setQuad(camera, light);
                 quad.setVertices(vertices);

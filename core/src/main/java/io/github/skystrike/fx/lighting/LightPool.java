@@ -183,6 +183,13 @@ public final class LightPool {
         return slot >= 0 && slot < lights.length && active[slot] ? lights[slot] : null;
     }
 
+    /**
+     * Package-local handle lookup lets the pass treat the local player's own silhouette specially.
+     */
+    int handleAtSlot(int slot) {
+        return slot >= 0 && slot < lights.length && active[slot] ? encode(slot) : INVALID_HANDLE;
+    }
+
     private int findFreeSlot() {
         if (activeCount >= active.length) {
             return -1;

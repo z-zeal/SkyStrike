@@ -171,12 +171,14 @@ public final class FxPipeline implements Disposable {
     }
 
     /** Executes the half-resolution additive light pass after visibility has been rendered. */
-    public void renderLights(GameCamera camera, boolean hardShadows) {
+    public void renderLights(GameCamera camera, Player localPlayer, boolean hardShadows) {
         lightPass.render(
                 camera,
                 sdfTexture,
                 visibilitySystem.getVisibilityTexture(),
                 lightPool,
+                localPlayerLightHandle,
+                localPlayer,
                 hardShadows);
     }
 
