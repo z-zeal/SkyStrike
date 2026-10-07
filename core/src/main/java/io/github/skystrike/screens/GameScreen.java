@@ -147,7 +147,12 @@ public final class GameScreen implements Screen {
     private float adsAlpha;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
-        this.session = new ClientSession(playerName);
+        this(new ClientSession(playerName), host, tcpPort, udpPort);
+    }
+
+    /** Builds the play screen around the session owned by ConnectingScreen. */
+    public GameScreen(ClientSession session, String host, int tcpPort, int udpPort) {
+        this.session = session;
         this.host = host;
         this.tcpPort = tcpPort;
         this.udpPort = udpPort;

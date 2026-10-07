@@ -118,6 +118,10 @@ public final class KeyBindings {
                 crouchTertiary = Input.Keys.CONTROL_LEFT;
             });
         recordSingle("jetpack", () -> jetpackKey, v -> jetpackKey = v, () -> Input.Keys.SPACE);
+        // Mouse actions are included in the same registry so the controls screen can enumerate
+        // every gameplay action; bind commands may still assign a keyboard key to them.
+        recordSingle("fire", () -> fireButton, v -> fireButton = v, () -> Input.Buttons.LEFT);
+        recordSingle("ads", () -> adsButton, v -> adsButton = v, () -> Input.Buttons.RIGHT);
         recordSingle("slot1", () -> slot1, v -> slot1 = v, () -> Input.Keys.NUM_1);
         recordSingle("slot2", () -> slot2, v -> slot2 = v, () -> Input.Keys.NUM_2);
         recordSingle("slot3", () -> slot3, v -> slot3 = v, () -> Input.Keys.NUM_3);
