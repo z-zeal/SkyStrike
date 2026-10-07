@@ -13,6 +13,7 @@ import io.github.skystrike.command.DebugKeyController;
 import io.github.skystrike.shared.command.CommandException;
 import io.github.skystrike.shared.command.Cvar;
 import io.github.skystrike.fx.FxPipeline;
+import io.github.skystrike.fx.lighting.Light;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.audio.GunAudio;
 import io.github.skystrike.gameplay.LoadoutController;
@@ -68,7 +69,8 @@ import java.util.function.Consumer;
  * Composition root for a match.
  *
  * <p>Routes input, drives authoritative prediction/interpolation, and coordinates multi-pass
- * rendering across terrain, entities, the occluded visibility pass and the fog composite.
+ * rendering across terrain, entities, occluded visibility, additive player lights and the fog
+ * composite.
  */
 public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAdapter {
 
@@ -462,6 +464,21 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             }
         }
 
+        // Player-light radius and intensity come from the same live cvar registry as the other
+        // graphics controls. Remote sources are filtered by shared vision/LOS before entering
+        // the pool, then LightPass masks each fragment against the rendered visibility texture.
+        float playerLightRadius = floatCvar("r_player_light_radius", Light.DEFAULT_PLAYER_RADIUS);
+        float playerLightIntensity = floatCvar("r_player_light_intensity", Light.DEFAULT_PLAYER_INTENSITY);
+        pipeline.syncPlayerLights(
+                localPlayer,
+                remotePlayers,
+                arena,
+                visionReach,
+                debugState.playerLight(),
+                playerLightRadius,
+                playerLightIntensity,
+                debugState.playerLightShadows());
+
         // 4. Multi-pass rendering pipeline (effects §5)
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
         pipeline.beginScene();
@@ -480,10 +497,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         pipeline.renderVisibility(camera, observers, !isShadowsOn());
 
-        // Pass 3: COMPOSITE (scene * max(visibility, ambientFloor) + light onto backbuffer)
+        // Pass 3: LIGHTS (half-resolution additive player lights, SDF-shadowed and vision-gated)
+        pipeline.renderLights(camera, localPlayer, !isShadowsOn());
+
+        // Pass 4: COMPOSITE (scene * max(visibility, ambientFloor) + safe light buffer)
         pipeline.composite();
 
-        // Pass 4: DEBUG OVERLAYS
+        // Pass 5: DEBUG OVERLAYS
         if (debugState.sdfView()) {
             pipeline.renderSdfDebug(camera);
         }
@@ -491,7 +511,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             hitboxOverlay.render(camera, remotePlayers, localPlayer);
         }
 
-        // Pass 5: the HUD, drawn unoccluded over the composite and under the console (M4 §5).
+        // Pass 6: the HUD, drawn unoccluded over the composite and under the console (M4 §5).
         // The debug readout is one widget inside it now, gated by cl_debug_overlay, so there is
         // a single screen-space projection for everything the player reads.
         hud.render(new HudFrame(
@@ -508,7 +528,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 ? statusLines(localPlayer, visionReach, projectiles.size())
                 : List.of()));
 
-        // Pass 6: the chat/console dialog, above everything else (passive view when closed).
+        // Pass 7: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
 
         // The visible pause modal is above the HUD and console. Its InputRouter focus owns Escape.
@@ -568,6 +588,20 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         return cvar == null || Boolean.parseBoolean(cvar.value());
     }
 
+    /** Reads a validated float cvar, with the feature's documented default when debug is locked. */
+    private float floatCvar(String name, float fallback) {
+        Cvar cvar = commandService.cvars().find(name);
+        if (cvar == null) {
+            return fallback;
+        }
+        try {
+            float value = Float.parseFloat(cvar.value());
+            return Float.isFinite(value) ? value : fallback;
+        } catch (NumberFormatException invalidValue) {
+            return fallback;
+        }
+    }
+
     private void sampleCameraInput(float delta) {
         float dx = 0f;
         float dy = 0f;
@@ -600,11 +634,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         lines.add("SkyStrike - Phase 5 (Throwables and Zones)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
-            // M6/M7 aren't built yet; the toggles are wired ahead of the pipeline (build plan M3
-            // §4) so this is the only place they have anything to show right now.
             lines.add(String.format(
-                "debug: r_player_light=%s  r_player_light_shadows=%s  fx_debug=%s",
-                debugState.playerLight(), debugState.playerLightShadows(), debugState.fxDebug()));
+                "debug: playerLight=%s  radius=%.0f  intensity=%.2f  shadows=%s  fx_debug=%s",
+                debugState.playerLight(),
+                floatCvar("r_player_light_radius", Light.DEFAULT_PLAYER_RADIUS),
+                floatCvar("r_player_light_intensity", Light.DEFAULT_PLAYER_INTENSITY),
+                debugState.playerLightShadows(),
+                debugState.fxDebug()));
         }
         if (localPlayer != null) {
             lines.add(String.format(
