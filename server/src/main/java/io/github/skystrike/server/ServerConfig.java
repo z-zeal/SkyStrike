@@ -61,7 +61,7 @@ public record ServerConfig(
             NetConfig.MAX_PLAYERS,
             WorldConfig.TICK_RATE_HZ,
             DEFAULT_PROFILE_INTERVAL_SECONDS,
-            false,
+            true,
             Map.of());
     }
 
