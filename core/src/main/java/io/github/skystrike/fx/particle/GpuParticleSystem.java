@@ -4,7 +4,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.fx.FxBudget;
-import io.github.skystrike.fx.FxEventQueue;
 import io.github.skystrike.fx.FxStats;
 import io.github.skystrike.fx.gl.ShaderLibrary;
 import io.github.skystrike.fx.lighting.Light;
@@ -20,11 +19,15 @@ import java.util.Random;
 /**
  * The client's particle and attached-light system (build plan M7 §8.2/§8.3).
  *
- * <p>One update per frame on the render thread: advance the {@link FxClock}, drain the
- * {@link FxEventQueue} (network arrivals only ever enqueue), schedule the drained events'
- * phases, fire the phases whose time has come, animate the attached lights, and step the CPU
- * tier. Rendering is two draws — alpha into the scene pass, additive after the composite — and
- * the pass order itself stays owned by {@code FxPipeline}.
+ * <p>One update per frame on the render thread: advance the {@link FxClock}, fire the scheduled
+ * events' phases, animate the attached lights, and step the CPU tier. Rendering is two draws —
+ * alpha into the scene pass, additive after the composite — and the pass order itself stays owned
+ * by {@code FxPipeline}.
+ *
+ * <p>The event queue is <b>not</b> here. {@code FxPipeline} owns it and drains it once per frame,
+ * handing each event to {@link #schedule(EffectSpawn)} for the visuals and to the audio layer for
+ * the sound: one event, two consumers, one drain. Network arrivals never reach this class
+ * directly.
  *
  * <p>Phases exist so a frag reads as a sequence over 0.10 s: an event never spawns anything
  * synchronously, it schedules, and the pending queue fires. That is also what keeps the network
@@ -48,7 +51,6 @@ public final class GpuParticleSystem implements Disposable {
     private final FxBudget budget;
     private final LightPool lightPool;
     private final SdfField sdf;
-    private final FxEventQueue queue = new FxEventQueue();
     private final ParticleRenderer renderer;
     private final Random random = new Random();
     private final float[] spawnScratch = new float[2];
@@ -88,22 +90,9 @@ public final class GpuParticleSystem implements Disposable {
         return budget;
     }
 
-    /** Enqueues one effect request. Any thread; the spawn is copied on the way in. */
-    public void enqueue(EffectSpawn spawn) {
-        queue.enqueue(spawn);
-    }
-
-    /** Enqueues a received batch. Any thread. */
-    public void enqueueAll(List<EffectSpawn> spawns) {
-        queue.enqueueAll(spawns);
-    }
-
-    /** One frame of FX: clock, queue, phases, lights, CPU tier, buffer uploads. Render thread. */
+    /** One frame of FX: clock, phases, lights, CPU tier, buffer uploads. Render thread. */
     public void update(float deltaSeconds) {
         clock.advance(deltaSeconds);
-        for (EffectSpawn spawn : queue.drainToList()) {
-            schedule(spawn);
-        }
         fireDuePhases();
         updateLights(deltaSeconds);
         cpuParticles.update(deltaSeconds);
@@ -165,7 +154,6 @@ public final class GpuParticleSystem implements Disposable {
         }
         lights.clear();
         pending.clear();
-        queue.clear();
         alphaBuffer.dispose();
         additiveBuffer.dispose();
         cpuParticles.dispose();
@@ -174,8 +162,14 @@ public final class GpuParticleSystem implements Disposable {
 
     // --- Phasing ---------------------------------------------------------------------------------
 
-    /** Schedules every phase of the event's recipe; nothing fires synchronously. */
-    private void schedule(EffectSpawn spawn) {
+    /**
+     * Schedules every phase of the event's recipe; nothing fires synchronously.
+     *
+     * <p>Called by {@code FxPipeline} for each drained event, in the same pass that hands the
+     * event to audio. The particle system does not own the event queue — deliberately, because
+     * the drain is the one place where "one event, two layers" is enforced.
+     */
+    public void schedule(EffectSpawn spawn) {
         if (spawn == null || spawn.type == null) {
             return;
         }

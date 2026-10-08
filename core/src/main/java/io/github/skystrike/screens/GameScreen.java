@@ -17,7 +17,11 @@ import io.github.skystrike.fx.FxPipeline;
 import io.github.skystrike.fx.FxStats;
 import io.github.skystrike.fx.lighting.Light;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
+import io.github.skystrike.audio.AudioSystem;
+import io.github.skystrike.audio.EffectAudio;
 import io.github.skystrike.audio.GunAudio;
+import io.github.skystrike.audio.SoundCatalog;
+import io.github.skystrike.audio.TinnitusEffect;
 import io.github.skystrike.gameplay.LoadoutController;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.InputSampler;
@@ -56,6 +60,7 @@ import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.settings.Settings;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.vision.VisionMath;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.ui.console.ConsoleDialog;
 import io.github.skystrike.ui.hud.HudFrame;
@@ -85,7 +90,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
     private final PlayerRenderer playerRenderer = new PlayerRenderer();
     private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
+    /**
+     * Phase 9: the client's one mixer, and the three things that ask it for sound — the world
+     * effect-event listener, the weapon-state bridge, and the stun ring. The mixer is owned here
+     * and disposed with the screen, so a match can never leave a looping voice behind.
+     */
+    private final AudioSystem audio;
+    private final SoundCatalog soundCatalog;
     private final GunAudio gunAudio;
+    private final EffectAudio effectAudio;
+    private final TinnitusEffect tinnitus;
     private final ThrownUtilityRenderer thrownUtilityRenderer = new ThrownUtilityRenderer();
     private final TrajectoryRenderer trajectoryRenderer = new TrajectoryRenderer();
     private final HitboxOverlay hitboxOverlay = new HitboxOverlay();
@@ -206,7 +220,11 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.settings = settings == null ? new Settings() : settings;
         this.disconnectToMenu = disconnectToMenu == null ? session::disconnect : disconnectToMenu;
         this.settingsOpener = settingsOpener == null ? ignored -> { } : settingsOpener;
-        this.gunAudio = new GunAudio(this.settings);
+        this.audio = new AudioSystem();
+        this.soundCatalog = new SoundCatalog();
+        this.effectAudio = new EffectAudio(this.audio, this.soundCatalog, this::isAudioBlocked);
+        this.gunAudio = new GunAudio(this.audio, this.soundCatalog, this::isAudioBlocked);
+        this.tinnitus = new TinnitusEffect(this.audio, this.soundCatalog);
         this.loadoutController = new LoadoutController(this.bindings, inputRouter);
         this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
@@ -224,6 +242,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setSessionResetListener(() -> {
             capabilities.reset();
             gunAudio.reset();
+            // Leaving a match must not leave the stun ring playing into the menu.
+            tinnitus.stop();
         });
         this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
@@ -356,7 +376,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     private void onGameStateSnapshot(PacketGameState snapshot) {
         stateBuffer.addSnapshot(snapshot);
-        gunAudio.onSnapshot(snapshot, session.playerId());
+        gunAudio.onSnapshot(snapshot);
 
         int localId = session.playerId();
         if (localId >= 0 && snapshot.players != null) {
@@ -392,12 +412,19 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         if (pipeline == null) {
             pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         }
+        // Phase 9: audio consumes the very same effect-event queue as the particles.
+        pipeline.setEffectListener(effectAudio);
+        // Warm the ring's asset at match start: the first stun a player takes should not also be
+        // the frame a WAV is decoded on.
+        audio.prepare(soundCatalog.tinnitusSpec());
         session.connect(host, tcpPort, udpPort);
     }
 
     @Override
     public void render(float delta) {
-        gunAudio.updateVolumes(settings);
+        // Phase 9: the three sliders, applied once per frame, then the voice pool's clock.
+        audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.effectsVolume);
+        audio.update(delta);
         session.update(delta);
         lastDeltaMillis = delta * 1000f;
         consoleDialog.update(delta);
@@ -479,8 +506,15 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             }
         }
 
+        // Phase 9: the mixer's ears follow the local player — or the camera before a spawn — so
+        // every sound the drain asks for this frame is placed from the right position.
+        audio.updateListener(
+            localPlayer == null ? camera.x() : localPlayer.centerX(),
+            localPlayer == null ? camera.y() : localPlayer.centerY());
+
         // M7: the effects tier follows the quality cvar live (falling back to the settings
-        // object's tier), and the FX update drains the effect queue and fires due phases.
+        // object's tier), and the FX update drains the effect queue — once — handing each event
+        // to the particles and to audio, then fires due phases.
         pipeline.setQualityTier(resolveFxTier());
         pipeline.updateFx(delta);
 
@@ -528,7 +562,11 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // M7: the additive particle batch glows through the fog, gated by the visibility
         // texture; the flashbang whiteout rides above it, below the HUD.
         pipeline.renderAdditiveParticles(camera);
-        pipeline.renderBlindness(session.blindIntensity());
+        // Phase 9: the ring rides the same authoritative blind state as the whiteout above, so
+        // the player's ears and eyes recover together (and the ring outlasts the light).
+        float blindIntensity = session.blindIntensity();
+        tinnitus.update(delta, blindIntensity);
+        pipeline.renderBlindness(blindIntensity);
 
         // Pass 5: DEBUG OVERLAYS
         if (debugState.sdfView()) {
@@ -684,6 +722,14 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 floatCvar("r_player_light_intensity", Light.DEFAULT_PLAYER_INTENSITY),
                 debugState.playerLightShadows(),
                 debugState.fxDebug()));
+        }
+        if (debugState.fxDebug()) {
+            // Phase 9 gate: the mixer's pool and the effect channel's counters, plus the ring.
+            lines.add(String.format(
+                "sfx: %s  %s  tinnitus %.2f",
+                audio.statusLine(),
+                effectAudio.statusLine(),
+                tinnitus.level()));
         }
         if (debugState.fxDebug() && pipeline != null) {
             // The M7 gate: particle and light counts staying inside the tier budget.
@@ -843,6 +889,21 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
     }
 
+    /**
+     * Phase 9: whether the world blocks a sound.
+     *
+     * <p>Deliberately the same shared {@link VisionMath} call with the same live smoke volumes the
+     * stun bands, the remote-player light gate and the server's own effect culling use. One
+     * answer to "is there a wall between us" means what a player hears cannot contradict what they
+     * can see — the same parity rule the M7 effects gate holds the CPU and GPU paths to.
+     */
+    private boolean isAudioBlocked(float x0, float y0, float x1, float y1) {
+        if (pipeline == null) {
+            return false;
+        }
+        return !VisionMath.hasLineOfSight(x0, y0, x1, y1, arena, pipeline.smokeVolumes().all());
+    }
+
     @Override
     public void dispose() {
         if (disposed) {
@@ -856,6 +917,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         inputRouter.clearFocus();
         session.disconnect();
         gunAudio.dispose();
+        // Order matters: stop the loops and clear the voices, then release the assets.
+        tinnitus.dispose();
+        audio.dispose();
         terrain.dispose();
         playerRenderer.dispose();
         projectileRenderer.dispose();
