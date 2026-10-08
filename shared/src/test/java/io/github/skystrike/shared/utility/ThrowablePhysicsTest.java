@@ -128,10 +128,13 @@ class ThrowablePhysicsTest {
     @Test
     @DisplayName("a fast throwable is substepped so it cannot pass through the 14-unit tunnel roof")
     void substeppingPreventsTunnelling() {
-        // Thrown hard straight down at the centre tunnel roof (x 1120..1300, y 190..204) from
-        // the gap under the room floor. At 1500 u/s a whole tick covers 25 units — nearly twice
-        // the roof's thickness — so without substepping this lands on the ground underneath.
-        ThrownUtility grenade = grenade(1200f, 270f, 0f, -1500f);
+        // Thrown hard straight down at the left tunnel roof segment (x 1120..1195, y 190..204)
+        // from the gap under the room floor. The column is deliberately clear of the hatch
+        // opening (x 1195..1285): the hatch step's surface is higher than the roof, so dropping
+        // through the opening would land on the step and prove nothing about tunnelling. At
+        // 1500 u/s a whole tick covers 25 units — nearly twice the roof's thickness — so without
+        // substepping this lands on the ground underneath.
+        ThrownUtility grenade = grenade(1150f, 270f, 0f, -1500f);
         assertTrue(ThrowablePhysics.substepsFor(grenade, DT) > 1, "this throw needs substepping");
 
         for (int i = 0; i < 1200 && !grenade.resting; i++) {
