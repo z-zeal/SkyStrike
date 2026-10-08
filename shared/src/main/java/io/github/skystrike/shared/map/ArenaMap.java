@@ -15,12 +15,9 @@ import java.util.List;
  * (one rectangle straddling the axis, which asserts its own symmetry), so an asymmetric layout
  * cannot be written by accident.
  *
- * <p><b>Coordinates taken verbatim from the mechanics plan:</b> arena size, ground height, every
- * feature's width/height, the ramp's start and end, all platform heights, and both spawns.
- * <b>Chosen here</b> (the plan fixes the sizes but not the lateral placement): the x positions of
- * the mid lane, the crate stack, the lane pillar and the tunnel choke support; and the fact that
- * the centre room's shell walls stand on the room floor rather than on the ground, which is what
- * leaves the ground-level tunnel underneath the room open.
+ * <p><b>Coordinates.</b> Arena dimensions, feature sizes and the M8 access layout are canonical
+ * with mechanics §1. The only deliberately provisional dimensions are documented alongside the
+ * constants where §9.3 specifies an intent but not an exact extent.
  */
 public final class ArenaMap {
 
@@ -66,6 +63,8 @@ public final class ArenaMap {
     private static final float ROOM_FLOOR_THICKNESS = 20f;
     private static final float ROOM_WALL_WIDTH = 24f;
     private static final float ROOM_WALL_HEIGHT = 560f;
+    private static final float ROOM_DOOR_JAMB_HEIGHT = 60f;
+    private static final float ROOM_DOOR_OPENING_HEIGHT = 50f;
     private static final float INNER_PILLAR_X = 1184f;
     private static final float INNER_PILLAR_WIDTH = 16f;
     private static final float INNER_PILLAR_HEIGHT = 130f;
@@ -73,18 +72,82 @@ public final class ArenaMap {
     private static final float CATWALK_Y = 620f;
     private static final float CATWALK_WIDTH = 640f;
     private static final float CATWALK_THICKNESS = 20f;
+
+    // --- Tunnel-to-room hatches -----------------------------------------------------------------
+    private static final float HATCH_CENTER_X = 1240f;
+    private static final float HATCH_WIDTH = 90f;
+    private static final float HATCH_LEFT = HATCH_CENTER_X - HATCH_WIDTH / 2f;
+    private static final float HATCH_RIGHT = HATCH_CENTER_X + HATCH_WIDTH / 2f;
+
+    /**
+     * The hatch platform surface is 110 units above the ground, exactly one standing-jump step.
+     * Its 18-unit thickness is provisional: §9.3 fixes the 110-unit step but not the slab depth.
+     */
+    private static final float HATCH_STEP_TOP_Y = WorldConfig.GROUND_HEIGHT + 110f;
+    private static final float HATCH_STEP_THICKNESS = 18f;
+    private static final float HATCH_STEP_Y = HATCH_STEP_TOP_Y - HATCH_STEP_THICKNESS;
+
+    // --- Tunnel roofs ---------------------------------------------------------------------------
     private static final float TUNNEL_ROOF_X = 1120f;
     private static final float TUNNEL_ROOF_Y = 190f;
     private static final float TUNNEL_ROOF_WIDTH = 180f;
     private static final float TUNNEL_ROOF_THICKNESS = 14f;
 
-    // --- Sniper perch ------------------------------------------------------------------------------
+    // --- M8 room-to-catwalk access ---------------------------------------------------------------
+    private static final float CATWALK_SHELF_X = 1100f;
+    private static final float CATWALK_SHELF_Y = 520f;
+    private static final float CATWALK_SHELF_WIDTH = 120f;
+    private static final float CATWALK_SHELF_THICKNESS = 18f;
+
+    /**
+     * Provisional doorway-height landing. §9.3 fixes the doorway and high shelf but not a landing
+     * at the doorway's floor; this lets the mid lane enter while standing at y=360 rather than
+     * relying on a frame-perfect fall through a 50-unit opening.
+     */
+    private static final float DOORWAY_LANDING_X = 1000f;
+    private static final float DOORWAY_LANDING_WIDTH = 120f;
+    private static final float DOORWAY_LANDING_THICKNESS = 18f;
+    private static final float DOORWAY_LANDING_Y = ROOM_FLOOR_Y + ROOM_FLOOR_THICKNESS
+        + ROOM_DOOR_JAMB_HEIGHT - DOORWAY_LANDING_THICKNESS;
+
+    /**
+     * Provisional interior riser. §9.3 gives the shelf but not the missing intermediate footstep;
+     * this 100x18 platform makes the room-floor-to-shelf rise 102 units, below the 110-unit jump
+     * envelope, without changing the specified doorway or shelf.
+     */
+    private static final float ROOM_ACCESS_STEP_X = 1220f;
+    private static final float ROOM_ACCESS_STEP_Y = 400f;
+    private static final float ROOM_ACCESS_STEP_WIDTH = 100f;
+    private static final float ROOM_ACCESS_STEP_THICKNESS = 18f;
+
+    // --- Sniper perch ----------------------------------------------------------------------------
     private static final float PERCH_X = 1380f;
     private static final float PERCH_Y = 760f;
     private static final float PERCH_WIDTH = 240f;
     private static final float PERCH_THICKNESS = 18f;
+    private static final float PERCH_LADDER_X = 1300f;
+    private static final float PERCH_LADDER_Y = 700f;
+    private static final float PERCH_LADDER_WIDTH = 100f;
+    private static final float PERCH_LADDER_THICKNESS = 16f;
 
-    // --- Spawns ---------------------------------------------------------------------------------------
+    // --- M8 upper arena --------------------------------------------------------------------------
+    /**
+     * Provisional extent for §9.3's centred platform at approximately y=1000. It deliberately
+     * matches the perch width so its purpose is clear directly above that objective.
+     */
+    private static final float HIGH_PLATFORM_Y = 1000f;
+    private static final float HIGH_PLATFORM_THICKNESS = 18f;
+
+    /**
+     * Provisional outer-ledges placement and width; §9.3 fixes their mirrored y≈900 role but not
+     * their exact span. They overlap their side's mid lane horizontally for a ≤40% fuel ascent.
+     */
+    private static final float OUTER_LEDGE_X = 760f;
+    private static final float OUTER_LEDGE_Y = 900f;
+    private static final float OUTER_LEDGE_WIDTH = 240f;
+    private static final float OUTER_LEDGE_THICKNESS = 18f;
+
+    // --- Spawns ---------------------------------------------------------------------------------
     private static final float SPAWN_X = 240f;
     private static final float SPAWN_Y = 180f;
 
@@ -135,8 +198,11 @@ public final class ArenaMap {
         addLanePillars(builder);
         addTunnelSupports(builder);
         addCentreRoom(builder);
+        addTunnelHatches(builder);
         addTunnelRoofs(builder);
+        addCatwalkAccess(builder);
         addSniperPerch(builder);
+        addUpperArena(builder);
 
         SpawnPoint leftSpawn = new SpawnPoint(0, SPAWN_X, SPAWN_Y);
         SpawnPoint rightSpawn = new SpawnPoint(1, WorldConfig.ARENA_WIDTH - SPAWN_X, SPAWN_Y);
@@ -197,28 +263,98 @@ public final class ArenaMap {
     }
 
     /**
-     * The fortified centre: a floor, the two shell walls standing on it, the short inner pillars at
-     * the entrances, and the roof catwalk.
+     * The fortified centre: floor sections around two tunnel hatches, doorway jambs, short inner
+     * pillars and the roof catwalk. The 50-unit doorway opening is exactly a standing player tall.
      */
     private static void addCentreRoom(Builder builder) {
-        builder.centred(new Rect(ROOM_FLOOR_X, ROOM_FLOOR_Y, ROOM_FLOOR_WIDTH, ROOM_FLOOR_THICKNESS));
+        float outerFloorWidth = HATCH_LEFT - ROOM_FLOOR_X;
+        float centreFloorWidth = ROOM_FLOOR_WIDTH - 2f * outerFloorWidth - 2f * HATCH_WIDTH;
+        builder.mirrored(new Rect(
+            ROOM_FLOOR_X, ROOM_FLOOR_Y, outerFloorWidth, ROOM_FLOOR_THICKNESS));
+        builder.centred(new Rect(
+            HATCH_RIGHT, ROOM_FLOOR_Y, centreFloorWidth, ROOM_FLOOR_THICKNESS));
 
         float roomDeck = ROOM_FLOOR_Y + ROOM_FLOOR_THICKNESS;
-        builder.mirrored(new Rect(ROOM_FLOOR_X, roomDeck, ROOM_WALL_WIDTH, ROOM_WALL_HEIGHT));
+        builder.mirrored(new Rect(
+            ROOM_FLOOR_X, roomDeck, ROOM_WALL_WIDTH, ROOM_DOOR_JAMB_HEIGHT));
+        builder.mirrored(new Rect(
+            ROOM_FLOOR_X,
+            roomDeck + ROOM_DOOR_JAMB_HEIGHT + ROOM_DOOR_OPENING_HEIGHT,
+            ROOM_WALL_WIDTH,
+            ROOM_WALL_HEIGHT - ROOM_DOOR_JAMB_HEIGHT - ROOM_DOOR_OPENING_HEIGHT));
         builder.mirrored(new Rect(INNER_PILLAR_X, roomDeck, INNER_PILLAR_WIDTH, INNER_PILLAR_HEIGHT));
 
         builder.centred(new Rect(CATWALK_X, CATWALK_Y, CATWALK_WIDTH, CATWALK_THICKNESS));
     }
 
-    /** Two low roof segments under the room floor, making the ground-level flank cramped. */
-    private static void addTunnelRoofs(Builder builder) {
+    /**
+     * One 90-unit floor opening per side and an exactly 110-unit-high step surface make the ground
+     * tunnel a bidirectional route into the room rather than a corridor to nowhere.
+     */
+    private static void addTunnelHatches(Builder builder) {
         builder.mirrored(new Rect(
-            TUNNEL_ROOF_X, TUNNEL_ROOF_Y, TUNNEL_ROOF_WIDTH, TUNNEL_ROOF_THICKNESS));
+            HATCH_LEFT, HATCH_STEP_Y, HATCH_WIDTH, HATCH_STEP_THICKNESS));
     }
 
-    /** The single high platform above the centre room. */
+    /**
+     * The low tunnel roofs retain their cramped character but are split around each hatch, leaving
+     * a clear vertical route from the tunnel step to the room-floor opening.
+     */
+    private static void addTunnelRoofs(Builder builder) {
+        float tunnelRoofEnd = TUNNEL_ROOF_X + TUNNEL_ROOF_WIDTH;
+        builder.mirrored(new Rect(
+            TUNNEL_ROOF_X,
+            TUNNEL_ROOF_Y,
+            HATCH_LEFT - TUNNEL_ROOF_X,
+            TUNNEL_ROOF_THICKNESS));
+        builder.mirrored(new Rect(
+            HATCH_RIGHT,
+            TUNNEL_ROOF_Y,
+            tunnelRoofEnd - HATCH_RIGHT,
+            TUNNEL_ROOF_THICKNESS));
+    }
+
+    /**
+     * A stable lane-to-doorway landing plus chained ≤110-unit access from the room floor to the
+     * catwalk. The specified shelf extends the mid lane toward the doorway and forms the final
+     * step into the catwalk.
+     */
+    private static void addCatwalkAccess(Builder builder) {
+        builder.mirrored(new Rect(
+            DOORWAY_LANDING_X,
+            DOORWAY_LANDING_Y,
+            DOORWAY_LANDING_WIDTH,
+            DOORWAY_LANDING_THICKNESS));
+        builder.mirrored(new Rect(
+            CATWALK_SHELF_X,
+            CATWALK_SHELF_Y,
+            CATWALK_SHELF_WIDTH,
+            CATWALK_SHELF_THICKNESS));
+        builder.mirrored(new Rect(
+            ROOM_ACCESS_STEP_X,
+            ROOM_ACCESS_STEP_Y,
+            ROOM_ACCESS_STEP_WIDTH,
+            ROOM_ACCESS_STEP_THICKNESS));
+    }
+
+    /** The high centre perch and its mirrored 60-unit ladder step from the catwalk. */
     private static void addSniperPerch(Builder builder) {
         builder.centred(new Rect(PERCH_X, PERCH_Y, PERCH_WIDTH, PERCH_THICKNESS));
+        builder.mirrored(new Rect(
+            PERCH_LADDER_X,
+            PERCH_LADDER_Y,
+            PERCH_LADDER_WIDTH,
+            PERCH_LADDER_THICKNESS));
+    }
+
+    /** A high centre objective and a jetpack-only outer ledge on each side occupy the upper half. */
+    private static void addUpperArena(Builder builder) {
+        builder.centred(new Rect(PERCH_X, HIGH_PLATFORM_Y, PERCH_WIDTH, HIGH_PLATFORM_THICKNESS));
+        builder.mirrored(new Rect(
+            OUTER_LEDGE_X,
+            OUTER_LEDGE_Y,
+            OUTER_LEDGE_WIDTH,
+            OUTER_LEDGE_THICKNESS));
     }
 
     /** Collects geometry while enforcing mirror symmetry at construction time. */

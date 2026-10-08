@@ -62,8 +62,15 @@ class SdfBakerTest {
         // Open line of sight between ramp air
         assertTrue(field.hasLineOfSight(200f, 600f, 600f, 600f, 48));
 
-        // Blocked through centre room wall (x=1120, y=300..860)
-        assertFalse(field.hasLineOfSight(1050f, 400f, 1200f, 400f, 48));
+        // Blocked through the centre room's upper shell (x=1120, y=410..860).
+        assertFalse(field.hasLineOfSight(1050f, 500f, 1200f, 500f, 48));
+    }
+
+    @Test
+    void testM8DoorwayAndHatchAreBakedAsOpenAir() {
+        assertTrue(field.sample(1132f, 385f) > 0f, "doorway must not be solid in the SDF");
+        assertTrue(field.sample(1240f, 290f) > 0f, "floor hatch must not be solid in the SDF");
+        assertTrue(field.sample(1132f, 330f) < 0f, "door jamb must remain solid in the SDF");
     }
 
     @Test

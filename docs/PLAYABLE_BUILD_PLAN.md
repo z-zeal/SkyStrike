@@ -421,7 +421,11 @@ Against that envelope:
 - **Perch ladder:** insert a 100 × 16 step at (1300, 700) mirrored, turning the 120 u reach into
   two 60 u hops.
 - **Catwalk access:** add a mirrored 120 × 18 shelf at (1100, 520) bridging the mid lane to the
-  doorway height.
+  doorway height. Add a mirrored **provisional** 120 × 18 doorway landing at (1000, 342), whose
+  top meets the opening at y=360 so the lane can actually cross it, plus a mirrored
+  **provisional** 100 × 18 interior riser at (1220, 400): the specified shelf otherwise sits
+  220 u above the room floor, while the riser keeps each footstep in the room-floor → riser →
+  shelf → catwalk chain at or below 110 u.
 - **Upper arena:** one centred high platform at y≈1000 over the perch and two mirrored outer
   ledges at y≈900, reachable by jetpack only, giving the vertical half of the map a purpose.
 - Re-bake the SDF (`tools/SdfBakeTool` → `assets/data/arena.sdf`) **in the same commit** — a stale

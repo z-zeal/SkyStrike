@@ -93,26 +93,64 @@ class ArenaMapTest {
     }
 
     @Test
-    @DisplayName("centre room: floor, two 24x560 shell walls, two 16x130 inner pillars, catwalk")
+    @DisplayName("centre room has doorway jambs, two hatches, inner pillars and a catwalk")
     void centreRoomIsPresent() {
-        assertContains(new Rect(1120f, 280f, 760f, 20f));
-        assertMirroredPair(new Rect(1120f, 300f, 24f, 560f));
+        assertMirroredPair(new Rect(1120f, 280f, 75f, 20f));
+        assertContains(new Rect(1285f, 280f, 430f, 20f));
+
+        assertMirroredPair(new Rect(1120f, 300f, 24f, 60f));
+        assertMirroredPair(new Rect(1120f, 410f, 24f, 450f));
         assertMirroredPair(new Rect(1184f, 300f, 16f, 130f));
         assertContains(new Rect(1180f, 620f, 640f, 20f));
     }
 
     @Test
-    void tunnelRoofsArePresent() {
-        assertMirroredPair(new Rect(1120f, 190f, 180f, 14f));
+    @DisplayName("the shell doorway is a standing-height opening instead of a sealed wall")
+    void shellDoorwaysAreOpen() {
+        for (float doorwayX : new float[] {1132f, 1868f}) {
+            assertTrue(MapQueries.solidAt(map, doorwayX, 330f), "lower jamb is missing");
+            assertFalse(MapQueries.solidAt(map, doorwayX, 385f), "doorway is blocked");
+            assertTrue(MapQueries.solidAt(map, doorwayX, 500f), "upper wall is missing");
+        }
     }
 
     @Test
-    void sniperPerchIsPresent() {
+    @DisplayName("two 90-unit hatches join the room floor to the tunnel")
+    void tunnelHatchesArePresent() {
+        assertFalse(MapQueries.solidAt(map, 1240f, 290f), "left floor hatch is filled");
+        assertFalse(MapQueries.solidAt(map, 1760f, 290f), "right floor hatch is filled");
+        assertMirroredPair(new Rect(1195f, 192f, 90f, 18f));
+    }
+
+    @Test
+    void tunnelRoofsLeaveTheHatchesOpen() {
+        assertMirroredPair(new Rect(1120f, 190f, 75f, 14f));
+        assertMirroredPair(new Rect(1285f, 190f, 15f, 14f));
+        assertFalse(MapQueries.solidAt(map, 1240f, 240f), "left hatch has a roof above its step");
+        assertFalse(MapQueries.solidAt(map, 1760f, 240f), "right hatch has a roof above its step");
+    }
+
+    @Test
+    void catwalkAccessIsPresent() {
+        assertMirroredPair(new Rect(1000f, 342f, 120f, 18f));
+        assertMirroredPair(new Rect(1100f, 520f, 120f, 18f));
+        assertMirroredPair(new Rect(1220f, 400f, 100f, 18f));
+    }
+
+    @Test
+    void sniperPerchHasTheFootstepLadder() {
         assertContains(new Rect(1380f, 760f, 240f, 18f));
+        assertMirroredPair(new Rect(1300f, 700f, 100f, 16f));
     }
 
     @Test
-    @DisplayName("the ground-level tunnel under the centre room is not walled off")
+    void upperArenaPlatformsArePresent() {
+        assertContains(new Rect(1380f, 1000f, 240f, 18f));
+        assertMirroredPair(new Rect(760f, 900f, 240f, 18f));
+    }
+
+    @Test
+    @DisplayName("the ground tunnel stays open except for its low roof lips and hatch steps")
     void tunnelUnderTheRoomStaysOpen() {
         float tunnelFloor = WorldConfig.GROUND_HEIGHT;
         float underRoomCeiling = 280f;
@@ -121,8 +159,8 @@ class ArenaMapTest {
         List<Rect> blockers = MapQueries.solidsOverlapping(map, corridor);
         for (Rect blocker : blockers) {
             assertTrue(
-                blocker.bottom() >= 190f && blocker.top() <= 204f,
-                "only the low tunnel roof may sit inside the corridor, found: " + blocker);
+                blocker.bottom() >= 190f && blocker.top() <= 210f,
+                "only low roof lips and hatch steps may sit inside the corridor, found: " + blocker);
         }
     }
 
