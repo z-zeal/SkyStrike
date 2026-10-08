@@ -15,7 +15,6 @@ import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
-import io.github.skystrike.shared.utility.DetonationMode;
 import io.github.skystrike.shared.utility.DirectionalBlastMath;
 import io.github.skystrike.shared.utility.ExplosionMath;
 import io.github.skystrike.shared.utility.StunMath;

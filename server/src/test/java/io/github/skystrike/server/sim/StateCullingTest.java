@@ -2,8 +2,6 @@ package io.github.skystrike.server.sim;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.skystrike.server.player.PlayerRegistry;
-import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.vision.VisionMath;

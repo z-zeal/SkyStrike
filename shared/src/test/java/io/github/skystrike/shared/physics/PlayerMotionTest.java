@@ -9,7 +9,6 @@ import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.map.ArenaMap;
-import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
