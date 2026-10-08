@@ -1,5 +1,6 @@
 package io.github.skystrike.audio;
 
+import io.github.skystrike.fx.EffectEventListener;
 import io.github.skystrike.shared.audio.SoundSpec;
 import io.github.skystrike.shared.audio.SpatialAudio;
 import io.github.skystrike.shared.effect.EffectSpawn;
@@ -23,7 +24,7 @@ import io.github.skystrike.shared.effect.EffectSpawn;
  * (the weapon-specific report already comes from authoritative snapshots), and the counter is what
  * lets the debug line show that the omission is a decision rather than a missing row.
  */
-public final class EffectAudio {
+public final class EffectAudio implements EffectEventListener {
 
     /** Gain multiplier for the smallest and largest event scales; a cloud twice as wide, not twice as loud. */
     private static final float MIN_SCALE_GAIN = 0.75f;
@@ -51,6 +52,7 @@ public final class EffectAudio {
      * Reacts to one drained effect request. Render thread only, in the same frame the particles
      * for the same event are scheduled.
      */
+    @Override
     public void onEffect(EffectSpawn spawn) {
         if (spawn == null || spawn.type == null) {
             return;
