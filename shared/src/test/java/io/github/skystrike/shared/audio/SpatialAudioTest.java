@@ -52,7 +52,10 @@ class SpatialAudioTest {
         assertEquals(0f, SpatialAudio.attenuate(Float.NaN, 900f, 2400f), EPSILON);
         assertEquals(0f, SpatialAudio.attenuate(-1f, 900f, 2400f), EPSILON);
         assertEquals(0f, SpatialAudio.attenuate(100f, 900f, 0f), EPSILON);
+        assertEquals(0f, SpatialAudio.attenuate(100f, 900f, Float.NaN), EPSILON);
         assertEquals(0f, SpatialAudio.attenuate(100f, Float.NaN, 2400f), EPSILON);
+        assertEquals(0f, SpatialAudio.attenuate(100f, 0f, 2400f), EPSILON);
+        assertEquals(0f, SpatialAudio.attenuate(100f, -900f, 2400f), EPSILON);
     }
 
     @Test

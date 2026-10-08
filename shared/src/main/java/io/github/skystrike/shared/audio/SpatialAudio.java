@@ -89,20 +89,26 @@ public final class SpatialAudio {
     /**
      * The inverse-distance gain for one source, with the edge taper applied.
      *
+     * <p>An unusable input is silence, not a guessed loudness: a non-finite or negative distance,
+     * or a non-finite or non-positive reference or radius, drops the source out of the mix rather
+     * than playing it at whatever level the arithmetic happens to produce. A malformed entry should
+     * be inaudible, and one NaN should never make a shot across the arena as loud as one beside you.
+     *
      * @param distance          listener-to-source distance in world units
-     * @param referenceDistance distance at which gain is half of full
-     * @param audibleRadius     distance past which the gain is exactly {@code 0}
+     * @param referenceDistance distance at which gain is half of full; must be positive
+     * @param audibleRadius     distance past which the gain is exactly {@code 0}; must be positive
      * @return a gain in {@code [0, 1]}
      */
     public static float attenuate(float distance, float referenceDistance, float audibleRadius) {
-        if (!Float.isFinite(distance) || distance < 0f || audibleRadius <= 0f) {
+        if (!Float.isFinite(distance) || distance < 0f
+            || !Float.isFinite(referenceDistance) || referenceDistance <= 0f
+            || !Float.isFinite(audibleRadius) || audibleRadius <= 0f) {
             return 0f;
         }
         if (distance >= audibleRadius) {
             return 0f;
         }
-        float reference = Math.max(1f, finiteOr(referenceDistance, REFERENCE_DISTANCE));
-        float gain = reference / (reference + distance);
+        float gain = referenceDistance / (referenceDistance + distance);
         float edgeStart = audibleRadius * EDGE_TAPER_FRACTION;
         if (distance > edgeStart) {
             gain *= (audibleRadius - distance) / (audibleRadius - edgeStart);

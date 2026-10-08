@@ -31,10 +31,14 @@ class TinnitusMathTest {
     @Test
     @DisplayName("the curve is steep at the bottom: a fringe stun still rings")
     void ringGainIsSteepAtTheBottom() {
-        // A quarter of the whiteout is over half of the maximum ring; a linear map would give a
-        // quarter, which would round the outer stun band away to nothing.
-        assertTrue(TinnitusMath.ringGain(0.25f) > 0.5f * TinnitusMath.MAX_RING_GAIN);
-        assertTrue(TinnitusMath.ringGain(0.05f) > 0.2f * TinnitusMath.MAX_RING_GAIN);
+        // A tenth of the whiteout rings at nearly a third of the maximum where a linear map would
+        // give a tenth, which is what keeps the outer stun band from being rounded away.
+        assertTrue(TinnitusMath.ringGain(0.1f) > 0.3f * TinnitusMath.MAX_RING_GAIN,
+            "a tenth of the whiteout rings too softly: " + TinnitusMath.ringGain(0.1f));
+        assertTrue(TinnitusMath.ringGain(0.05f) > 0.2f * TinnitusMath.MAX_RING_GAIN,
+            "a twentieth of the whiteout rings too softly: " + TinnitusMath.ringGain(0.05f));
+        // The square root lands exactly on half at a quarter, so the boundary is an equality.
+        assertEquals(0.5f * TinnitusMath.MAX_RING_GAIN, TinnitusMath.ringGain(0.25f), EPSILON);
     }
 
     @Test
