@@ -48,8 +48,12 @@ final class Crosshair {
         float arm = CrosshairMath.armPixels(designGap) * scale;
         float thickness = Math.max(1f, theme.crosshairThickness * scale * (ads ? 0.75f : 1f));
 
+        // While piloting a device the crosshair still shows where the cursor sits, but dimmed:
+        // fire is locked out, and a full-brightness crosshair would promise a shot that cannot
+        // happen (mechanics §9).
+        float lockDim = player.isSurveillanceLocked() ? 0.35f : 1f;
         Color color = ads ? theme.crosshairAds : theme.crosshair;
-        shapes.setColor(color);
+        shapes.setColor(color.r, color.g, color.b, color.a * lockDim);
         arms(shapes, gap, arm, thickness);
 
         if (ads) {

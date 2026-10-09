@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.utility.UtilityId;
 import org.junit.jupiter.api.DisplayName;
@@ -110,5 +111,23 @@ class PlayerTest {
 
         copy.x = 999f;
         assertEquals(500f, original.x);
+    }
+
+    @Test
+    @DisplayName("the surveillance view copies with the player and defaults to the body's own eyes")
+    void surveillanceViewCopiesAndDefaults() {
+        Player player = new Player(1, "Nova", 0, 100f, 100f);
+        assertEquals(SurveillanceView.SELF, player.surveillance());
+        assertFalse(player.isSurveillanceLocked());
+
+        player.surveillanceView = SurveillanceView.CAMERA.ordinal();
+        Player copy = player.copy();
+        assertEquals(SurveillanceView.CAMERA, copy.surveillance());
+        assertTrue(copy.isSurveillanceLocked());
+
+        player.surveillanceView = 99;
+        assertEquals(SurveillanceView.SELF, player.surveillance(),
+            "an unknown ordinal reads as the player's own eyes");
+        assertFalse(player.isSurveillanceLocked());
     }
 }

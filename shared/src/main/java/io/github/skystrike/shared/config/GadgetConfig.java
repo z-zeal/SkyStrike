@@ -73,6 +73,13 @@ public final class GadgetConfig {
      */
     public static final float DRONE_DAMPING = 3f;
 
+    /**
+     * Collision half-extent of a drone, in world units. <b>Provisional</b> — §7.1 sizes nothing;
+     * a drone reads as roughly half a player wide (player half-width 15), so 8 it is until the
+     * art pass says otherwise. Both the server's motion and the bullet sweep use this one value.
+     */
+    public static final float DRONE_RADIUS = 8f;
+
     // --- Throw camera (mechanics §7.2) ------------------------------------------------------------
 
     /** Camera hit points. Destructible, and destroyed if it leaves the arena. */
@@ -108,6 +115,14 @@ public final class GadgetConfig {
      * drone's 70° until tuned.
      */
     public static final float CAMERA_VISION_ANGLE_DEGREES = DRONE_VISION_ANGLE_DEGREES;
+
+    /**
+     * Collision half-extent of a camera, in world units. The camera flies with the one shared
+     * throwable integrator, whose contact position is computed at {@link UtilityConfig#THROWABLE_RADIUS}
+     * — so the camera's radius <b>is</b> the throwable radius, and a camera stuck to a floor rests
+     * exactly tangent to it, neither sunk in nor floating above.
+     */
+    public static final float CAMERA_RADIUS = UtilityConfig.THROWABLE_RADIUS;
 
     // --- Shield (mechanics §7.3) -----------------------------------------------------------------
 

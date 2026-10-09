@@ -53,6 +53,16 @@ public final class PlayerSession {
     private volatile long gadgetPressSeqPending = -1L;
     private volatile long lastGadgetPressSeqApplied = -1L;
 
+    /**
+     * View-action edge latch (view cycle / exit surveillance), deduplicated by the client's first
+     * carrying sequence. Consumed by the tick even while the player is piloting — the view keys
+     * are the one input family that stays live under the surveillance lock, so Escape can never
+     * be banked or lost.
+     */
+    private volatile int viewActionPending = PacketPlayerInput.NO_VIEW_ACTION;
+    private volatile long viewActionSeqPending = -1L;
+    private volatile long lastViewActionSeqApplied = -1L;
+
     /** The slot the gun state was last aligned with, so a change forces a fresh weapon. */
     private int lastMirroredSlot;
 
@@ -147,6 +157,13 @@ public final class PlayerSession {
             gadgetPressPending = packet.gadgetPress;
             gadgetPressSeqPending = packet.gadgetPressSeq;
         }
+        if ((packet.viewAction == PacketPlayerInput.VIEW_CYCLE
+                || packet.viewAction == PacketPlayerInput.VIEW_EXIT)
+            && packet.viewActionSeq > lastViewActionSeqApplied
+            && packet.viewActionSeq != viewActionSeqPending) {
+            viewActionPending = packet.viewAction;
+            viewActionSeqPending = packet.viewActionSeq;
+        }
         this.latestInput = PlayerInput.fromPacket(packet);
         this.lastInputTimeMillis = System.currentTimeMillis();
     }
@@ -202,6 +219,22 @@ public final class PlayerSession {
         return press;
     }
 
+    /**
+     * Returns one view-action edge and retires its birth sequence. The caller must invoke this
+     * even for a dead or piloting player: the view keys stay live under every lock.
+     */
+    public int consumeViewAction() {
+        int action = viewActionPending;
+        long seq = viewActionSeqPending;
+        viewActionPending = PacketPlayerInput.NO_VIEW_ACTION;
+        viewActionSeqPending = -1L;
+        if (action == PacketPlayerInput.NO_VIEW_ACTION || seq <= lastViewActionSeqApplied) {
+            return PacketPlayerInput.NO_VIEW_ACTION;
+        }
+        lastViewActionSeqApplied = seq;
+        return action;
+    }
+
     /** Drops every pending edge, used when the player dies or respawns holding the mouse. */
     public void clearTrigger() {
         firePressedPending = false;
@@ -212,10 +245,15 @@ public final class PlayerSession {
         if (gadgetPressSeqPending > lastGadgetPressSeqApplied) {
             lastGadgetPressSeqApplied = gadgetPressSeqPending;
         }
+        if (viewActionSeqPending > lastViewActionSeqApplied) {
+            lastViewActionSeqApplied = viewActionSeqPending;
+        }
         slotPressPending = PacketPlayerInput.NO_SLOT_PRESS;
         slotPressSeqPending = -1L;
         gadgetPressPending = PacketPlayerInput.NO_GADGET_PRESS;
         gadgetPressSeqPending = -1L;
+        viewActionPending = PacketPlayerInput.NO_VIEW_ACTION;
+        viewActionSeqPending = -1L;
     }
 
     /** Drops only a pending gadget edge, for a death detected after the input was received. */

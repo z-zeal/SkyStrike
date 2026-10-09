@@ -184,4 +184,47 @@ class PlayerSessionTest {
         session.clearTrigger();
         assertEquals(PacketPlayerInput.NO_GADGET_PRESS, session.consumeGadgetPress());
     }
+
+    @Test
+    @DisplayName("a view action is latched once and deduplicated by its birth sequence")
+    void viewActionIsLatchedAndDeduplicated() {
+        for (int i = 0; i < 3; i++) {
+            PacketPlayerInput packet = new PacketPlayerInput(60L + i, 0f, false, false, false, false, false, 0f);
+            packet.viewAction = PacketPlayerInput.VIEW_CYCLE;
+            packet.viewActionSeq = 60L;
+            session.setInput(packet);
+        }
+
+        assertEquals(PacketPlayerInput.VIEW_CYCLE, session.consumeViewAction(),
+            "the view action reaches the tick once");
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, session.consumeViewAction(),
+            "retransmissions of the same birth never re-fire it");
+
+        PacketPlayerInput next = new PacketPlayerInput(70L, 0f, false, false, false, false, false, 0f);
+        next.viewAction = PacketPlayerInput.VIEW_EXIT;
+        next.viewActionSeq = 70L;
+        session.setInput(next);
+        assertEquals(PacketPlayerInput.VIEW_EXIT, session.consumeViewAction());
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, session.consumeViewAction());
+    }
+
+    @Test
+    @DisplayName("clearing input edges drops a pending view action")
+    void clearTriggerDropsViewAction() {
+        PacketPlayerInput packet = new PacketPlayerInput(80L, 0f, false, false, false, false, false, 0f);
+        packet.viewAction = PacketPlayerInput.VIEW_EXIT;
+        packet.viewActionSeq = 80L;
+        session.setInput(packet);
+        session.clearTrigger();
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, session.consumeViewAction());
+    }
+
+    @Test
+    @DisplayName("an input with no view action rides none, and a fresh input keeps no stale latch")
+    void noViewActionRidesByDefault() {
+        session.setInput(new PacketPlayerInput(90L, 0f, false, false, false, false, false, 0f));
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, session.consumeViewAction());
+        assertEquals(-1L, new PacketPlayerInput().viewActionSeq);
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, new PacketPlayerInput().viewAction);
+    }
 }

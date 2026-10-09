@@ -1,6 +1,8 @@
 package io.github.skystrike.server.combat;
 
 import io.github.skystrike.server.fx.EffectSink;
+import io.github.skystrike.server.gadget.CameraSystem;
+import io.github.skystrike.server.gadget.DroneSystem;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.weapons.WeaponDefinition;
@@ -24,6 +26,10 @@ import java.util.List;
  *
  * <p>Spawn at the muzzle, integrate with {@code BallisticsMath}, sweep the tick's path for
  * impacts, apply damage, retire. Nothing else in the server moves a bullet.
+ *
+ * <p>Impacts resolve against players, terrain <b>and the Phase 6 gadget devices</b> (drones and
+ * throw cameras, mechanics §7): a round can land on a device, and the nearest impact across all
+ * three target families wins, so a device standing in front of a player takes the round.
  *
  * <p>Three rules are worth stating out loud:
  * <ul>
@@ -50,10 +56,18 @@ public final class BulletSystem {
      */
     private EffectSink effectSink;
 
+    /**
+     * The gadget device systems whose entities rounds can hit (mechanics §7: drones and cameras
+     * are destructible). Null in combat-only tests — no devices, no device impacts.
+     */
+    private DroneSystem droneSystem;
+    private CameraSystem cameraSystem;
+
     private int nextId = 1;
     private long spawned;
     private long terrainImpacts;
     private long playerImpacts;
+    private long gadgetImpacts;
 
     public BulletSystem(ArenaMap arena) {
         this.arena = arena;
@@ -63,6 +77,15 @@ public final class BulletSystem {
     /** Installs the effect sink. Null detaches; safe to call more than once. */
     public void setEffectSink(EffectSink effectSink) {
         this.effectSink = effectSink;
+    }
+
+    /**
+     * Wires the gadget device systems whose entities are valid bullet targets. Null systems (or
+     * null arguments) simply contribute no targets, so geometry-only tests see no change.
+     */
+    public void setGadgetSystems(DroneSystem drones, CameraSystem cameras) {
+        this.droneSystem = drones;
+        this.cameraSystem = cameras;
     }
 
     /**
@@ -135,6 +158,18 @@ public final class BulletSystem {
             RaycastBulletSystem.Hit hit = raycaster.resolve(
                 fromX, fromY, projectile.x, projectile.y, targets, projectile.ownerId, canHitOwner);
 
+            // A round can also land on a gadget device; the nearest impact across players,
+            // terrain and devices wins, so a drone in front of a player shields them.
+            RaycastBulletSystem.GadgetHit gadgetHit = resolveGadgetHit(
+                fromX, fromY, projectile.x, projectile.y, projectile.ownerId, canHitOwner);
+            if (gadgetHit != null && (hit == null || gadgetHit.fraction() < hit.fraction())) {
+                projectile.x = gadgetHit.x();
+                projectile.y = gadgetHit.y();
+                applyGadgetHit(projectile, gadgetHit);
+                projectiles.remove(i);
+                continue;
+            }
+
             if (hit != null) {
                 projectile.x = hit.x();
                 projectile.y = hit.y();
@@ -167,6 +202,42 @@ public final class BulletSystem {
         float travelAngle = Angles.toDegrees((float) Math.atan2(projectile.vy, projectile.vx));
         effectSink.emit(new EffectSpawn(
             EffectType.BULLET_IMPACT_CONCRETE, projectile.x, projectile.y, travelAngle, 1f));
+    }
+
+    /** The gadget-device sweep for one round's path, or {@code null} with no devices wired. */
+    private RaycastBulletSystem.GadgetHit resolveGadgetHit(
+            float fromX, float fromY, float toX, float toY, int ownerId, boolean canHitOwner) {
+        if (droneSystem == null && cameraSystem == null) {
+            return null;
+        }
+        return raycaster.resolveGadgets(
+            fromX, fromY, toX, toY,
+            droneSystem == null ? null : droneSystem.active(),
+            cameraSystem == null ? null : cameraSystem.active(),
+            ownerId,
+            canHitOwner);
+    }
+
+    /**
+     * One round landing on a gadget device. Devices have no hit zones and no shield: the round's
+     * damage after falloff drains the device's health, and the owning system destroys it when the
+     * pool runs out. A device hit is a metal spark, not concrete dust.
+     */
+    private void applyGadgetHit(Projectile projectile, RaycastBulletSystem.GadgetHit hit) {
+        gadgetImpacts++;
+        WeaponDefinition stats = WeaponRegistry.ofOrdinal(projectile.weaponId);
+        float damage = BallisticsMath.damageAfterFalloff(
+            stats.damage(), projectile.distanceTravelled, stats.ballistics());
+        if (hit.drone() != null) {
+            hit.drone().applyDamage(damage);
+        } else if (hit.camera() != null) {
+            hit.camera().applyDamage(damage);
+        }
+        if (effectSink != null) {
+            float travelAngle = Angles.toDegrees((float) Math.atan2(projectile.vy, projectile.vx));
+            effectSink.emit(new EffectSpawn(
+                EffectType.BULLET_IMPACT_METAL, projectile.x, projectile.y, travelAngle, 1f));
+        }
     }
 
     private void applyHit(
@@ -228,6 +299,11 @@ public final class BulletSystem {
 
     public long playerImpactCount() {
         return playerImpacts;
+    }
+
+    /** Rounds that landed on a gadget device (drone or camera) since the server started. */
+    public long gadgetImpactCount() {
+        return gadgetImpacts;
     }
 
     public ArenaMap arena() {

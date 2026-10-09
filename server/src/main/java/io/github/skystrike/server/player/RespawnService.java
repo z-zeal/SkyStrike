@@ -1,6 +1,7 @@
 package io.github.skystrike.server.player;
 
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.model.Player;
 import java.util.Collection;
 import java.util.function.Consumer;
@@ -68,8 +69,9 @@ public final class RespawnService {
     /**
      * Immediately returns a player to their spawn with full health and fuel — and the loadout
      * reset the mechanics plan demands (§10): full magazines, no reload in flight, hands on the
-     * first real weapon. Composition changes requested mid-life are applied by the
-     * {@code onRespawn} hook right after this.
+     * first real weapon. The surveillance view is per-life state too: a respawn lands on the
+     * player's own eyes, never mid-pilot. Composition changes requested mid-life are applied by
+     * the {@code onRespawn} hook right after this.
      */
     public void respawn(Player player) {
         if (player == null) {
@@ -79,6 +81,7 @@ public final class RespawnService {
         player.alive = true;
         player.spread = 0f;
         player.gunKick = 0f;
+        player.surveillanceView = SurveillanceView.SELF.ordinal();
         player.clearStatusEffects();
         if (player.loadout != null) {
             player.loadout.resetForRespawn();

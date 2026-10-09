@@ -22,14 +22,31 @@ import java.util.List;
  */
 public final class VisibilitySystem implements Disposable {
 
-    /** Observer state for rendering a vision cone. */
+    /**
+     * Observer state for rendering a vision cone.
+     *
+     * @param brightness cone brightness multiplier, 1 for a player's own eyes and the configured
+     *                   dimmer value for a gadget device's cone (mechanics §7.1: a drone's cone
+     *                   is "narrower and dimmer than a player's")
+     */
     public record ObserverState(
             float eyeX,
             float eyeY,
             float aimAngleDeg,
             float reach,
             float coneHalfAngleDeg,
-            float featherAngleDeg) {
+            float featherAngleDeg,
+            float brightness) {
+
+        public ObserverState(
+                float eyeX,
+                float eyeY,
+                float aimAngleDeg,
+                float reach,
+                float coneHalfAngleDeg,
+                float featherAngleDeg) {
+            this(eyeX, eyeY, aimAngleDeg, reach, coneHalfAngleDeg, featherAngleDeg, 1f);
+        }
 
         public static ObserverState standardPlayer(float eyeX, float eyeY, float aimAngleDeg, float reach) {
             return new ObserverState(
@@ -39,6 +56,19 @@ public final class VisibilitySystem implements Disposable {
                     reach,
                     VisionConfig.CONE_HALF_ANGLE_DEGREES,
                     VisionConfig.FEATHER_ANGLE_DEGREES);
+        }
+
+        /** A gadget device's cone: the device's own reach, half-angle and brightness. */
+        public static ObserverState gadget(
+                float eyeX,
+                float eyeY,
+                float aimAngleDeg,
+                float reach,
+                float coneHalfAngleDeg,
+                float featherAngleDeg,
+                float brightness) {
+            return new ObserverState(
+                    eyeX, eyeY, aimAngleDeg, reach, coneHalfAngleDeg, featherAngleDeg, brightness);
         }
     }
 
@@ -104,6 +134,7 @@ public final class VisibilitySystem implements Disposable {
                 shader.setUniformf("u_reach", observer.reach());
                 shader.setUniformf("u_coneHalfAngle", Angles.toRadians(observer.coneHalfAngleDeg()));
                 shader.setUniformf("u_featherAngle", Angles.toRadians(observer.featherAngleDeg()));
+                shader.setUniformf("u_brightness", observer.brightness());
 
                 quad.render(shader);
             }

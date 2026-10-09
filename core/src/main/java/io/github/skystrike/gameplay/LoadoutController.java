@@ -2,6 +2,9 @@ package io.github.skystrike.gameplay;
 
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.KeyBindings;
+import io.github.skystrike.shared.gadget.GadgetId;
+import io.github.skystrike.shared.gadget.GadgetPress;
+import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.Packet;
@@ -52,11 +55,17 @@ public final class LoadoutController {
     private record PendingPress(int slot, long birthSequence) {
     }
 
-    private record PendingGadgetPress(int gadget, long birthSequence) {
+    /**
+     * One gadget press the prediction applied but the server has not yet acknowledged. Manual
+     * gadgets (drone, camera) carry the resolved outcome, because their press machine is not
+     * idempotent — re-running it against the advanced state would resolve the opposite step.
+     */
+    private record PendingGadgetPress(int gadget, long birthSequence, GadgetPress.Outcome outcome) {
     }
 
     private final KeyBindings bindings;
     private final InputRouter router;
+    private final SurveillanceController surveillance;
     private Consumer<Packet> packetSender;
 
     private final Deque<PendingPress> outstanding = new ArrayDeque<>();
@@ -64,8 +73,17 @@ public final class LoadoutController {
     private int pendingScrollNotches;
 
     public LoadoutController(KeyBindings bindings, InputRouter router) {
+        this(bindings, router, null);
+    }
+
+    /**
+     * @param surveillance the surveillance controller that predicts manual-gadget presses
+     *                     (drone, camera); null disables that prediction, the edge still rides
+     */
+    public LoadoutController(KeyBindings bindings, InputRouter router, SurveillanceController surveillance) {
         this.bindings = bindings;
         this.router = router;
+        this.surveillance = surveillance;
     }
 
     /**
@@ -150,7 +168,8 @@ public final class LoadoutController {
             if (birth < 0L) {
                 birth = packet.sequence;
                 outstandingGadgets.pollFirst();
-                outstandingGadgets.addFirst(new PendingGadgetPress(oldestGadget.gadget(), birth));
+                outstandingGadgets.addFirst(new PendingGadgetPress(
+                    oldestGadget.gadget(), birth, oldestGadget.outcome()));
             }
             packet.gadgetPress = oldestGadget.gadget();
             packet.gadgetPressSeq = birth;
@@ -193,7 +212,13 @@ public final class LoadoutController {
             predicted.loadout.tapSlot(press.slot());
         }
         for (PendingGadgetPress press : outstandingGadgets) {
-            predicted.loadout.toggleGadget(press.gadget() == PacketPlayerInput.GADGET_Q_PRESS ? 0 : 1);
+            int index = press.gadget() == PacketPlayerInput.GADGET_Q_PRESS ? 0 : 1;
+            if (press.outcome() != null && surveillance != null) {
+                // Manual gadget: re-apply the resolved outcome, never re-resolve it.
+                surveillance.reapplyGadgetPress(predicted, index, press.outcome());
+            } else {
+                predicted.loadout.toggleGadget(index);
+            }
         }
         predicted.loadout.enforceShieldHandgunLock();
     }
@@ -238,11 +263,28 @@ public final class LoadoutController {
             return;
         }
         int index = gadgetPress == PacketPlayerInput.GADGET_Q_PRESS ? 0 : 1;
-        if (!localPlayer.loadout.toggleGadget(index)) {
+        GadgetSlot slot = localPlayer.loadout.gadgetSlot(index);
+        if (slot == null) {
+            return;
+        }
+        GadgetPress.Outcome outcome = null;
+        boolean acted;
+        if (slot.gadgetId() == GadgetId.DRONE || slot.gadgetId() == GadgetId.CAMERA) {
+            // Manual gadget: the surveillance controller predicts the press through the shared
+            // state machine, against the devices the latest snapshot says this player owns.
+            outcome = surveillance == null
+                ? null
+                : surveillance.predictGadgetPress(localPlayer, index);
+            acted = outcome != null;
+        } else {
+            // The shield is a plain active-flag toggle; passive gadgets do nothing.
+            acted = localPlayer.loadout.toggleGadget(index);
+        }
+        if (!acted) {
             return;
         }
         localPlayer.loadout.enforceShieldHandgunLock();
-        outstandingGadgets.addLast(new PendingGadgetPress(gadgetPress, -1L));
+        outstandingGadgets.addLast(new PendingGadgetPress(gadgetPress, -1L, outcome));
         while (outstandingGadgets.size() > MAX_OUTSTANDING_PRESSES) {
             outstandingGadgets.pollFirst();
         }

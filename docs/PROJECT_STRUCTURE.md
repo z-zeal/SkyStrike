@@ -94,11 +94,13 @@ shared/src/main/java/io/github/skystrike/shared/
 │   └── DebugFlags               Master debug switch and per-feature toggles
 │
 ├── model/                       Authoritative game state types
-│   ├── Player                   Full player state record
+│   ├── Player                   Full player state record, surveillance view included
 │   ├── PlayerLoadout            Five main slots plus two gadget slots
 │   ├── WeaponItem               Weapon id, current ammo, reserve ammo
 │   ├── UtilitySlot              Type, count, max count
 │   ├── GadgetSlot               Type, count, charge, active flag
+│   ├── DroneEntity              Deployed surveillance drone: kinematics, health, cone aim
+│   ├── CameraEntity             Thrown camera: flight state, stuck flag, contact normal
 │   ├── Team                     A, B, Neutral, with cycling
 │   ├── HitZone                  Head, body, fuel tank
 │   └── ShieldState              Stowed, equipped, broken
@@ -121,14 +123,30 @@ shared/src/main/java/io/github/skystrike/shared/
 │   └── UtilityDefinition        Per-type physical and gameplay parameters
 │
 ├── gadget/
-│   ├── GadgetType               None, drone, shield, fuel tank, camera
-│   └── GadgetBehavior           Passive, manual, hybrid
+│   ├── GadgetId                 None, drone, shield, fuel tank, camera — frozen wire ordinal
+│   ├── GadgetBehavior           Passive, manual, hybrid
+│   ├── GadgetDefinition, GadgetRegistry   One immutable record per real gadget
+│   ├── SurveillanceView         The view enum + the one view-cycle state machine (self/drone/camera)
+│   ├── GadgetPress              The Q/E press state machine for the manual gadgets
+│   ├── DroneMotion              Pure drone flight: lerp, damping, clamp, wall push-out
+│   └── CameraFlight             The camera's flight/stick decision on the one throwable integrator
 │
 ├── combat/                      Maths both sides must agree on
 │   ├── BallisticsMath           Damage falloff, velocity falloff, drop integration
 │   ├── HitZoneMath              Zone resolution from impact height and stance
 │   ├── SpreadMath               Stance-adjusted target spread, kick, recovery
 │   └── ShieldArcMath            Front/rear arc absorption test
+│
+├── physics/                     Pure simulation functions shared verbatim by both sides
+│   ├── PlayerInput              One input sample, prediction and authority alike
+│   └── PlayerMotion             Movement, collision, rotation — enforces the surveillance lock
+│
+├── hud/                         Pure HUD read models (client has no test source set)
+│   ├── HudLoadoutView           Slot/ammo/utility/gadget views behind the loadout bar
+│   ├── HudVitals                Health/fuel fractions and the recharge-grounded rule
+│   ├── HudSurveillance          The surveillance banner's read model
+│   ├── CrosshairMath, DamageVignetteMath   The other widget maths
+│   └── KillFeedModel, LoadoutPickerModel   Feed and picker state
 │
 ├── effect/
 │   ├── EffectType               The spawnable visual effect vocabulary
@@ -241,12 +259,15 @@ server/src/main/java/io/github/skystrike/server/
 │   └── UtilityThrowService      Consumption, cooldown, spawn
 │
 ├── gadget/
-│   ├── GadgetEntity             Base: identity, position, health, death
-│   ├── DroneEntity, DroneSystem
-│   ├── CameraEntity, CameraSystem
+│   ├── DroneSystem              Deploy/pilot/exit, motion, destruction, owner sweep
+│   ├── CameraSystem             Throw, flight, stick, view, destruction, owner sweep
 │   ├── ShieldSystem             State toggle, arc absorption, durability
 │   ├── FuelTankSystem           Boost multipliers, rear hit, explosion
-│   └── SurveillanceService      POV ownership and input locking
+│   └── SurveillanceService      View transitions and the lock question
+│
+│   (The device entities themselves — `DroneEntity`, `CameraEntity` — live in
+│   `shared/model` next to `ThrownUtility`: they are snapshot payload, and `core`
+│   must never import `server`. Their systems live here.)
 │
 ├── chat/
 │   ├── ChatService              Validate, sanitise, rate-limit, scope, broadcast
@@ -330,11 +351,12 @@ core/src/main/java/io/github/skystrike/
 │
 ├── ui/
 │   ├── hud/
-│   │   ├── HudRenderer          Composition of HUD elements
+│   │   ├── HudStage             Composition of HUD elements (shapes pass, then text pass)
 │   │   ├── HealthFuelBars
-│   │   ├── LoadoutBar           Slots, ammo, utility counts
+│   │   ├── LoadoutBar           Slots, ammo, utility counts, gadget slots
+│   │   ├── SurveillanceBanner   The viewed device, its HP, the live controls
 │   │   ├── GadgetPanel          State labels, durability, cooldowns
-│   │   ├── Crosshair            Spread-reactive
+│   │   ├── Crosshair            Spread-reactive, dimmed while surveilling
 │   │   ├── Minimap
 │   │   ├── KillFeed
 │   │   ├── DamageNumbers        Floating, world-space

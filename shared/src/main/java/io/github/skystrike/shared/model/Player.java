@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.model;
 
 import io.github.skystrike.shared.config.PlayerConfig;
+import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.utility.UtilityRegistry;
@@ -80,6 +81,16 @@ public final class Player {
     public int kills;
     public int deaths;
 
+    // --- Gadget devices (Phase 6, mechanics §7) ---------------------------------------------------
+
+    /**
+     * Which eyes the player is looking through, as a {@link io.github.skystrike.shared.gadget.SurveillanceView}
+     * ordinal: 0 self, 1 drone, 2 camera. Server-authoritative — the server owns every transition
+     * and enforces the input lock from it — mirrored to the owner in every snapshot, where the
+     * client predicts it for feel and is corrected by the next snapshot.
+     */
+    public int surveillanceView = SurveillanceView.SELF.ordinal();
+
     public Player() {
     }
 
@@ -125,6 +136,7 @@ public final class Player {
         this.gunKick = other.gunKick;
         this.kills = other.kills;
         this.deaths = other.deaths;
+        this.surveillanceView = other.surveillanceView;
     }
 
     public Player copy() {
@@ -208,6 +220,21 @@ public final class Player {
     /** True while a stun's movement and weapon lock remain active. */
     public boolean isSlowed() {
         return slowRemaining > 0f;
+    }
+
+    /** Which eyes this player is looking through; an unknown ordinal reads as their own. */
+    public SurveillanceView surveillance() {
+        return SurveillanceView.fromOrdinal(surveillanceView);
+    }
+
+    /**
+     * True while the player is looking through a drone or camera: the body is locked and
+     * defenceless, and its movement and weapon input is redirected to the device. Enforced on
+     * both sides — {@code PlayerMotion} ignores the body's movement intent here, so server
+     * authority and client prediction lock identically.
+     */
+    public boolean isSurveillanceLocked() {
+        return surveillance() != SurveillanceView.SELF;
     }
 
     /** Clears every per-life throwable status, as a respawn must. */

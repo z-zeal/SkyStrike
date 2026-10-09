@@ -8,6 +8,7 @@ import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.gadget.GadgetId;
+import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import org.junit.jupiter.api.DisplayName;
@@ -278,5 +279,41 @@ class PlayerMotionTest {
         assertEquals(p1.rotation, p2.rotation, 0f);
         assertEquals(p1.fuel, p2.fuel, 0f);
         assertEquals(p1.grounded, p2.grounded);
+    }
+
+    @Test
+    @DisplayName("the surveillance lock freezes the body's movement but not its aim")
+    void surveillanceLockFreezesTheBody() {
+        Player player = new Player(1, "Pilot", 0, 500f, WorldConfig.GROUND_HEIGHT);
+        player.vx = 150f;
+        player.vy = 120f;
+        player.grounded = false;
+        player.surveillanceView = SurveillanceView.DRONE.ordinal();
+        PlayerInput input = new PlayerInput(1L, 1.0f, true, true, true, false, true, 45f);
+
+        for (int i = 0; i < 30; i++) {
+            player = PlayerMotion.step(player, input, 1f / 60f, map);
+        }
+
+        assertTrue(player.vx < 150f, "the stray horizontal velocity damps instead of driving");
+        assertTrue(Math.abs(player.vx) < 15f, "the body coasts to a stop, not a launch");
+        assertTrue(player.vy <= 0f, "gravity still applies — a locked body is not frozen in air");
+        assertEquals(45f, player.aimAngle, 1e-4f,
+            "the aim still tracks the cursor: it steers the piloted device's cone");
+        assertFalse(player.jetpacking, "jetpack thrust is locked out");
+    }
+
+    @Test
+    @DisplayName("an unlocked player is unaffected by the lock's presence in the motion code")
+    void unlockedPlayerMovesNormally() {
+        Player player = new Player(1, "Free", 0, 500f, WorldConfig.GROUND_HEIGHT);
+        PlayerInput input = new PlayerInput(1L, 1.0f, false, false, false, false, false, 0f);
+
+        for (int i = 0; i < 15; i++) {
+            player = PlayerMotion.step(player, input, 1f / 60f, map);
+        }
+
+        assertTrue(player.vx > 190f, "ground movement is unchanged when not surveilling");
+        assertEquals(SurveillanceView.SELF, player.surveillance());
     }
 }

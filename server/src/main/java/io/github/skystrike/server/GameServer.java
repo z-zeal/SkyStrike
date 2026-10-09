@@ -15,8 +15,11 @@ import io.github.skystrike.server.net.NetworkEvent;
 import io.github.skystrike.server.net.PacketRouter;
 import io.github.skystrike.server.combat.MeleeSystem;
 import io.github.skystrike.server.fx.EffectBroadcaster;
+import io.github.skystrike.server.gadget.CameraSystem;
+import io.github.skystrike.server.gadget.DroneSystem;
 import io.github.skystrike.server.gadget.FuelTankSystem;
 import io.github.skystrike.server.gadget.ShieldSystem;
+import io.github.skystrike.server.gadget.SurveillanceService;
 import io.github.skystrike.server.net.handlers.ChatRequestHandler;
 import io.github.skystrike.server.net.handlers.CommandRequestHandler;
 import io.github.skystrike.server.net.handlers.JoinRequestHandler;
@@ -40,6 +43,8 @@ import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
@@ -96,6 +101,10 @@ public final class GameServer {
     private final EffectBroadcaster effectBroadcaster;
     private final ShieldSystem shieldSystem;
     private final FuelTankSystem fuelTankSystem;
+    /** Phase 6: the drone and camera device systems, and the surveillance view they serve. */
+    private final DroneSystem droneSystem;
+    private final CameraSystem cameraSystem;
+    private final SurveillanceService surveillanceService;
     private final KillFeedService killFeed;
     private final DamageService damageService;
     private final LoadoutSystem loadoutSystem;
@@ -132,6 +141,16 @@ public final class GameServer {
         this.utilitySystem.setEffectSink(this.effectBroadcaster);
         this.shieldSystem = new ShieldSystem();
         this.fuelTankSystem = new FuelTankSystem(this.arena);
+        // Phase 6: the gadget devices. The drone and camera systems own their entity lists and
+        // answer Q/E presses; the surveillance service owns the view transitions and needs both
+        // to know what the player can cycle to. Rounds hit devices, so the bullet system is
+        // wired to them, and their destruction visuals flow through the one broadcaster.
+        this.droneSystem = new DroneSystem(this.arena);
+        this.cameraSystem = new CameraSystem(this.arena);
+        this.surveillanceService = new SurveillanceService(this.droneSystem, this.cameraSystem);
+        this.droneSystem.setEffectSink(this.effectBroadcaster);
+        this.cameraSystem.setEffectSink(this.effectBroadcaster);
+        this.bulletSystem.setGadgetSystems(this.droneSystem, this.cameraSystem);
         this.killFeed = new KillFeedService();
         this.damageService = new DamageService(this.killFeed, this.fuelTankSystem);
         // sv_godmode (build plan M3 §4): per-player session state is the single source of truth.
@@ -147,7 +166,10 @@ public final class GameServer {
             new MeleeSystem(),
             this.bulletSystem,
             this.utilitySystem,
-            this.shieldSystem);
+            this.shieldSystem,
+            this.surveillanceService,
+            this.droneSystem,
+            this.cameraSystem);
 
         // Chat identity and team scoping come from the authoritative registry, never the packet.
         this.chatService = new ChatService(new RegistryRoster(this.players));
@@ -287,6 +309,18 @@ public final class GameServer {
         return fuelTankSystem;
     }
 
+    public DroneSystem droneSystem() {
+        return droneSystem;
+    }
+
+    public CameraSystem cameraSystem() {
+        return cameraSystem;
+    }
+
+    public SurveillanceService surveillanceService() {
+        return surveillanceService;
+    }
+
     public DamageService damageService() {
         return damageService;
     }
@@ -342,6 +376,8 @@ public final class GameServer {
             players.clear();
             bulletSystem.clear();
             utilitySystem.clear();
+            droneSystem.clear();
+            cameraSystem.clear();
             effectBroadcaster.clear();
             chatService.clear();
             capabilities.clear();
@@ -372,7 +408,10 @@ public final class GameServer {
             }
         });
 
-        // 2. Movement, then weapons: a round leaves the muzzle this tick's position gives it.
+        // 2. Movement, then weapons, then the gadget devices: a round leaves the muzzle this
+        //    tick's position gives it, and a piloted drone steers with this tick's input. The
+        //    surveillance lock is enforced inside the shared motion and in the loadout tick, so
+        //    a piloting player's body stays frozen however their input arrives.
         for (PlayerSession session : players.all()) {
             Player player = session.player();
             PlayerInput input = session.latestInput();
@@ -383,11 +422,19 @@ public final class GameServer {
                 player.lastProcessedInputSequence = input.sequence;
             }
             loadoutSystem.tick(session, dt, playerStates, damageService);
+            droneSystem.stepOwned(player, input, dt);
+            cameraSystem.stepOwned(player, input, dt);
         }
 
         // 3. Rounds and utilities already in the world, including anything thrown this tick.
+        //    Rounds also resolve against gadget devices here — a drone or camera can be shot down.
         bulletSystem.step(dt, playerStates, damageService);
         utilitySystem.step(dt, playerStates, damageService);
+
+        // 4. The gadget device sweep: spent devices are destroyed, and a device whose owner died
+        //    or left is removed with them, returning any pilot to their own eyes.
+        droneSystem.sweep(playerStates);
+        cameraSystem.sweep(playerStates);
 
         // A hit can kill a player after their input was already latched this tick. Drop every
         // remaining edge now, not only at the eventual respawn, so death cannot bank Q/E or fire.
@@ -494,12 +541,13 @@ public final class GameServer {
     }
 
     /**
-     * Broadcasts authoritative game state snapshots: every active player, and every round
-     * currently in the air.
+     * Broadcasts authoritative game state snapshots: every active player, every round in the
+     * air, and every gadget device in the world.
      *
-     * <p>Neither list is culled by the flashlight cone. Visibility is a presentation effect —
-     * culling it server-side made enemies despawn and respawn as they crossed the cone edge, and
-     * a tracer flickering in and out mid-flight would be the same bug with a shorter lifetime.
+     * <p>None of these lists is culled by the flashlight cone. Visibility is a presentation
+     * effect — culling it server-side made enemies despawn and respawn as they crossed the cone
+     * edge, and a tracer flickering in and out mid-flight would be the same bug with a shorter
+     * lifetime. Devices ride the same rule: a drone in the dark is still a drone.
      */
     private void broadcastSnapshot(SimulationClock clock) {
         // M7 §8.1: drain the effect window even with nobody connected, so the accumulator can
@@ -515,6 +563,8 @@ public final class GameServer {
         List<Projectile> liveRounds = bulletSystem.active();
         List<ThrownUtility> liveUtilities = utilitySystem.active();
         List<UtilityZone> liveUtilityZones = utilitySystem.zones();
+        List<DroneEntity> liveDrones = droneSystem.active();
+        List<CameraEntity> liveCameras = cameraSystem.active();
         boolean cheatsActive = players.anyCheatActive();
 
         for (ConnectionRegistry.Entry entry : connections.entries()) {
@@ -537,6 +587,12 @@ public final class GameServer {
             for (UtilityZone zone : liveUtilityZones) {
                 snapshot.utilityZones.add(zone.copy());
             }
+            for (DroneEntity drone : liveDrones) {
+                snapshot.drones.add(drone.copy());
+            }
+            for (CameraEntity camera : liveCameras) {
+                snapshot.cameras.add(camera.copy());
+            }
             endpoint.sendUnreliable(conn, snapshot);
 
             if (!effectSpawns.isEmpty()) {
@@ -549,15 +605,20 @@ public final class GameServer {
      * Sends one recipient their culled share of the tick's effect batch (M7 §8.1). Culling uses
      * the same {@code VisionMath} the rest of the server judges visibility with, so a detonation
      * the recipient cannot see is never described to their client — and the client's own
-     * per-particle occlusion test is the second line of defence.
+     * per-particle occlusion test is the second line of defence. The recipient's own live devices
+     * count as extra observers: an effect seen only through their drone must still arrive.
      */
     private void sendEffectSpawns(ConnectionRegistry.Entry entry, List<EffectSpawn> effectSpawns, long tick) {
         PlayerSession session = players.byPlayerId(entry.playerId());
         if (session == null) {
             return;
         }
+        EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
+            session.player(),
+            droneSystem.ownedBy(entry.playerId()),
+            cameraSystem.ownedBy(entry.playerId()));
         List<EffectSpawn> visible = effectBroadcaster.cullFor(
-            effectSpawns, session.player(), arena, utilitySystem.smokeVolumes());
+            effectSpawns, recipient, arena, utilitySystem.smokeVolumes());
         if (!visible.isEmpty()) {
             endpoint.sendUnreliable(entry.connection(), new PacketEffectSpawn(tick, visible));
         }

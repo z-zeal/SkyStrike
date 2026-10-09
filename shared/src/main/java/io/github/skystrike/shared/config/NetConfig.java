@@ -43,8 +43,12 @@ public final class NetConfig {
      * types and {@code PacketEffectSpawn} appended after {@code PacketCommandResponse}; effect
      * batches ride the unreliable channel at snapshot cadence. No Kryo registration was
      * reordered or inserted.
+     *
+     * <p>12 — Phase 6 increment 3 (M10): {@code DroneEntity} and {@code CameraEntity} appended
+     * as snapshot payload types; the snapshot gained the drone and camera lists, and the input
+     * packet gained the view-action edge. No Kryo registration was reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 11;
+    public static final int PROTOCOL_VERSION = 12;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;
