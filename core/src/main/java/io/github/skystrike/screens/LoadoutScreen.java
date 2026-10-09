@@ -55,7 +55,9 @@ public final class LoadoutScreen extends de.eskalon.commons.screen.ManagedScreen
     public void render(float delta) {
         Gdx.gl.glClearColor(.025f, .035f, .06f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-        hud.update(delta, pickerOpen, previewPlayer.loadout);
+        // The map is not drawn here (no arena), so its cvar is reported off: the HUD re-lays out
+        // with the top-left corner free, exactly as the readouts expect on a screen without one.
+        hud.update(delta, pickerOpen, false, previewPlayer.loadout);
         hud.render(new HudFrame(
             previewPlayer,
             0f,
@@ -66,7 +68,10 @@ public final class LoadoutScreen extends de.eskalon.commons.screen.ManagedScreen
             System.currentTimeMillis(),
             delta,
             false,
-            List.of()));
+            List.of(),
+            // No arena and no live local player while a loadout is being chosen, so there is
+            // nothing to map: the widget draws nothing and the corner stays with the readouts.
+            null));
     }
 
     private void rememberRequest(PacketLoadoutUpdate request) {

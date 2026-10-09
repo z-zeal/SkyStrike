@@ -11,6 +11,7 @@ import io.github.skystrike.fx.sdf.SdfTexture;
 import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.math.Angles;
+import io.github.skystrike.shared.vision.Observer;
 import java.util.List;
 
 /**
@@ -23,7 +24,14 @@ import java.util.List;
 public final class VisibilitySystem implements Disposable {
 
     /**
-     * Observer state for rendering a vision cone.
+     * Observer state for rendering a vision cone: one cone per observer, max-blended together.
+     *
+     * <p>Every field is a copy of the shared {@link io.github.skystrike.shared.vision.Observer}
+     * this is built from, which is deliberate. The set of eyes a viewer has — their own body
+     * unless the view has moved into a device, plus every device they own — is decided once in
+     * {@code shared}, and the minimap's blip gate asks that same set what it can see. If this
+     * record assembled its own observers instead, the cones drawn here and the markers drawn on
+     * the HUD would be two implementations of one rule, and they would eventually disagree.
      *
      * @param brightness cone brightness multiplier, 1 for a player's own eyes and the configured
      *                   dimmer value for a gadget device's cone (mechanics §7.1: a drone's cone
@@ -38,37 +46,16 @@ public final class VisibilitySystem implements Disposable {
             float featherAngleDeg,
             float brightness) {
 
-        public ObserverState(
-                float eyeX,
-                float eyeY,
-                float aimAngleDeg,
-                float reach,
-                float coneHalfAngleDeg,
-                float featherAngleDeg) {
-            this(eyeX, eyeY, aimAngleDeg, reach, coneHalfAngleDeg, featherAngleDeg, 1f);
-        }
-
-        public static ObserverState standardPlayer(float eyeX, float eyeY, float aimAngleDeg, float reach) {
+        /** The GPU's view of one shared observer. No numbers are chosen here. */
+        public static ObserverState of(Observer observer) {
             return new ObserverState(
-                    eyeX,
-                    eyeY,
-                    aimAngleDeg,
-                    reach,
-                    VisionConfig.CONE_HALF_ANGLE_DEGREES,
-                    VisionConfig.FEATHER_ANGLE_DEGREES);
-        }
-
-        /** A gadget device's cone: the device's own reach, half-angle and brightness. */
-        public static ObserverState gadget(
-                float eyeX,
-                float eyeY,
-                float aimAngleDeg,
-                float reach,
-                float coneHalfAngleDeg,
-                float featherAngleDeg,
-                float brightness) {
-            return new ObserverState(
-                    eyeX, eyeY, aimAngleDeg, reach, coneHalfAngleDeg, featherAngleDeg, brightness);
+                    observer.eyeX(),
+                    observer.eyeY(),
+                    observer.aimAngleDeg(),
+                    observer.reach(),
+                    observer.coneHalfAngleDeg(),
+                    observer.featherAngleDeg(),
+                    observer.brightness());
         }
     }
 

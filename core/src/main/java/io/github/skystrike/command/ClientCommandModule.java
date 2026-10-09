@@ -170,6 +170,19 @@ public final class ClientCommandModule {
             .description("the loadout picker; changes apply at your next respawn (L)")
             .build());
 
+        // The minimap (M11, mechanics §4). Same reasoning as ui_loadout above: a real UI feature,
+        // registered whatever the master debug switch says, and read live rather than mirrored
+        // into DebugState — the debug switch must not be what decides whether a player can see
+        // their own map. Both default to on, because a map that has to be discovered is a map
+        // nobody uses; the ally toggle is §4's separate "teammates visible on minimap" switch and
+        // nothing more — it does not exempt teammates from cone culling in the world.
+        cvars.register(Cvar.builder("cl_minimap", ArgTypes.BOOL, "true")
+            .description("the arena minimap: terrain, your view, and what your own vision lights")
+            .build());
+        cvars.register(Cvar.builder("cl_minimap_allies", ArgTypes.BOOL, "true")
+            .description("show teammates on the minimap even when your vision does not light them")
+            .build());
+
         registerDebugToolkitCvars(cvars, deps);
     }
 

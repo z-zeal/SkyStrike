@@ -23,8 +23,9 @@ import java.util.function.Consumer;
 /**
  * The HUD: one viewport, one batch, one font, drawn last (playable build plan M4 §5).
  *
- * <p>Every widget below — bars, loadout bar, crosshair, kill feed, damage vignette, debug panel
- * and the loadout picker — draws through this class's single screen-space projection and its
+ * <p>Every widget below — bars, loadout bar, crosshair, minimap, kill feed, damage vignette,
+ * debug panel and the loadout picker — draws through this class's single screen-space projection
+ * and its
  * single {@link SpriteBatch}/{@link ShapeRenderer} pair. That is not tidiness for its own sake:
  * a {@code ShapeRenderer} batch and a {@code SpriteBatch} batch cannot be open at the same
  * time, so the frame is strictly two passes — <b>all shapes, then all text</b> — and widgets
@@ -33,7 +34,8 @@ import java.util.function.Consumer;
  * ordering.
  *
  * <p>Order within each pass is back-to-front: vignette (the screen you are looking through),
- * then the readouts, then the crosshair, then the picker, which covers everything when open.
+ * then the map, then the readouts, then the crosshair, then the picker, which covers everything
+ * when open.
  * The whole stage is {@link RenderLayers#HUD}: after the fog composite and the post stack,
  * before the console dialog, because being blinded is a gameplay state but being unable to
  * read your ammo is a UI failure.
@@ -55,6 +57,7 @@ public final class HudStage implements Disposable {
     private final HealthFuelBars vitals = new HealthFuelBars(theme);
     private final LoadoutBar loadoutBar = new LoadoutBar(theme);
     private final Crosshair crosshair = new Crosshair(theme);
+    private final Minimap minimap = new Minimap(theme);
     private final SurveillanceBanner surveillanceBanner = new SurveillanceBanner(theme);
     private final KillFeedWidget killFeedWidget = new KillFeedWidget(theme, killFeed);
     private final DamageVignette damageVignette = new DamageVignette(theme);
@@ -75,6 +78,12 @@ public final class HudStage implements Disposable {
     private int screenWidth = 1;
     private int screenHeight = 1;
     private boolean laidOut;
+
+    /**
+     * Whether the map is being drawn, tracked only so that toggling {@code cl_minimap} can re-run
+     * the layout: the debug panel shares its corner and has to move out of the way or back into it.
+     */
+    private boolean minimapShown;
 
     /** Tracks the local player's alive flag so a respawn can clear the damage tint exactly once. */
     private boolean wasAlive = true;
@@ -132,12 +141,18 @@ public final class HudStage implements Disposable {
      *
      * @param deltaSeconds    frame time
      * @param pickerRequested the current value of {@code ui_loadout}
+     * @param minimapShown    the current value of {@code cl_minimap}
      * @param live            the predicted loadout the picker re-reads when it opens
      */
-    public void update(float deltaSeconds, boolean pickerRequested, PlayerLoadout live) {
+    public void update(
+            float deltaSeconds, boolean pickerRequested, boolean minimapShown, PlayerLoadout live) {
         ensureFont();
         damageVignette.update(deltaSeconds);
         picker.setOpen(pickerRequested, live);
+        if (minimapShown != this.minimapShown) {
+            this.minimapShown = minimapShown;
+            laidOut = false;
+        }
     }
 
     private void ensureFont() {
@@ -180,6 +195,7 @@ public final class HudStage implements Disposable {
         shapes.setProjectionMatrix(projection);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         damageVignette.drawShapes(shapes, frame);
+        minimap.drawShapes(shapes, frame);
         surveillanceBanner.drawShapes(shapes, font, frame);
         debugPanel.drawShapes(shapes, font, frame);
         killFeedWidget.drawShapes(shapes, font, frame);
@@ -213,11 +229,13 @@ public final class HudStage implements Disposable {
     }
 
     private void layout(BitmapFont font, float scale) {
-        // Four corners, no overlaps. The debug panel is top-left and the kill feed top-right,
-        // so neither insets the other. Along the bottom the console owns the left: its passive
+        // Four corners, no overlaps. Along the bottom the console owns the left: its passive
         // view prints up to ConsoleTheme.passiveLines of chat from the bottom-left upwards, so
         // the vitals clear that strip entirely while the loadout bar, right-aligned beyond the
-        // dialog's 62%-width panel, sits on the bottom edge.
+        // dialog's 62%-width panel, sits on the bottom edge. Along the top the map owns the left
+        // corner when it is on and the kill feed owns the right, so the readout takes an inset
+        // from the map rather than a position of its own — one widget can move the other without
+        // either of them knowing the other exists.
         float chatStrip = theme.console().margin * scale
             + theme.console().passiveLines
                 * (font.getLineHeight() + theme.console().lineGap * scale);
@@ -227,7 +245,10 @@ public final class HudStage implements Disposable {
         surveillanceBanner.layout(screenWidth, screenHeight, scale);
         killFeedWidget.layout(screenWidth, screenHeight, scale, 0f);
         damageVignette.layout(screenWidth, screenHeight);
-        debugPanel.layout(screenWidth, screenHeight, scale);
+        // The map owns the top-left corner when it is on, so the readout starts below it; when it
+        // is off the inset is zero and the readout takes the corner back, leaving no hole.
+        minimap.layout(screenWidth, screenHeight, scale);
+        debugPanel.layout(screenWidth, screenHeight, scale, minimap.occupiedHeight(minimapShown));
         picker.layout(screenWidth, screenHeight, scale, font);
         laidOut = true;
     }

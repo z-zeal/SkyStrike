@@ -33,4 +33,20 @@ public enum Team {
             default -> NEUTRAL;
         };
     }
+
+    /**
+     * Whether two team indices are the same allegiance — the one spelling of "on the same side",
+     * shared by friendly fire, the kill feed's {@code [FF]} tag and the minimap's blip colours.
+     *
+     * <p>Neutral is outside the team system entirely (mechanics §10): a Neutral player has no
+     * allies, not even another Neutral, so two Neutrals are never on the same side. That is why
+     * this is not simply {@code a == b}.
+     *
+     * <p>The index compared against is {@link #NEUTRAL}'s own, which is the value
+     * {@code CombatConfig.NEUTRAL_TEAM_INDEX} quotes; {@code TeamTest} asserts the two agree, so
+     * neither can be renumbered without the other failing.
+     */
+    public static boolean areAllies(int teamIndexA, int teamIndexB) {
+        return teamIndexA == teamIndexB && teamIndexA != NEUTRAL.index();
+    }
 }

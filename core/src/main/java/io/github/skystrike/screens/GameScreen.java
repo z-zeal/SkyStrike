@@ -40,12 +40,13 @@ import io.github.skystrike.render.ThrownUtilityRenderer;
 import io.github.skystrike.render.TrajectoryRenderer;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.DebugFlags;
-import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.gadget.SurveillanceView;
+import io.github.skystrike.shared.hud.MinimapModel;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.CameraEntity;
@@ -56,6 +57,8 @@ import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
+import io.github.skystrike.shared.vision.Observer;
+import io.github.skystrike.shared.vision.ObserverSet;
 import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -187,6 +190,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     private FxPipeline pipeline;
     private final List<ObserverState> observers = new ArrayList<>();
+
+    /**
+     * The minimap's memory: what the fog has lit recently, so a marker that loses its lighting
+     * fades instead of blinking out (roadmap Phase 7 HUD). Stateful and owned here, beside the
+     * other per-frame systems; the widget in {@code ui/hud} only draws the frame it is handed.
+     */
+    private final MinimapModel minimapModel = new MinimapModel(arena);
+
+    /** The viewer's eyes this frame — one set, read by the visibility pass and the map alike. */
+    private ObserverSet eyes = ObserverSet.empty();
 
     private final String host;
     private final int tcpPort;
@@ -492,7 +505,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // The HUD's non-drawing frame work: font lifecycle, vignette decay, and the picker's
         // open state, which follows the ui_loadout cvar rather than a flag of its own.
         hud.setLocalPlayerId(session.playerId());
-        hud.update(delta, isUiLoadoutOpen(), localPlayer == null ? null : localPlayer.loadout);
+        hud.update(
+            delta, isUiLoadoutOpen(), isMinimapOn(), localPlayer == null ? null : localPlayer.loadout);
 
         // cl_freecam (F2): input packets keep sending zeroed intent even while detached.
         inputSampler.setFreecamActive(debugState.freecam());
@@ -578,6 +592,24 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         audio.updateListener(listenerX, listenerY);
 
+        // M11: the viewer's eyes are assembled once, here, before anything consumes them. The
+        // rule — a body's cone unless the view has moved into a device, plus every device the
+        // viewer owns, with the piloted drone at its predicted position — lives in
+        // shared/vision/ObserverSet, and both consumers read that one set: the visibility pass
+        // draws a cone per observer, and the minimap asks the same set what it lights. A marker
+        // for something the fog is hiding would be a cheat sheet, and two implementations of
+        // "what am I looking at" would eventually answer differently.
+        DroneEntity pilotedDrone = localPlayer != null
+                && localPlayer.surveillance() == SurveillanceView.DRONE
+            ? surveillance.predictedDrone()
+            : null;
+        List<DroneEntity> dronesToDraw = renderedDrones(drones, pilotedDrone);
+        eyes = ObserverSet.forViewer(localPlayer, visionReach, drones, pilotedDrone, cameras);
+        observers.clear();
+        for (Observer observer : eyes.observers()) {
+            observers.add(ObserverState.of(observer));
+        }
+
         // M7: the effects tier follows the quality cvar live (falling back to the settings
         // object's tier), and the FX update drains the effect queue — once — handing each event
         // to the particles and to audio, then fires due phases.
@@ -606,7 +638,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         trajectoryRenderer.render(camera, localPlayer, arena);
         playerRenderer.render(camera, remotePlayers, localPlayer);
         // The piloted drone is drawn from the local prediction so it never lags the view.
-        gadgetRenderer.render(camera, remotePlayers, localPlayer, renderedDrones(localPlayer, drones), cameras);
+        gadgetRenderer.render(camera, remotePlayers, localPlayer, dronesToDraw, cameras);
         projectileRenderer.render(camera, projectiles);
         thrownUtilityRenderer.render(camera, thrownUtilities);
         // M7: the alpha particle batch joins the scene, so the fog darkens smoke and dust.
@@ -614,54 +646,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         pipeline.endScene();
 
         // Pass 2: VISIBILITY (Observers + SDF Soft Shadows into half-res visibility buffer)
-        // The observer set is the player's own cone plus every device they own: a deployed drone
-        // projects its own (narrower, dimmer) cone even when nobody is piloting it, and a stuck
-        // camera's cone is an observation post. While piloting, the body's cone is replaced by
-        // the piloted device's — the point of view has genuinely moved.
-        observers.clear();
-        if (localPlayer != null) {
-            int localId = session.playerId();
-            if (!localPlayer.isSurveillanceLocked()) {
-                observers.add(ObserverState.standardPlayer(
-                        localPlayer.eyeX(), localPlayer.eyeY(), localPlayer.aimAngle, visionReach));
-            }
-            DroneEntity piloted = localPlayer.surveillance() == SurveillanceView.DRONE
-                ? surveillance.predictedDrone()
-                : null;
-            for (DroneEntity drone : drones) {
-                if (drone.ownerId != localId) {
-                    continue;
-                }
-                if (piloted != null && drone.id == piloted.id) {
-                    continue; // drawn from the local prediction below, so the cone matches the view
-                }
-                observers.add(ObserverState.gadget(
-                    drone.x, drone.y, drone.aimAngle,
-                    GadgetConfig.DRONE_VISION_RANGE,
-                    GadgetConfig.DRONE_VISION_ANGLE_DEGREES / 2f,
-                    VisionConfig.FEATHER_ANGLE_DEGREES,
-                    GadgetConfig.DRONE_VISION_BRIGHTNESS));
-            }
-            if (piloted != null) {
-                observers.add(ObserverState.gadget(
-                    piloted.x, piloted.y, piloted.aimAngle,
-                    GadgetConfig.DRONE_VISION_RANGE,
-                    GadgetConfig.DRONE_VISION_ANGLE_DEGREES / 2f,
-                    VisionConfig.FEATHER_ANGLE_DEGREES,
-                    GadgetConfig.DRONE_VISION_BRIGHTNESS));
-            }
-            for (CameraEntity camera : cameras) {
-                if (camera.ownerId != localId || !camera.stuck) {
-                    continue;
-                }
-                observers.add(ObserverState.gadget(
-                    camera.x, camera.y, camera.aimAngle,
-                    GadgetConfig.CAMERA_VISION_RANGE,
-                    GadgetConfig.CAMERA_VISION_ANGLE_DEGREES / 2f,
-                    VisionConfig.FEATHER_ANGLE_DEGREES,
-                    1f));
-            }
-        }
+        // The observer list is the shared set assembled above, projected into the shader's own
+        // record: a deployed drone projects its narrower, dimmer cone even when nobody is piloting
+        // it, a stuck camera's cone is an observation post, and while piloting the body's cone is
+        // replaced by the device's — the point of view has genuinely moved.
         pipeline.renderVisibility(camera, observers, !isShadowsOn());
 
         // Pass 3: LIGHTS (half-resolution additive player lights, SDF-shadowed and vision-gated)
@@ -690,6 +678,24 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // Pass 6: the HUD, drawn unoccluded over the composite and under the console (M4 §5).
         // The debug readout is one widget inside it now, gated by cl_debug_overlay, so there is
         // a single screen-space projection for everything the player reads.
+        // The map's frame is decided in the composition root, from the state this screen already
+        // holds and the same observer set the visibility pass just drew with. The widget is handed
+        // a finished list of markers and reaches back into nothing.
+        long nowMillis = System.currentTimeMillis();
+        MinimapModel.View minimapView = isMinimapOn()
+            ? minimapModel.view(
+                new MinimapModel.Input(
+                    localPlayer,
+                    remotePlayers,
+                    dronesToDraw,
+                    cameras,
+                    eyes,
+                    pipeline.smokeVolumes().all(),
+                    cameraViewport(),
+                    isMinimapAlliesOn()),
+                nowMillis)
+            : null;
+
         hud.render(new HudFrame(
             localPlayer,
             adsAlpha,
@@ -697,12 +703,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             session.hitMarkerAlpha(),
             session.hitMarkerHeadshot(),
             session.hitMarkerLethal(),
-            System.currentTimeMillis(),
+            nowMillis,
             delta,
             debugState.overlay(),
             debugState.overlay()
-                ? statusLines(localPlayer, visionReach, projectiles.size())
-                : List.of()));
+                ? statusLines(localPlayer, visionReach, projectiles.size(), minimapView)
+                : List.of(),
+            minimapView));
 
         // Pass 7: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
@@ -756,6 +763,35 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             // A BOOL cvar cannot reject "true"/"false"; nothing useful to tell the player.
             Gdx.app.error("SkyStrike", "ui_loadout rejected a boolean", impossible);
         }
+    }
+
+    /**
+     * {@code cl_minimap}: the arena map, on by default. A real UI feature rather than a debug one,
+     * so it is read straight from the registry and never routed through {@link DebugState} — the
+     * master debug switch must not be what decides whether a player can see their own map.
+     */
+    private boolean isMinimapOn() {
+        Cvar cvar = commandService.cvars().find("cl_minimap");
+        return cvar == null || Boolean.parseBoolean(cvar.value());
+    }
+
+    /**
+     * {@code cl_minimap_allies}: mechanics §4's "teammates visible on minimap", on by default. It
+     * exempts teammates from the fog gate only; the other toggle §4 mentions — exempting them from
+     * cone culling in the world itself — is deliberately not implemented, and this cvar does not
+     * touch it.
+     */
+    private boolean isMinimapAlliesOn() {
+        Cvar cvar = commandService.cvars().find("cl_minimap_allies");
+        return cvar == null || Boolean.parseBoolean(cvar.value());
+    }
+
+    /** The world rectangle the camera is showing, which the map draws as "what you are looking at". */
+    private Rect cameraViewport() {
+        float halfWidth = camera.viewportWidth() / 2f;
+        float halfHeight = camera.viewportHeight() / 2f;
+        return new Rect(
+            camera.x() - halfWidth, camera.y() - halfHeight, halfWidth * 2f, halfHeight * 2f);
     }
 
     /** {@code r_shadows}: soft by default; unrouted through {@link DebugState} since it ships on. */
@@ -821,9 +857,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
     }
 
-    private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
+    private List<String> statusLines(
+            Player localPlayer, float visionReach, int projectileCount, MinimapModel.View minimap) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike - M10 (Gadgets: drone, throw camera, shield, fuel tank)");
+        lines.add("SkyStrike - M11 (HUD: fog-gated minimap)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
             lines.add(String.format(
@@ -939,6 +976,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     arena.height(),
                     arena.solids().size()));
         }
+        lines.add(minimap == null
+            ? "minimap: off (cl_minimap)"
+            : String.format(
+                "minimap: %d markers (%d live, %d remembered)  allies %s  arena %.0f x %.0f u",
+                minimap.blips().size(),
+                minimap.liveCount(),
+                minimap.ghostCount(),
+                isMinimapAlliesOn() ? "shown" : "gated",
+                arena.width(),
+                arena.height()));
         lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
             + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  6 view cycle"
             + "  Esc exit/pause  Enter chat/console");
@@ -952,14 +999,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     }
 
     /**
-     * The drone list to render: the interpolated drones, with the piloted one replaced by the
-     * local prediction, so the device the camera is following never lags behind the view.
+     * The drone list to render and to mark on the map: the interpolated drones, with the piloted
+     * one replaced by the local prediction, so the device the camera is following never lags
+     * behind the view.
+     *
+     * @param piloted the predicted drone while the local player pilots one, otherwise {@code null}
      */
-    private List<DroneEntity> renderedDrones(Player localPlayer, List<DroneEntity> drones) {
-        DroneEntity piloted = localPlayer != null
-                && localPlayer.surveillance() == SurveillanceView.DRONE
-            ? surveillance.predictedDrone()
-            : null;
+    private List<DroneEntity> renderedDrones(List<DroneEntity> drones, DroneEntity piloted) {
         if (piloted == null) {
             return drones;
         }

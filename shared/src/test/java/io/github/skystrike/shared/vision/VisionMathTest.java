@@ -2,8 +2,10 @@ package io.github.skystrike.shared.vision;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -121,6 +123,104 @@ class VisionMathTest {
         observer.ads = true;
         Player targetAds = new Player(6, "TargetAds", 1, 1100f, 600f);
         assertTrue(VisionMath.canObserverSee(observer, targetAds, arena));
+    }
+
+    @Test
+    void testConeHalfAngleIsTheObserverOwn() {
+        // A body at (496, 700) seen from an eye at (400, 600) sits ~47-60° off axis: inside a
+        // player's 60° half-angle, outside a gadget device's 35°. Same eye, same reach, same
+        // target — only the cone angle differs, which is the whole point of the parameter.
+        Rect target = new Rect(496f - 15f, 700f, 30f, 50f);
+
+        assertTrue(VisionMath.isTargetLit(
+            400f, 600f, 0f, 640f, VisionConfig.CONE_HALF_ANGLE_DEGREES, target, arena, null));
+        assertFalse(VisionMath.isTargetLit(
+            400f, 600f, 0f, 640f, GadgetConfig.DRONE_VISION_ANGLE_DEGREES / 2f, target, arena, null),
+            "a device's narrower cone reveals less from the very same spot");
+
+        float wide = VisionMath.calculateVisibility(
+            400f, 600f, 0f, 640f, VisionConfig.CONE_HALF_ANGLE_DEGREES, 496f, 704f, arena, null);
+        float narrow = VisionMath.calculateVisibility(
+            400f, 600f, 0f, 640f, GadgetConfig.DRONE_VISION_ANGLE_DEGREES / 2f, 496f, 704f, arena, null);
+        assertTrue(narrow < wide, "the narrow cone is dimmer at the same point: " + narrow + " < " + wide);
+    }
+
+    @Test
+    void testThePresentationBarIsStricterThanTheEntityBar() {
+        Player observer = new Player(1, "Observer", 0, 400f, 600f);
+        observer.aimAngle = 0f;
+        Player behind = new Player(2, "Behind", 1, 200f, 600f);
+
+        assertTrue(VisionMath.canObserverSee(observer, behind, arena),
+            "the peripheral floor really is non-zero, so the authoritative query reports a body "
+                + "standing directly behind the observer as seen");
+        assertFalse(VisionMath.isTargetLit(
+                observer.eyeX(),
+                observer.eyeY(),
+                observer.aimAngle,
+                VisionConfig.REACH_HIP,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                behind.hitbox(),
+                arena,
+                null),
+            "6% of a sprite is black on screen, so nothing facing the screen may report it");
+
+        Player inFront = new Player(3, "InFront", 1, 700f, 600f);
+        assertTrue(VisionMath.isTargetLit(
+                observer.eyeX(),
+                observer.eyeY(),
+                observer.aimAngle,
+                VisionConfig.REACH_HIP,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                inFront.hitbox(),
+                arena,
+                null),
+            "inside the cone both bars agree");
+    }
+
+    @Test
+    void testTheOlderSignaturesStillMeanThePlayerCone() {
+        Player observer = new Player(1, "Observer", 0, 400f, 600f);
+        observer.aimAngle = 0f;
+
+        // The parameterised overload at the player's own half-angle must be the old function, so
+        // threading the cone angle through changed no existing answer anywhere in the codebase.
+        assertEquals(
+            VisionMath.calculateVisibility(
+                observer.eyeX(), observer.eyeY(), 0f, VisionConfig.REACH_HIP, 700f, 625f, arena, null),
+            VisionMath.calculateVisibility(
+                observer.eyeX(),
+                observer.eyeY(),
+                0f,
+                VisionConfig.REACH_HIP,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                700f,
+                625f,
+                arena,
+                null),
+            0.0001f);
+
+        Player target = new Player(2, "Target", 1, 700f, 600f);
+        assertEquals(
+            VisionMath.canObserverSeeTarget(
+                observer.eyeX(),
+                observer.eyeY(),
+                observer.aimAngle,
+                VisionConfig.REACH_HIP,
+                target.hitbox(),
+                arena,
+                null),
+            VisionMath.isTargetLit(
+                observer.eyeX(),
+                observer.eyeY(),
+                observer.aimAngle,
+                VisionConfig.REACH_HIP,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                target.hitbox(),
+                arena,
+                null),
+            "in the open cone both bars give the same answer, so the stricter one only bites at "
+                + "the periphery and behind terrain");
     }
 
     @Test

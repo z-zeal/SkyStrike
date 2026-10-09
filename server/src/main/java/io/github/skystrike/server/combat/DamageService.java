@@ -11,6 +11,7 @@ import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.ShieldState;
+import io.github.skystrike.shared.model.Team;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -96,12 +97,10 @@ public final class DamageService {
         if (attacker.id == target.id) {
             return CombatConfig.SELF_DAMAGE;
         }
-        boolean neutralInvolved = attacker.teamIndex == CombatConfig.NEUTRAL_TEAM_INDEX
-            || target.teamIndex == CombatConfig.NEUTRAL_TEAM_INDEX;
-        if (neutralInvolved) {
-            return true;
-        }
-        if (attacker.teamIndex == target.teamIndex) {
+        // One spelling of "same side", shared with the kill feed's [FF] tag and the minimap's
+        // blip colours. Neutral is outside the team system, so a Neutral attacker always reaches
+        // this branch's `true` — including against another Neutral.
+        if (Team.areAllies(attacker.teamIndex, target.teamIndex)) {
             return CombatConfig.FRIENDLY_FIRE;
         }
         return true;
@@ -289,8 +288,7 @@ public final class DamageService {
 
             boolean selfInflicted = attacker == null || attacker.id == target.id;
             boolean friendlyFire = !selfInflicted
-                && attacker.teamIndex == target.teamIndex
-                && attacker.teamIndex != CombatConfig.NEUTRAL_TEAM_INDEX;
+                && Team.areAllies(attacker.teamIndex, target.teamIndex);
             if (!selfInflicted && !friendlyFire) {
                 attacker.kills++;
             }

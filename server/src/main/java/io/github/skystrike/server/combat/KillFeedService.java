@@ -1,8 +1,8 @@
 package io.github.skystrike.server.combat;
 
-import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.gadget.GadgetRegistry;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Team;
 import io.github.skystrike.shared.utility.UtilityRegistry;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.shared.weapons.WeaponId;
@@ -75,8 +75,7 @@ public final class KillFeedService {
         }
         boolean selfInflicted = killer == null || killer.id == victim.id;
         boolean friendlyFire = !selfInflicted
-            && killer.teamIndex == victim.teamIndex
-            && killer.teamIndex != CombatConfig.NEUTRAL_TEAM_INDEX;
+            && Team.areAllies(killer.teamIndex, victim.teamIndex);
 
         KillEvent event = new KillEvent(
             selfInflicted ? victim.id : killer.id,

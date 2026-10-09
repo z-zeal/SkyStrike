@@ -127,7 +127,8 @@ public final class VisionMath {
     }
 
     /**
-     * Evaluates total visibility of a point {@code (targetX, targetY)} from an observer.
+     * Evaluates total visibility of a point {@code (targetX, targetY)} from an observer with the
+     * standard player cone ({@link VisionConfig#CONE_HALF_ANGLE_DEGREES}).
      *
      * @return a visibility value in {@code [0, 1]}. Returns 0 if occluded by terrain or out of reach.
      */
@@ -136,6 +137,41 @@ public final class VisionMath {
             float observerEyeY,
             float aimAngleDeg,
             float reach,
+            float targetX,
+            float targetY,
+            ArenaMap map,
+            List<SmokeVolume> smokeVolumes) {
+        return calculateVisibility(
+                observerEyeX,
+                observerEyeY,
+                aimAngleDeg,
+                reach,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                targetX,
+                targetY,
+                map,
+                smokeVolumes);
+    }
+
+    /**
+     * Evaluates total visibility of a point from an observer whose cone half-angle is not the
+     * player's — a gadget device projects a narrower one (mechanics §7.1: a drone's cone is
+     * 70° against a player's 120°).
+     *
+     * <p>This is the same formula as the overload above with one more parameter, not a second
+     * implementation: the player-cone version delegates here, so the CPU query, the GPU cone and
+     * every consumer of either stay one maths. Before this existed a device observer was judged
+     * with the player's wide cone, which over-reported what a drone or a stuck camera can see.
+     *
+     * @param coneHalfAngleDeg the observer's own cone half-angle, in degrees
+     * @return a visibility value in {@code [0, 1]}. Returns 0 if occluded by terrain or out of reach.
+     */
+    public static float calculateVisibility(
+            float observerEyeX,
+            float observerEyeY,
+            float aimAngleDeg,
+            float reach,
+            float coneHalfAngleDeg,
             float targetX,
             float targetY,
             ArenaMap map,
@@ -149,7 +185,7 @@ public final class VisionMath {
                 observerEyeX,
                 observerEyeY,
                 aimAngleDeg,
-                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                coneHalfAngleDeg,
                 VisionConfig.FEATHER_ANGLE_DEGREES,
                 VisionConfig.PERIPHERAL_FLOOR,
                 targetX,
@@ -175,7 +211,8 @@ public final class VisionMath {
     }
 
     /**
-     * Tests if an observer can see any key sample point of a target bounding box.
+     * Tests if an observer with the standard player cone can see any key sample point of a target
+     * bounding box.
      *
      * <p>Samples head/eye, centre, feet, and corner points on {@code targetBox} so corner-peeking
      * players are detected immediately.
@@ -185,6 +222,70 @@ public final class VisionMath {
             float observerEyeY,
             float aimAngleDeg,
             float reach,
+            Rect targetBox,
+            ArenaMap map,
+            List<SmokeVolume> smokeVolumes) {
+        return anySampleClears(
+                observerEyeX,
+                observerEyeY,
+                aimAngleDeg,
+                reach,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES,
+                VisionConfig.VISIBILITY_THRESHOLD,
+                targetBox,
+                map,
+                smokeVolumes);
+    }
+
+    /**
+     * The same five-point sample test on the <b>presentation</b> bar: the target must be lit above
+     * the dim peripheral floor, not merely above zero.
+     *
+     * <p>Why two bars exist. Outside its cone an observer keeps
+     * {@link VisionConfig#PERIPHERAL_FLOOR} — 6% — so the raw visibility of a body standing
+     * directly behind you is small but comfortably above
+     * {@link VisionConfig#VISIBILITY_THRESHOLD}, and {@link #canObserverSeeTarget} reports it as
+     * seen. For an authoritative gameplay question that is the right answer: the body really is
+     * faintly lit, and the server must not pretend otherwise. For anything facing the screen it is
+     * the wrong one, because 6% of a sprite is indistinguishable from the black the composite
+     * draws around it. M6's player lights and M7's effect culler already use this stricter bar;
+     * this is its one spelling, and the minimap's blip gate is the third consumer.
+     *
+     * @param coneHalfAngleDeg the observer's own cone half-angle, in degrees — a gadget device
+     *                         projects a narrower cone than a body, and must be judged on its own
+     */
+    public static boolean isTargetLit(
+            float observerEyeX,
+            float observerEyeY,
+            float aimAngleDeg,
+            float reach,
+            float coneHalfAngleDeg,
+            Rect targetBox,
+            ArenaMap map,
+            List<SmokeVolume> smokeVolumes) {
+        return anySampleClears(
+                observerEyeX,
+                observerEyeY,
+                aimAngleDeg,
+                reach,
+                coneHalfAngleDeg,
+                VisionConfig.LIT_VISIBILITY_THRESHOLD,
+                targetBox,
+                map,
+                smokeVolumes);
+    }
+
+    /**
+     * One implementation of the five-point sample test, parameterised by the observer's cone
+     * half-angle and by the bar a sample has to clear. Every public form above delegates here.
+     */
+    private static boolean anySampleClears(
+            float observerEyeX,
+            float observerEyeY,
+            float aimAngleDeg,
+            float reach,
+            float coneHalfAngleDeg,
+            float threshold,
             Rect targetBox,
             ArenaMap map,
             List<SmokeVolume> smokeVolumes) {
@@ -202,28 +303,38 @@ public final class VisionMath {
         float topY = targetBox.top() - 2f;
 
         // 1. Center
-        if (calculateVisibility(observerEyeX, observerEyeY, aimAngleDeg, reach, centerX, centerY, map, smokeVolumes)
-                >= VisionConfig.VISIBILITY_THRESHOLD) {
+        if (calculateVisibility(
+                        observerEyeX, observerEyeY, aimAngleDeg, reach, coneHalfAngleDeg,
+                        centerX, centerY, map, smokeVolumes)
+                >= threshold) {
             return true;
         }
         // 2. Head / Eye
-        if (calculateVisibility(observerEyeX, observerEyeY, aimAngleDeg, reach, centerX, headY, map, smokeVolumes)
-                >= VisionConfig.VISIBILITY_THRESHOLD) {
+        if (calculateVisibility(
+                        observerEyeX, observerEyeY, aimAngleDeg, reach, coneHalfAngleDeg,
+                        centerX, headY, map, smokeVolumes)
+                >= threshold) {
             return true;
         }
         // 3. Feet
-        if (calculateVisibility(observerEyeX, observerEyeY, aimAngleDeg, reach, centerX, feetY, map, smokeVolumes)
-                >= VisionConfig.VISIBILITY_THRESHOLD) {
+        if (calculateVisibility(
+                        observerEyeX, observerEyeY, aimAngleDeg, reach, coneHalfAngleDeg,
+                        centerX, feetY, map, smokeVolumes)
+                >= threshold) {
             return true;
         }
         // 4. Top-left corner
-        if (calculateVisibility(observerEyeX, observerEyeY, aimAngleDeg, reach, leftX, topY, map, smokeVolumes)
-                >= VisionConfig.VISIBILITY_THRESHOLD) {
+        if (calculateVisibility(
+                        observerEyeX, observerEyeY, aimAngleDeg, reach, coneHalfAngleDeg,
+                        leftX, topY, map, smokeVolumes)
+                >= threshold) {
             return true;
         }
         // 5. Top-right corner
-        if (calculateVisibility(observerEyeX, observerEyeY, aimAngleDeg, reach, rightX, topY, map, smokeVolumes)
-                >= VisionConfig.VISIBILITY_THRESHOLD) {
+        if (calculateVisibility(
+                        observerEyeX, observerEyeY, aimAngleDeg, reach, coneHalfAngleDeg,
+                        rightX, topY, map, smokeVolumes)
+                >= threshold) {
             return true;
         }
 

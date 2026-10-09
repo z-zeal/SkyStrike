@@ -86,6 +86,16 @@ have **no gameplay event to subscribe to**, because the throwables that raise th
 
 `core/render/StatusOverlay` is a 59-line debug text dump, not a HUD.
 
+**Historical — read with §6.** The list above describes the tree as of PR #13 and is now wrong
+about most of itself. `core/ui/hud/` exists and holds the HUD: `HudStage` (one screen-space
+projection, a shapes pass then a text pass, no widget owning a batch) with `HealthFuelBars`,
+`LoadoutBar` (per-slot ammo, utility counts and the two gadget slots), `Crosshair`,
+`KillFeedWidget` (rendered, not printed), `DamageVignette`, `SurveillanceBanner`, `LoadoutPicker`,
+`DebugPanel` (the absorbed `StatusOverlay`) and, from M11, `Minimap`. `StatusOverlay` is gone.
+Still missing from this list, and tracked in §6: the **gadget panel** with durability and cooldowns
+(the loadout bar's gadget boxes are the only durability readout today) and **floating damage
+numbers** (`PacketDamageEvent` is still delivered and still drawn by nothing).
+
 ### 3.2 Phase 7 — the dialog (`CONSOLE_CHAT_PLAN.md` build order Phase 1)
 
 Absent in full: `ConsoleDialog`, `ConsoleInputField`, `ConsoleFocus`, `ChatTargetButton`,
@@ -198,6 +208,8 @@ So the honest sequencing recommendation is:
 | Phase 6 increment 1 — shared gadget foundation and contracts | Implemented and merged in source commit `402b75b75d9864bd1dbee1a2207fbba8feddb63c`: `shared/gadget/{GadgetId,GadgetBehavior,GadgetDefinition,GadgetRegistry}`, populated `GadgetConfig` with the centralised §7 reference-unit conversion, `shared/model/{GadgetSlot,ShieldState}`, `shared/combat/ShieldArcMath`, two Q/E gadget slots inside `PlayerLoadout` with explicit respawn reset, gadget choices in `PacketLoadoutUpdate`, `GadgetSlot` appended at Kryo index 27, fuel-tank hit zone connected through `HitZoneMath.resolve(x, y, player)` into `DamageService` |
 | Phase 6 increment 2 — authoritative worn-gadget behavior and gadget input | Implemented and merged: Q/E input edges with birth-sequence retransmission and protocol 9; server `ShieldSystem`/`FuelTankSystem`; shield arc interception in the central damage path, handgun-only locking, shared fuel-tank jetpack multipliers, and tank detonation through occluded `ExplosionMath` with gadget wire-id kill attribution |
 | Phase 6 increment 3 (M10) — drone, throw camera, surveillance lock, gadget vision, rendering and HUD | Implemented (branch `arena/f6b096ea-skystrike`, PR #37): `shared/model/{DroneEntity,CameraEntity}` snapshot state; `shared/gadget/{SurveillanceView,GadgetPress,DroneMotion,CameraFlight}`; server `gadget/{DroneSystem,CameraSystem,SurveillanceService}` following the `ShieldSystem`/`FuelTankSystem` patterns; `ThrowablePhysics.stepInPlaceUntilContact` (the one integrator, bounce off) for the camera's stick-to-first-surface; the surveillance lock enforced server-side in `PlayerMotion` and the loadout tick; view cycling (key 6) and Escape exit routed through the focus stack; rounds hit devices; `EffectBroadcaster.cullFor` counts a recipient's live drone/stuck camera as extra observers via `VisionMath.canObserverSeeTarget`; client `gameplay/SurveillanceController` prediction, camera follow + 1.2× zoom, device cones in the visibility pass (dimmer for the drone, per-observer brightness in the shader), `render/GadgetRenderer` (drones, cameras, shield front/rear arc, rear fuel tank) and the surveillance HUD banner; `DroneEntity`/`CameraEntity` appended at Kryo indices 33/34, `PROTOCOL_VERSION` 11 → 12 |
+| Phase 7 HUD increment (M11) — the fog-gated minimap | Implemented (branch `arena/52f46dde-skystrike`): `shared/hud/MinimapModel` (which markers may exist, normalised y-up arena space, ghost hold/fade/expiry on the wall clock, memory emptied on respawn and pruned the moment a target is absent from the unculled snapshot); `shared/vision/{Observer,ObserverSet}` lifting the client's inline observer assembly into one shared rule so the GPU cone pass and the map's blip gate cannot disagree; `VisionMath.calculateVisibility`'s per-observer cone-half-angle overload, `VisionMath.isTargetLit` and `VisionConfig.LIT_VISIBILITY_THRESHOLD` (6.1%, just above the peripheral floor) as the presentation bar — `canObserverSeeTarget`'s 1% bar reports a body standing behind the viewer as seen, which would put a marker where the screen draws nothing; `Team.areAllies` adopted by `MinimapModel`, `DamageService` and `KillFeedService`; `core/ui/hud/{Minimap,HudTheme}` plus the debug-panel top inset; cvars `cl_minimap` and `cl_minimap_allies` (mechanics §4's "teammates visible on minimap", default on, registered ungated like `ui_loadout`); **no protocol change** — `broadcastSnapshot` was never culled, so the map is presentation over state every client already holds. Checklist: `docs/M11_HUD_ACCEPTANCE.md` |
+| Phase 7 HUD — still missing after M11 | The gadget panel (durability and cooldowns) and floating damage numbers, the other two items in §3.1's list. Neither has a model in `shared/hud` yet |
 
 Phase 5 is under way, so §3.6's "never started" now applies to Phase 6 only. What landed is the
 shared half: identity and wire encoding (2000 + ordinal, a third range in the existing `weaponId`
@@ -267,6 +279,23 @@ on that list** — the entities live in `shared/model` (snapshot payload, like `
 with their systems in `server/gadget`, and the acceptance checklist is
 `docs/M10_GADGETS_ACCEPTANCE.md`.
 
+M11 is the first HUD increment since the widgets themselves landed, and its content is a rule
+rather than a drawing. `GameServer.broadcastSnapshot` sends every player's true position to every
+client — only `sendEffectSpawns` culls per recipient — so a minimap that read the snapshot would
+have been a wallhack the game ships with, marking enemies the renderer had just sworn were
+invisible. Every marker is therefore gated by the same eyes, the same cone angles and the same
+presentation bar that decide what the visibility pass lights, and the gate is deliberately stricter
+than the sight test the effect culler uses: `VISIBILITY_THRESHOLD` (1%) is cleared by the 6%
+peripheral floor alone, so a body standing directly *behind* the viewer counts as "seen" there,
+which is the right answer for "could this recipient plausibly have seen this detonation" and the
+wrong one for "may I draw a dot on their head". Gating alone would strobe markers at the cone edge,
+so a lost sighting becomes a ghost: it holds, fades and expires on the wall clock, frozen at the
+position it was genuinely seen at, and is retired immediately when its target stops existing —
+because the snapshot is unculled, absence means dead or destroyed, not hidden. The observer
+assembly that used to live inline in `GameScreen.render` moved to `shared/vision/ObserverSet` for
+this: one rule, two consumers, and no way for the cones on screen and the markers on the map to
+drift apart.
+
 `TextSanitizer` and `RateLimiter` are no longer dead code — the relay is their only caller.
 `PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities, 5 → 6 for the throwable/loadout contract,
 6 → 7 for live utility zones and replicated throwable status, 7 → 8 for the gadget
@@ -274,7 +303,8 @@ payload, 8 → 9 for the appended Q/E input edges, 9 → 10 for the M1 command p
 for the M7 effect channel, and 11 → 12 for the M10 gadget device entities. §3.3 and §3.4
 above describe the state *before* this work; the rest of §3 still stands.
 
-Still outstanding for Phase 7: the HUD in full (§3.1), the dialog in full (§3.2), and build-order
+Still outstanding for Phase 7: the gadget panel and floating damage numbers — the last two items of
+§3.1's HUD list, now that the minimap has landed — the dialog in full (§3.2), and build-order
 Phases 4–9 (§3.5).
 
 ---
