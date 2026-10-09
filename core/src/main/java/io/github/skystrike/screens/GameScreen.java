@@ -38,6 +38,7 @@ import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.ProjectileRenderer;
 import io.github.skystrike.render.ThrownUtilityRenderer;
 import io.github.skystrike.render.TrajectoryRenderer;
+import io.github.skystrike.render.UtilityZoneRenderer;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.PlayerConfig;
@@ -59,6 +60,7 @@ import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.vision.Observer;
 import io.github.skystrike.shared.vision.ObserverSet;
+import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -112,6 +114,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final EffectAudio effectAudio;
     private final TinnitusEffect tinnitus;
     private final ThrownUtilityRenderer thrownUtilityRenderer = new ThrownUtilityRenderer();
+    private final UtilityZoneRenderer utilityZoneRenderer = new UtilityZoneRenderer();
     private final TrajectoryRenderer trajectoryRenderer = new TrajectoryRenderer();
     private final HitboxOverlay hitboxOverlay = new HitboxOverlay();
     private final ContrastTestOverlay contrastTestOverlay = new ContrastTestOverlay();
@@ -571,12 +574,15 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         List<DroneEntity> drones = interpolator.interpolateDrones();
         List<CameraEntity> cameras = interpolator.interpolateCameras();
 
-        // The snapshot zones are the sole source for the shader's smoke circles. This mirrors
-        // the server's UtilitySystem smokeVolumes list rather than inventing a client-only cloud.
+        // The snapshot zones are the sole source for the shader's smoke circles. Each cloud
+        // contributes its whole shared SmokeCloud cluster — the same list the server's
+        // UtilitySystem builds for gameplay sight queries — rather than a client-only cloud.
         pipeline.smokeVolumes().clear();
         for (UtilityZone zone : utilityZones) {
             if (zone.blocksVision()) {
-                pipeline.smokeVolumes().add(zone.smokeVolume());
+                for (SmokeVolume volume : zone.smokeVolumes()) {
+                    pipeline.smokeVolumes().add(volume);
+                }
             }
         }
 
@@ -641,6 +647,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         gadgetRenderer.render(camera, remotePlayers, localPlayer, dronesToDraw, cameras);
         projectileRenderer.render(camera, projectiles);
         thrownUtilityRenderer.render(camera, thrownUtilities);
+        // Persistent molotov fire, drawn from the same snapshot zones the damage clock uses, so
+        // the flames live exactly as long as the zone burns and cover exactly what it covers.
+        utilityZoneRenderer.render(camera, utilityZones, System.currentTimeMillis() / 1000f);
         // M7: the alpha particle batch joins the scene, so the fog darkens smoke and dust.
         pipeline.renderAlphaParticles(camera);
         pipeline.endScene();
@@ -1120,6 +1129,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         gadgetRenderer.dispose();
         projectileRenderer.dispose();
         thrownUtilityRenderer.dispose();
+        utilityZoneRenderer.dispose();
         trajectoryRenderer.dispose();
         hud.dispose();
         hitboxOverlay.dispose();

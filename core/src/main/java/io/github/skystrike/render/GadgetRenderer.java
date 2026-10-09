@@ -132,7 +132,7 @@ public final class GadgetRenderer implements Disposable {
         float size = GadgetConfig.DRONE_RADIUS * 2f;
 
         // Hull: a diamond, so a drone reads as a device rather than a body.
-        shapes.setColor(DRONE_HULL);
+        shapes.setColor(COLOR_DRONE_HULL);
         shapes.circle(drone.x, drone.y, GadgetConfig.DRONE_RADIUS, 4);
         shapes.setColor(team);
         shapes.circle(drone.x, drone.y, GadgetConfig.DRONE_RADIUS - 2f, 4);

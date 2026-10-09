@@ -10,6 +10,7 @@ import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -342,6 +343,11 @@ public final class Interpolator {
     /**
      * Persistent zones do not move, so the newest snapshot is authoritative. Copies keep callers
      * from mutating the historical network buffer while preparing shader smoke uniforms.
+     *
+     * <p>The snapshot stores zones in a hash map, so this sorts by id — the server assigns ids in
+     * creation order — to hand callers the same order the server's own smoke list is filled in.
+     * Both sides cap that list at {@code VisionConfig.MAX_SMOKE_VOLUMES}, and only identical
+     * fill order keeps the truncated set identical too.
      */
     public List<UtilityZone> latestUtilityZones() {
         List<StateBuffer.Snapshot> snaps = buffer.snapshots();
@@ -352,6 +358,7 @@ public final class Interpolator {
         for (UtilityZone zone : snaps.get(snaps.size() - 1).utilityZones().values()) {
             zones.add(zone.copy());
         }
+        zones.sort(Comparator.comparingInt(zone -> zone.id));
         return zones;
     }
 

@@ -42,7 +42,8 @@ import java.util.List;
  *
  * <p>Persistent smoke zones are exposed both as {@link UtilityZone}s (for snapshots) and as the
  * matching {@link SmokeVolume} list (for gameplay sight queries). The client builds its shader
- * circle array from the snapshot zones; the server has no second smoke geometry to drift from.
+ * circle array from the snapshot zones through the same shared {@code SmokeCloud} cluster, so the
+ * server has no second smoke geometry to drift from.
  */
 public final class UtilitySystem {
 
@@ -530,12 +531,16 @@ public final class UtilitySystem {
             if (!zone.blocksVision()) {
                 continue;
             }
-            // The visibility shader has a finite uniform array. The same cap on gameplay queries
-            // means visual and gameplay sight cannot disagree under a smoke-spam attempt.
-            if (smokeVolumes.size() >= io.github.skystrike.shared.config.VisionConfig.MAX_SMOKE_VOLUMES) {
-                break;
+            // Each cloud contributes its whole SmokeCloud cluster, so the occlusion follows the
+            // rendered cloud's shape. The visibility shader has a finite uniform array; the same
+            // cap, filled in the same creation order the client derives from the snapshot, means
+            // visual and gameplay sight cannot disagree under a smoke-spam attempt.
+            for (SmokeVolume volume : zone.smokeVolumes()) {
+                if (smokeVolumes.size() >= VisionConfig.MAX_SMOKE_VOLUMES) {
+                    return;
+                }
+                smokeVolumes.add(volume);
             }
-            smokeVolumes.add(zone.smokeVolume());
         }
     }
 

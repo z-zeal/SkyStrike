@@ -11,8 +11,11 @@ import io.github.skystrike.shared.config.UtilityConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.ThrownUtility;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.vision.SmokeCloud;
+import io.github.skystrike.shared.vision.SmokeVolume;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -83,18 +86,42 @@ class UtilitySystemTest {
     }
 
     @Test
-    @DisplayName("smoke zones feed the exact opaque volume list used by gameplay sight queries")
-    void smokeBecomesZoneAndVisionVolume() {
+    @DisplayName("smoke zones feed the exact opaque volume cluster used by gameplay sight queries")
+    void smokeBecomesZoneAndVisionVolumes() {
         Player owner = player(1, 760f, 975f);
         ThrownUtility smoke = thrown(UtilityId.SMOKE, owner, 760f, 1000f);
+        float zoneRadius = UtilityRegistry.of(UtilityId.SMOKE).radius();
 
         utilities.detonate(smoke, UtilityRegistry.of(UtilityId.SMOKE), List.of(owner), damage);
         utilities.step(1f / 60f, List.of(owner), damage);
 
         assertEquals(1, utilities.zoneCount());
-        assertEquals(1, utilities.smokeVolumes().size());
-        assertEquals(UtilityRegistry.of(UtilityId.SMOKE).radius(), utilities.smokeVolumes().get(0).radius(), 0.001f);
         assertTrue(utilities.zones().get(0).blocksVision());
+
+        // A cloud that has just detonated has barely grown: its occlusion is a small cluster
+        // around the detonation point, not a full-radius disc covering empty ground.
+        List<SmokeVolume> fresh = utilities.smokeVolumes();
+        assertFalse(fresh.isEmpty(), "a growing cloud occludes, just not at full radius yet");
+        for (SmokeVolume volume : fresh) {
+            assertTrue(volume.radius() < zoneRadius,
+                "fresh cloud occludes less than its full radius");
+            assertTrue(Math.abs(volume.x() - 760f) <= zoneRadius);
+            assertTrue(Math.abs(volume.y() - 1000f) <= zoneRadius);
+        }
+
+        // Past the growth window the cluster reaches its full layout, centred on the cloud.
+        UtilityZone zone = utilities.zones().get(0);
+        zone.remainingSeconds = 0.4f * UtilityRegistry.of(UtilityId.SMOKE).durationSeconds();
+        utilities.step(1f / 60f, List.of(owner), damage);
+        List<SmokeVolume> grown = utilities.smokeVolumes();
+        assertEquals(SmokeCloud.CIRCLES_PER_CLOUD, grown.size());
+        float widest = 0f;
+        for (SmokeVolume volume : grown) {
+            widest = Math.max(widest, volume.radius());
+            assertEquals(1f, volume.density(), 0.001f);
+        }
+        assertEquals(SmokeCloud.CORE_RADIUS * zoneRadius, widest, 0.001f,
+            "the fully grown cluster's core circle reaches its documented fraction of the zone");
     }
 
     @Test
@@ -112,6 +139,42 @@ class UtilitySystemTest {
         assertEquals(1 + UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE * 2, utilities.zoneCount());
         assertEquals(CombatConfig.MAX_HEALTH - UtilityRegistry.of(UtilityId.MOLOTOV).damage(),
             target.health, 0.001f, "overlapping spread circles extend area rather than seven-stack damage");
+    }
+
+    @Test
+    @DisplayName("molotov spread zones march along the surface at overlapping spacing")
+    void molotovSpreadZonesChainIntoOneLineOfFire() {
+        Player owner = player(1, 760f, 475f);
+        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 760f, 500f);
+        molotov.contactNormalX = 0f;
+        molotov.contactNormalY = 1f; // floor: the tangent runs horizontally
+
+        utilities.detonate(molotov, UtilityRegistry.of(UtilityId.MOLOTOV), List.of(owner), damage);
+
+        List<UtilityZone> zones = utilities.zones();
+        assertEquals(1 + UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE * 2, zones.size());
+
+        UtilityZone central = zones.get(0);
+        assertEquals(760f, central.x, 0.001f);
+        assertEquals(500f, central.y, 0.001f);
+        assertEquals(UtilityConfig.FIRE_ZONE_RADIUS, central.radius, 0.001f);
+        assertEquals(UtilityRegistry.of(UtilityId.MOLOTOV).damage(), central.damage, 0.001f);
+
+        for (int i = 1; i < zones.size(); i++) {
+            UtilityZone spread = zones.get(i);
+            int castIndex = (i - 1) % UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE + 1;
+            assertEquals(castIndex * UtilityConfig.FIRE_SPREAD_OFFSET,
+                Math.abs(spread.x - 760f), UtilityConfig.FIRE_SPREAD_JITTER + 0.001f,
+                "spread zone " + i + " sits one spacing further out along the tangent");
+            assertEquals(500f, spread.y, 0.001f, "the tangent keeps the spread on the floor");
+            assertEquals(UtilityConfig.FIRE_ZONE_RADIUS, spread.radius, 0.001f);
+            assertEquals(UtilityConfig.FIRE_SPREAD_DAMAGE, spread.damage, 0.001f);
+        }
+
+        assertTrue(UtilityConfig.FIRE_SPREAD_OFFSET < 2f * UtilityConfig.FIRE_ZONE_RADIUS,
+            "adjacent patches overlap, so the spread reads as one continuous line of fire");
+        assertTrue(UtilityConfig.FIRE_SPREAD_OFFSET > 2f,
+            "the spacing is in world units, not the plan's reference units");
     }
 
     private static Player player(int id, float x, float y) {

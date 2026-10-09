@@ -3,7 +3,9 @@ package io.github.skystrike.shared.model;
 import io.github.skystrike.shared.utility.UtilityEffect;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.vision.SmokeCloud;
 import io.github.skystrike.shared.vision.SmokeVolume;
+import java.util.List;
 
 /**
  * A persistent result of a thrown utility: smoke, toxic smoke, or one patch of molotov fire.
@@ -89,11 +91,14 @@ public final class UtilityZone {
     }
 
     /**
-     * The shader/query representation of an opaque cloud. Fire deliberately does not become a
-     * smoke circle, even though it is a persistent zone.
+     * The shader/query representation of an opaque cloud: the deterministic circle cluster from
+     * {@link SmokeCloud} that follows the rendered cloud's shape, grown by how much of the
+     * zone's life is left. Fire deliberately does not become smoke circles, even though it is a
+     * persistent zone.
      */
-    public SmokeVolume smokeVolume() {
-        return new SmokeVolume(x, y, radius, 1f);
+    public List<SmokeVolume> smokeVolumes() {
+        float duration = UtilityRegistry.of(utility()).durationSeconds();
+        return SmokeCloud.volumes(x, y, radius, SmokeCloud.growth(remainingSeconds, duration));
     }
 
     @Override

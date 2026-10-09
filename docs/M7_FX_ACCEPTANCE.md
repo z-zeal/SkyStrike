@@ -59,11 +59,15 @@ alongside all of this.
 
 - [ ] **Frag / impact:** the phased schedule at 0.00/0.03/0.05/0.08/0.10 s, with the white-yellow
   flash and a light that is never culled while ordinary effect lights are.
-- [ ] **Smoke grenade:** a billowing alpha cloud that grows into the vision-blocking circle — the
-  visual and the shader circle are the same radius (they share `SmokeVolume`). Confirm the cloud
-  still blocks sight exactly as before (gameplay smoke is unchanged).
+- [ ] **Smoke grenade:** a billowing alpha cloud that grows into its vision-blocking shape. The
+  occlusion is no longer one full-radius disc at the detonation point: the shared `SmokeCloud`
+  cluster (three sagging circles, swollen by a growth factor over the cloud's first 40% of life)
+  is derived identically by the server's sight queries and the visibility shader, so what blocks
+  sight is the cloud you see, growing as it billows. See `docs/M12_UTILITY_VISIBILITY_ACCEPTANCE.md`.
 - [ ] **Molotov:** glass sparks, a fire splash along the surface tangent (correct on floors,
-  ramps and walls), and one flickering attached light per fire zone that expires with the zone.
+  ramps and walls), one flickering attached light per fire zone that expires with the zone, and —
+  from M12 — persistent flame rendering (`core/render/UtilityZoneRenderer`) that lives exactly
+  as long as the zone burns and covers exactly the circle the damage-over-time resolves.
 - [ ] **Flashbang / stun:** a white burst and residual wisps at the detonation, plus the full-screen
   whiteout scaled by the server's distance band and line of sight (`StunMath`). The whiteout
   recovers exponentially — overwhelming at first, clearing fast — and the HUD, chat and console
