@@ -10,10 +10,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * The one door through which effect requests enter the FX layer (build plan M7 §8.1, effects
  * plan §12.1 {@code events/FxEventQueue}).
  *
- * <p>Producers enqueue; the particle system drains on the render thread once per frame. The queue
- * is the only entry point, which is what makes "never spawn from the network thread" enforceable:
- * gameplay code never sees a particle, a light or a GL object. Spawns are copied on the way in, so
- * a pooled or reused packet object can never alias live effect state.
+ * <p>Producers enqueue; {@code FxPipeline} drains on the render thread once per frame and hands
+ * each event to the particles and to the audio layer, so this one queue is what makes "one
+ * gameplay event, both presentation layers" true and "never spawn from the network thread"
+ * enforceable: gameplay code never sees a particle, a light or a GL object. Spawns are copied on
+ * the way in, so a pooled or reused packet object can never alias live effect state.
  *
  * <p>The queue is concurrent so a producer on any thread is safe, but in this client the producer
  * is the session's packet listener, which already runs on the render thread.

@@ -77,7 +77,7 @@ Enforce the two that matter with a build check: `server` must fail to compile if
 
 ## 4. `shared/` — THE CONTRACT
 
-Plain Java. Every type here is used by both the server and the client. If only one side uses it, it does not belong here.
+Plain Java, no game framework. Types used by both the server and the client live here; a type only the client needs may still live here when its value is that it can be unit-tested — `hud/` and `audio/` are pure presentation maths and data, and the client module has no test source set.
 
 ```
 shared/src/main/java/io/github/skystrike/shared/
@@ -166,6 +166,14 @@ shared/src/main/java/io/github/skystrike/shared/
 │   ├── TextSanitizer            Strip control chars, markup, bidi overrides
 │   ├── RateLimiter              Token bucket
 │   └── TextLimits
+│
+├── audio/                       Phase 9 presentation maths and catalogue data (no libGDX)
+│   ├── AudioBus                 Master/music/effects mixing — one formula, applied once
+│   ├── SoundSpec                One playable sound: asset, bus and playback policy
+│   ├── SoundPriority            What may take a voice when the pool is full
+│   ├── EffectSoundTable         Effect type → sound; exhaustive by construction
+│   ├── SpatialAudio             Distance attenuation, stereo panning, occlusion damp
+│   └── TinnitusMath             The stun ring's attack and its tail
 │
 └── math/
     ├── Geometry                 Segment/AABB intersection — the only copy
@@ -353,9 +361,11 @@ core/src/main/java/io/github/skystrike/
 │   └── TouchControls            Virtual stick and buttons for mobile
 │
 ├── audio/
-│   ├── AudioSystem              Buses, volume, pooling
-│   ├── SoundCatalog             Event → sound mapping
-│   ├── SpatialAudio             Distance attenuation and panning
+│   ├── AudioSystem              Buses, volume, voice pooling, spatial playback
+│   ├── SoundCatalog             Event → sound mapping; weapon and world halves
+│   ├── EffectAudio              Audio consumer of the effect-event channel
+│   ├── GunAudio                 Snapshot-driven weapon-state bridge (M7)
+│   ├── OcclusionTest            Injected line-of-sight query for muffling
 │   └── TinnitusEffect           Stun ringing
 │
 ├── gameplay/
@@ -424,11 +434,12 @@ assets/
 │   ├── decal/
 │   └── shapes/
 ├── fonts/                       Source TTFs, generated at runtime per DPI
-├── audio/
-│   ├── weapons/
-│   ├── explosions/
-│   ├── ui/
-│   └── ambience/
+├── sfx/                         Sound effects, all 22,050 Hz mono 16-bit
+│   ├── guns/                    CC0 Free Firearm Sound Library takes (ASSET_ATTRIBUTION)
+│   ├── world/                   Phase 9 effect sounds, synthesised in-repo
+│   ├── status/                  The stun ring loop
+│   ├── guns-sfx.json            Gun manifest: paths, variants, per-weapon events
+│   └── world-sfx.json           World and status manifest
 ├── data/
 │   ├── arena.sdf                Baked occlusion field
 │   └── emitters/                Particle preset definitions, if externalised

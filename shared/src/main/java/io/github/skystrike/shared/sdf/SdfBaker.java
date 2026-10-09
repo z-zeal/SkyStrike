@@ -3,7 +3,6 @@ package io.github.skystrike.shared.sdf;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.Rect;
-import java.util.Arrays;
 
 /**
  * Fast offline/runtime Signed Distance Field baker for static arena geometry.

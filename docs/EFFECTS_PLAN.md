@@ -152,7 +152,7 @@ One orchestrator owns pass order, explicitly. Pass ordering bugs — clearing th
 
 **Per frame:**
 
-1. **Update** — advance the effect clock, drain the event queue from the network thread, retire dead emitters, lights and decals, simulate CPU-tier particles against the SDF.
+1. **Update** — advance the effect clock, drain the event queue that the network thread only ever enqueues into, retire dead emitters, lights and decals, simulate CPU-tier particles against the SDF. (Phase 9 adds one thing to that drain and nothing else: the same drained events are handed to the audio layer, after the visuals — one gameplay event, both presentation layers reacting, one queue. See `docs/M9_AUDIO_ACCEPTANCE.md`.)
 2. **Scene pass** → scene target. Terrain, decal composite, entities, weapons, and alpha-blended particles (smoke, dust, debris) which *should* be darkened by fog.
 3. **Visibility pass** → half-res single channel. Player vision cone plus any active drone/camera cone, each SDF-occluded, combined with **max blending** so overlapping cones union rather than double-brighten.
 4. **Light pass** → half-res RGB, additive. One quad per emissive light, each SDF-shadowed.

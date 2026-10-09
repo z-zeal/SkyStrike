@@ -104,7 +104,7 @@ public final class CpuParticleSystem implements Disposable {
         mesh.setIndices(indices);
         // Dead casings are written as zero-size quads, so the uninitialised VBO never shows.
         for (int slot = 0; slot < newCapacity; slot++) {
-            writeCasing(slot, 0f, 0f, 0f, CLEAR);
+            writeCasing(slot, 0f, 0f, 0f, Color.CLEAR);
         }
         mesh.setVertices(staging);
     }
@@ -165,14 +165,14 @@ public final class CpuParticleSystem implements Disposable {
         for (int slot = 0; slot < capacity; slot++) {
             Casing casing = pool[slot];
             if (!casing.alive) {
-                writeCasing(slot, 0f, 0f, 0f, CLEAR);
+                writeCasing(slot, 0f, 0f, 0f, Color.CLEAR);
                 continue;
             }
             live++;
             casing.age += dt;
             if (casing.age >= casing.lifetime) {
                 casing.alive = false;
-                writeCasing(slot, 0f, 0f, 0f, CLEAR);
+                writeCasing(slot, 0f, 0f, 0f, Color.CLEAR);
                 continue;
             }
             if (!casing.parked) {

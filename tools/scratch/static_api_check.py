@@ -100,13 +100,19 @@ def split_args(arg_text: str) -> int:
         return 0
     depth = 0
     count = 1
+    previous = ""
     for c in arg_text:
         if c in "([{<":
             depth += 1
         elif c in ")]}>":
-            depth -= 1
+            # A lambda arrow's '>' closes nothing: counting it drove the depth negative and
+            # swallowed every comma after a lambda, which is how a nine-argument call used to be
+            # reported as a seven-argument one.
+            if not (c == ">" and previous == "-"):
+                depth -= 1
         elif c == "," and depth == 0:
             count += 1
+        previous = c
     return count
 
 

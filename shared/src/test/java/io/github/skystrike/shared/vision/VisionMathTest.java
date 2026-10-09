@@ -4,9 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
-import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

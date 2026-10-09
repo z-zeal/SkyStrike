@@ -21,6 +21,7 @@ import io.github.skystrike.fx.sdf.SdfDebugView;
 import io.github.skystrike.fx.sdf.SdfTexture;
 import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.shared.config.VisionConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
@@ -55,7 +56,15 @@ public final class FxPipeline implements Disposable {
     private final GpuParticleSystem particles;
     /** M7: the flashbang whiteout post pass. */
     private final BlindnessPass blindnessPass;
+    /**
+     * Phase 9: the one effect-event queue. Producers enqueue received batches here; the frame
+     * update drains it once and hands each event to both consumers — particles and audio.
+     */
+    private final FxEventQueue effectQueue = new FxEventQueue();
     private final Map<Integer, Integer> remotePlayerLightHandles = new HashMap<>();
+
+    /** Optional audio consumer; null until a screen installs one, and null again on disposal. */
+    private EffectEventListener effectListener;
 
     private int localPlayerLightHandle = LightPool.INVALID_HANDLE;
     private int screenWidth;
@@ -211,22 +220,50 @@ public final class FxPipeline implements Disposable {
     // --- M7: the FX event channel and particles -------------------------------------------------
 
     /**
-     * Enqueues a received effect batch. The particle system drains the queue on the render
-     * thread in {@link #updateFx(float)}; nothing is ever spawned from the network thread.
+     * Enqueues a received effect batch. {@link #updateFx(float)} drains the queue on the render
+     * thread and hands each event to the visuals and to audio; nothing is ever spawned from the
+     * network thread.
      */
     public void enqueueEffects(PacketEffectSpawn packet) {
         if (packet == null || packet.effects == null || packet.effects.isEmpty()) {
             return;
         }
-        particles.enqueueAll(packet.effects);
+        effectQueue.enqueueAll(packet.effects);
     }
 
     /**
-     * One frame of FX update: advances the effect clock, drains the event queue, fires due
+     * Installs the audio consumer of the same effect events.
+     *
+     * <p>This is the whole of the Phase 9 wiring: one gameplay event, one queue, one drain, and
+     * both presentation layers react to the same object in the same frame. Installing a second
+     * listener replaces the first — there is one audio layer, not a stack of them.
+     */
+    public void setEffectListener(EffectEventListener listener) {
+        this.effectListener = listener;
+    }
+
+    /**
+     * One frame of FX update: drains the one event queue, schedules the visuals for each event,
+     * lets the audio layer react to the same events, then advances the effect clock, fires due
      * phases, animates the attached lights and steps the CPU tier. Call before the scene pass.
      */
     public void updateFx(float deltaSeconds) {
+        effectQueue.drain(this::dispatchEffect);
         particles.update(deltaSeconds);
+    }
+
+    /**
+     * The one place where both layers meet. Visuals first — the particle phases are scheduled
+     * before the sound is asked for, so a listener can never delay or reorder the frame's effects.
+     */
+    private void dispatchEffect(EffectSpawn spawn) {
+        if (spawn == null || spawn.type == null) {
+            return;
+        }
+        particles.schedule(spawn);
+        if (effectListener != null) {
+            effectListener.onEffect(spawn);
+        }
     }
 
     /**
@@ -346,6 +383,8 @@ public final class FxPipeline implements Disposable {
             return;
         }
         disposed = true;
+        effectQueue.clear();
+        effectListener = null;
         clearPlayerLights();
         particles.dispose();
         blindnessPass.dispose();

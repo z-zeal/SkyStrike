@@ -71,8 +71,11 @@ class BulletSystemTest {
     @Test
     @DisplayName("firing into a wall you are touching produces no round at all")
     void muzzleInsideGeometryIsAbsorbed() {
-        // Standing on the centre room floor, right up against its west wall (x 1120..1144).
-        Player player = shooter(1100f, 300f, 0f);
+        // Standing on the centre room floor, right up against its east wall (x 1856..1880, the
+        // mirror of the west wall at 1120..1144). The column west of the floor is not open air
+        // either — the doorway landings sit above it (x 1000..1120, y 342..360 mirrored) — so the
+        // clear shot has to be the one away from the wall the muzzle is buried in.
+        Player player = shooter(1850f, 300f, 0f);
 
         assertNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f),
             "the muzzle is inside the wall, so the round never exists");

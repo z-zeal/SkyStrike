@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "source": "Procedurally synthesised in-repo by tools/scratch/synth_sfx.py",
+  "license": "CC0 1.0 Universal (public domain dedication) - generated, no third-party audio",
+  "format": "wav",
+  "sampleRate": 22050,
+  "channels": 1,
+  "bitDepth": 16,
+  "root": "sfx/world",
+  "note": "Placeholder-quality but real assets: every catalogue path resolves and plays. Any single file can be replaced by a recording without touching code.",
+  "sounds": {
+    "explosion-frag": {
+      "path": "sfx/world/explosion-frag.wav",
+      "durationSeconds": 1.35
+    },
+    "explosion-impact": {
+      "path": "sfx/world/explosion-impact.wav",
+      "durationSeconds": 0.85
+    },
+    "claymore-blast": {
+      "path": "sfx/world/claymore-blast.wav",
+      "durationSeconds": 0.9
+    },
+    "smoke-burst": {
+      "path": "sfx/world/smoke-burst.wav",
+      "durationSeconds": 1.1
+    },
+    "poison-burst": {
+      "path": "sfx/world/poison-burst.wav",
+      "durationSeconds": 1.1
+    },
+    "molotov-splash": {
+      "path": "sfx/world/molotov-splash.wav",
+      "durationSeconds": 0.75
+    },
+    "fire-ignite": {
+      "path": "sfx/world/fire-ignite.wav",
+      "durationSeconds": 0.6
+    },
+    "flash-detonation": {
+      "path": "sfx/world/flash-detonation.wav",
+      "durationSeconds": 0.6
+    },
+    "impact-concrete": {
+      "path": "sfx/world/impact-concrete.wav",
+      "durationSeconds": 0.25
+    },
+    "impact-metal": {
+      "path": "sfx/world/impact-metal.wav",
+      "durationSeconds": 0.3
+    },
+    "impact-wood": {
+      "path": "sfx/world/impact-wood.wav",
+      "durationSeconds": 0.25
+    },
+    "shell-eject": {
+      "path": "sfx/world/shell-eject.wav",
+      "durationSeconds": 0.3
+    }
+  },
+  "loops": {
+    "tinnitus-ring": {
+      "path": "sfx/status/tinnitus-ring.wav",
+      "durationSeconds": 2.0,
+      "seamless": true
+    }
+  }
+}

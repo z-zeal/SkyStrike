@@ -112,7 +112,12 @@ def check_delimiters(path: pathlib.Path, code: str) -> None:
         add(path, f"unclosed '{opener}' opened at line {opened_line}")
 
 
-JAVA_LANG_OK = re.compile(r"^(java|javax|com\.badlogic|com\.esotericsoftware|org\.)")
+# android.* is the launcher's own platform SDK: the one module allowed to import it is the
+# one CI does not compile, so a stray import there is a real risk and stays checked —
+# only the root itself is whitelisted.
+JAVA_LANG_OK = re.compile(
+    r"^(java|javax|android|com\.badlogic|com\.esotericsoftware|org\.)"
+)
 
 for f in FILES:
     raw = f.read_text(encoding="utf-8")
@@ -150,8 +155,13 @@ for f in FILES:
             continue
         body = code.split(";", 1)[-1]
         body_wo_imports = re.sub(r"^import[^;]+;", "", body, flags=re.M)
-        if not re.search(rf"\b{re.escape(simple)}\b", body_wo_imports):
-            add(f, f"unused import: {fqn}")
+        if re.search(rf"\b{re.escape(simple)}\b", body_wo_imports):
+            continue
+        # Comments are stripped from `code`, but a javadoc {@link} still needs its import for the
+        # documentation to resolve. Count that as a use; prose mentions do not.
+        if re.search(rf"\{{@(?:link|linkplain|see)\s+(?:[\w.]*\.)?{re.escape(simple)}\b", raw):
+            continue
+        add(f, f"unused import: {fqn}")
 
     # Module boundaries, mirroring the root build.gradle checkModuleDependencies task.
     rel = f.relative_to(ROOT).as_posix()

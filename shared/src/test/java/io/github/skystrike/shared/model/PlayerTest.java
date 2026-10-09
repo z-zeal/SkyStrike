@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.utility.UtilityId;
 import org.junit.jupiter.api.DisplayName;
