@@ -12,10 +12,10 @@ molotov's surface spread landed all seven zones inside the central one. It also 
 player light from a dev-console opt-in to a shipped default (see `M6_LIGHTING_ACCEPTANCE.md`).
 
 The layer under test: the shared `SmokeCloud` cluster (`shared/vision/SmokeCloud`, pinned by
-`SmokeCloudTest`), `UtilityZone.smokeVolumes()`, the server's `UtilitySystem` smoke list, the
-client's shader-circle assembly in `GameScreen`, `core/render/UtilityZoneRenderer`, the
-`FIRE_SPREAD_OFFSET` conversion in `UtilityConfig`, and the `r_player_light*` cvars in
-`ClientCommandModule` read live by `GameScreen`.
+`SmokeCloudTest`), `UtilityZone.smokeVolumes()`, the server's `UtilitySystem` smoke list and
+`MapQueries.lineBlocked` checks between tangent fire patches, the client's shader-circle assembly
+in `GameScreen`, `core/render/UtilityZoneRenderer`, the `FIRE_SPREAD_OFFSET` conversion in
+`UtilityConfig`, and the `r_player_light*` cvars in `ClientCommandModule` read live by `GameScreen`.
 
 Setup: host a match, join with two clients. Client B throws; client A observes.
 
@@ -53,6 +53,9 @@ Setup: host a match, join with two clients. Client B throws; client A observes.
 - [ ] **Surfaces:** the spread follows the tangent on a ramp and on a vertical wall (throw at a
   wall; the line runs vertically). Flames rise in world-up regardless of the surface, matching the
   ignition burst.
+- [ ] **Terrain stop:** aim one side of the tangent at a wall or solid platform. The last clear
+  patch remains, no patch appears beyond the first blocked segment, and the unobstructed side still
+  spreads normally.
 - [ ] **Occlusion:** fire around a corner does not show through the wall (the renderer draws in
   the scene pass, so the fog composite gates it); the attached flickering light per zone still
   expires with the zone.
@@ -82,7 +85,5 @@ Setup: host a match, join with two clients. Client B throws; client A observes.
   fill), so the CPU/GPU contract holds; only the coverage shrinks under smoke spam.
 - The growth window is 40% of the zone's life, tuned by inspection against the particle presets'
   spread (drag saturates in about a second, turbulence is a bounded offset) — not yet playtested.
-- Spread zones are still cast along the tangent without testing terrain between patches
-  (pre-existing; the tangent logic is unchanged, as scoped).
 - The minimap still draws no zones (the M11 known limitation stands): the world-space fire and the
   smoke occlusion are this increment; a map picture of them is not.

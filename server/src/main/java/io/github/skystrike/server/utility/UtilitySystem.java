@@ -429,12 +429,19 @@ public final class UtilitySystem {
         float tangentX = -normalY;
         float tangentY = normalX;
         for (int side : new int[] {-1, 1}) {
+            float previousX = thrown.x;
+            float previousY = thrown.y;
             for (int index = 1; index <= UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE; index++) {
                 float distance = index * UtilityConfig.FIRE_SPREAD_OFFSET
                     + deterministicJitter(thrown.id, side * index);
                 float zoneX = thrown.x + tangentX * side * distance;
                 float zoneY = thrown.y + tangentY * side * distance;
-                if (addZone(new UtilityZone(
+                // A surface line cannot jump through a wall or solid platform. Stop this side at
+                // its last clear patch rather than placing fire on the far side of the obstruction.
+                if (MapQueries.lineBlocked(arena, previousX, previousY, zoneX, zoneY)) {
+                    break;
+                }
+                if (!addZone(new UtilityZone(
                     nextZoneId++,
                     thrown.ownerId,
                     thrown.teamIndex,
@@ -444,8 +451,11 @@ public final class UtilitySystem {
                     UtilityConfig.FIRE_ZONE_RADIUS,
                     UtilityConfig.FIRE_SPREAD_DAMAGE,
                     definition.durationSeconds()))) {
-                    emit(EffectType.FIRE_ZONE, zoneX, zoneY, FIRE_ZONE_ANGLE_DEGREES, 1f);
+                    break;
                 }
+                emit(EffectType.FIRE_ZONE, zoneX, zoneY, FIRE_ZONE_ANGLE_DEGREES, 1f);
+                previousX = zoneX;
+                previousY = zoneY;
             }
         }
     }

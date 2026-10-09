@@ -8,6 +8,7 @@ import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.KillFeedService;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.UtilityConfig;
+import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.ThrownUtility;
@@ -127,9 +128,11 @@ class UtilitySystemTest {
     @Test
     @DisplayName("molotov spread makes seven surface-tangent zones but damages a player once per DOT clock")
     void molotovZonesDoNotStackOnOverlap() {
-        Player owner = player(1, 760f, 475f);
-        Player target = player(2, 760f, 475f);
-        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 760f, 500f);
+        float groundY = WorldConfig.GROUND_HEIGHT;
+        float fireY = groundY + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
+        Player owner = player(1, 1500f, groundY);
+        Player target = player(2, 1500f, groundY);
+        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 1500f, fireY);
         molotov.contactNormalX = 0f;
         molotov.contactNormalY = 1f; // floor: spread left/right
 
@@ -144,8 +147,10 @@ class UtilitySystemTest {
     @Test
     @DisplayName("molotov spread zones march along the surface at overlapping spacing")
     void molotovSpreadZonesChainIntoOneLineOfFire() {
-        Player owner = player(1, 760f, 475f);
-        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 760f, 500f);
+        float groundY = WorldConfig.GROUND_HEIGHT;
+        float fireY = groundY + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
+        Player owner = player(1, 1500f, groundY);
+        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 1500f, fireY);
         molotov.contactNormalX = 0f;
         molotov.contactNormalY = 1f; // floor: the tangent runs horizontally
 
@@ -155,8 +160,8 @@ class UtilitySystemTest {
         assertEquals(1 + UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE * 2, zones.size());
 
         UtilityZone central = zones.get(0);
-        assertEquals(760f, central.x, 0.001f);
-        assertEquals(500f, central.y, 0.001f);
+        assertEquals(1500f, central.x, 0.001f);
+        assertEquals(fireY, central.y, 0.001f);
         assertEquals(UtilityConfig.FIRE_ZONE_RADIUS, central.radius, 0.001f);
         assertEquals(UtilityRegistry.of(UtilityId.MOLOTOV).damage(), central.damage, 0.001f);
 
@@ -164,9 +169,9 @@ class UtilitySystemTest {
             UtilityZone spread = zones.get(i);
             int castIndex = (i - 1) % UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE + 1;
             assertEquals(castIndex * UtilityConfig.FIRE_SPREAD_OFFSET,
-                Math.abs(spread.x - 760f), UtilityConfig.FIRE_SPREAD_JITTER + 0.001f,
+                Math.abs(spread.x - 1500f), UtilityConfig.FIRE_SPREAD_JITTER + 0.001f,
                 "spread zone " + i + " sits one spacing further out along the tangent");
-            assertEquals(500f, spread.y, 0.001f, "the tangent keeps the spread on the floor");
+            assertEquals(fireY, spread.y, 0.001f, "the tangent keeps the spread on the floor");
             assertEquals(UtilityConfig.FIRE_ZONE_RADIUS, spread.radius, 0.001f);
             assertEquals(UtilityConfig.FIRE_SPREAD_DAMAGE, spread.damage, 0.001f);
         }
@@ -175,6 +180,27 @@ class UtilitySystemTest {
             "adjacent patches overlap, so the spread reads as one continuous line of fire");
         assertTrue(UtilityConfig.FIRE_SPREAD_OFFSET > 2f,
             "the spacing is in world units, not the plan's reference units");
+    }
+
+    @Test
+    @DisplayName("molotov tangent spread stops at terrain while the opposite side remains clear")
+    void molotovSpreadStopsAtTerrainAlongTangent() {
+        Player owner = player(1, 1090f, 375f);
+        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 1090f, 400f);
+        molotov.contactNormalX = 0f;
+        molotov.contactNormalY = 1f; // floor: the tangent runs horizontally
+
+        utilities.detonate(molotov, UtilityRegistry.of(UtilityId.MOLOTOV), List.of(owner), damage);
+
+        List<UtilityZone> zones = utilities.zones();
+        assertEquals(1 + 1 + UtilityConfig.FIRE_SPREAD_ZONES_PER_SIDE, zones.size(),
+            "the eastward spread stops at the inner pillar, while the westward spread stays clear");
+        assertTrue(zones.get(1).x > molotov.x, "the clear patch before the pillar is retained");
+        assertEquals(UtilityConfig.FIRE_SPREAD_OFFSET, zones.get(1).x - molotov.x,
+            UtilityConfig.FIRE_SPREAD_JITTER + 0.001f);
+        for (UtilityZone zone : zones) {
+            assertTrue(zone.x < 1184f, "no fire patch is placed across or inside the inner pillar");
+        }
     }
 
     private static Player player(int id, float x, float y) {
