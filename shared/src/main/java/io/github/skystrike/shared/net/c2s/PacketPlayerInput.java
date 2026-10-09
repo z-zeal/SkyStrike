@@ -19,6 +19,11 @@ import io.github.skystrike.shared.net.Packet;
  * It follows the same birth-sequence retransmission contract, but is consumed even when the
  * player is dead or stunned so an old gadget toggle can never be banked for a later life or for
  * the end of a stun.
+ *
+ * <p>{@code viewAction} carries the view-cycle ({@link #VIEW_CYCLE}) and exit-surveillance
+ * ({@link #VIEW_EXIT}) edges of mechanics §9. It follows the same birth-sequence contract, and
+ * the server consumes it under every lock — Escape must always be able to leave a surveillance
+ * view — so a piloting player can never be trapped by a dropped packet.
  */
 public final class PacketPlayerInput implements Packet {
 
@@ -31,6 +36,15 @@ public final class PacketPlayerInput implements Packet {
     /** The Q and E edge values carried by {@link #gadgetPress}. */
     public static final int GADGET_Q_PRESS = 1;
     public static final int GADGET_E_PRESS = 2;
+
+    /** Sentinel for "no view action on this sample". */
+    public static final int NO_VIEW_ACTION = 0;
+
+    /** The view-cycle edge value carried by {@link #viewAction} (key {@code 6}, mechanics §9). */
+    public static final int VIEW_CYCLE = 1;
+
+    /** The exit-surveillance edge value carried by {@link #viewAction} (Escape, mechanics §9). */
+    public static final int VIEW_EXIT = 2;
 
     public long sequence;
     public float moveX;
@@ -61,6 +75,17 @@ public final class PacketPlayerInput implements Packet {
 
     /** Birth sequence of {@link #gadgetPress}; {@code -1} when no edge rides this sample. */
     public long gadgetPressSeq = -1L;
+
+    /**
+     * View action edge on this sample: {@link #VIEW_CYCLE} or {@link #VIEW_EXIT}, or
+     * {@link #NO_VIEW_ACTION}. Appended after the gadget fields so the input wire shape remains
+     * prefix-compatible; consumed by the server even while the player is piloting, because the
+     * view keys are the one input family that stays live under the surveillance lock.
+     */
+    public int viewAction = NO_VIEW_ACTION;
+
+    /** Birth sequence of {@link #viewAction}; {@code -1} when no edge rides this sample. */
+    public long viewActionSeq = -1L;
 
     public PacketPlayerInput() {
     }
@@ -128,6 +153,7 @@ public final class PacketPlayerInput implements Packet {
             + ", fire=" + fire
             + ", aim=" + aimAngle
             + ", slotPress=" + slotPress
-            + ", gadgetPress=" + gadgetPress + "]";
+            + ", gadgetPress=" + gadgetPress
+            + ", viewAction=" + viewAction + "]";
     }
 }

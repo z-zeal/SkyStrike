@@ -15,6 +15,9 @@ import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.gadget.GadgetId;
+import io.github.skystrike.shared.gadget.SurveillanceView;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
@@ -90,6 +93,8 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(GadgetSlot.class));
         assertTrue(NetworkRegistration.isSupportType(EffectType.class));
         assertTrue(NetworkRegistration.isSupportType(EffectSpawn.class));
+        assertTrue(NetworkRegistration.isSupportType(DroneEntity.class));
+        assertTrue(NetworkRegistration.isSupportType(CameraEntity.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
         assertFalse(NetworkRegistration.isSupportType(PacketLoadoutUpdate.class));
         assertFalse(NetworkRegistration.isSupportType(PacketEffectSpawn.class));
@@ -169,15 +174,17 @@ class NetworkRegistrationTest {
     }
 
     @Test
-    @DisplayName("the M7 effect-channel types are appended last; the list and protocol are frozen")
+    @DisplayName("the M7 effect-channel types are appended, and the M10 gadget entities follow them")
     void buildPlanM7EffectTypesAreAppended() {
         // Registration order is the wire format: these indices can never move again.
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(EffectType.class, types.get(30));
         assertEquals(EffectSpawn.class, types.get(31));
         assertEquals(PacketEffectSpawn.class, types.get(32));
-        assertEquals(33, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(11, NetConfig.PROTOCOL_VERSION);
+        assertEquals(DroneEntity.class, types.get(33));
+        assertEquals(CameraEntity.class, types.get(34));
+        assertEquals(35, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(12, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -276,6 +283,8 @@ class NetworkRegistrationTest {
         assertEquals(-1L, input.slotPressSeq);
         assertEquals(PacketPlayerInput.NO_GADGET_PRESS, input.gadgetPress);
         assertEquals(-1L, input.gadgetPressSeq);
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, input.viewAction);
+        assertEquals(-1L, input.viewActionSeq);
         assertEquals(1.0f, input.moveX);
         assertTrue(input.jump);
         assertFalse(input.crouch);
@@ -299,6 +308,15 @@ class NetworkRegistrationTest {
         PacketPlayerInput decodedGadget = roundTrip(withGadget);
         assertEquals(PacketPlayerInput.GADGET_Q_PRESS, decodedGadget.gadgetPress);
         assertEquals(12L, decodedGadget.gadgetPressSeq);
+
+        PacketPlayerInput withViewAction = new PacketPlayerInput(13L, 0f, false, false, false, false, false, 0f);
+        withViewAction.viewAction = PacketPlayerInput.VIEW_CYCLE;
+        withViewAction.viewActionSeq = 13L;
+        PacketPlayerInput decodedViewAction = roundTrip(withViewAction);
+        assertEquals(PacketPlayerInput.VIEW_CYCLE, decodedViewAction.viewAction);
+        assertEquals(13L, decodedViewAction.viewActionSeq);
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, input.viewAction,
+            "the plain constructor leaves no view edge riding");
 
         PacketLoadoutUpdate loadout = roundTrip(new PacketLoadoutUpdate(
             WeaponId.CATHEDRAL.ordinal(),
@@ -375,6 +393,7 @@ class NetworkRegistrationTest {
         p.loadout.gadgetQ.durability = 85.5f;
         p.loadout.gadgetQ.cooldownRemaining = 0.75f;
         p.loadout.gadgetE.broken = true;
+        p.surveillanceView = SurveillanceView.DRONE.ordinal();
 
         Projectile round = new Projectile(9, 1, 0, WeaponId.CATHEDRAL.ordinal(), 300f, 400f, 1500f, 20f);
         round.age = 0.25f;
@@ -395,8 +414,20 @@ class NetworkRegistrationTest {
         UtilityZone zone = new UtilityZone(
             3, 1, 0, UtilityId.POISON_SMOKE.ordinal(), 350f, 420f, 220f, 12f, 6.5f);
 
+        DroneEntity drone = new DroneEntity(21, 1, 0, 500f, 950f, 30f, 22f);
+        drone.prevX = 495f;
+        drone.prevY = 955f;
+        drone.vx = 60f;
+        drone.vy = -15f;
+
+        CameraEntity camera = new CameraEntity(22, 1, 0, 800f, 300f, 0f, 0f, 90f, 12f);
+        camera.stuck = true;
+        camera.contactNormalX = 0f;
+        camera.contactNormalY = 1f;
+
         PacketGameState state = roundTrip(
-            new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown), List.of(zone)));
+            new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown),
+                List.of(zone), List.of(drone), List.of(camera)));
         assertEquals(4242L, state.tick);
         assertEquals(99L, state.serverTimeMillis);
         assertEquals(1, state.playerCount);
@@ -436,6 +467,9 @@ class NetworkRegistrationTest {
         assertEquals(1.5f, state.players.get(0).blindRemaining);
         assertEquals(3f, state.players.get(0).blindDuration);
         assertEquals(0.75f, state.players.get(0).slowRemaining);
+        assertEquals(SurveillanceView.DRONE, state.players.get(0).surveillance(),
+            "the surveillance view rides the player record");
+        assertTrue(state.players.get(0).isSurveillanceLocked());
 
         assertEquals(1, state.projectiles.size());
         Projectile decoded = state.projectiles.get(0);
@@ -477,6 +511,32 @@ class NetworkRegistrationTest {
         assertEquals(12f, decodedZone.damage);
         assertEquals(6.5f, decodedZone.remainingSeconds);
         assertTrue(decodedZone.blocksVision());
+
+        assertEquals(1, state.drones.size());
+        DroneEntity decodedDrone = state.drones.get(0);
+        assertEquals(21, decodedDrone.id);
+        assertEquals(1, decodedDrone.ownerId);
+        assertEquals(0, decodedDrone.teamIndex);
+        assertEquals(500f, decodedDrone.x);
+        assertEquals(950f, decodedDrone.y);
+        assertEquals(495f, decodedDrone.prevX);
+        assertEquals(955f, decodedDrone.prevY);
+        assertEquals(60f, decodedDrone.vx);
+        assertEquals(-15f, decodedDrone.vy);
+        assertEquals(30f, decodedDrone.aimAngle);
+        assertEquals(22f, decodedDrone.health);
+
+        assertEquals(1, state.cameras.size());
+        CameraEntity decodedCamera = state.cameras.get(0);
+        assertEquals(22, decodedCamera.id);
+        assertEquals(1, decodedCamera.ownerId);
+        assertEquals(800f, decodedCamera.x);
+        assertEquals(300f, decodedCamera.y);
+        assertTrue(decodedCamera.stuck);
+        assertEquals(0f, decodedCamera.contactNormalX);
+        assertEquals(1f, decodedCamera.contactNormalY);
+        assertEquals(90f, decodedCamera.aimAngle);
+        assertEquals(12f, decodedCamera.health);
     }
 
     @Test

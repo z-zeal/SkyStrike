@@ -43,6 +43,19 @@ class GadgetConfigTest {
     }
 
     @Test
+    @DisplayName("device collision radii are positive and smaller than a player's half-width")
+    void deviceRadii() {
+        assertTrue(GadgetConfig.DRONE_RADIUS > 0f);
+        assertTrue(GadgetConfig.CAMERA_RADIUS > 0f);
+        assertTrue(GadgetConfig.DRONE_RADIUS < PlayerConfig.WIDTH / 2f,
+            "a drone reads as smaller than a player");
+        assertTrue(GadgetConfig.CAMERA_RADIUS < PlayerConfig.WIDTH / 2f,
+            "a camera reads as smaller than a player");
+        assertTrue(GadgetConfig.CAMERA_RADIUS <= GadgetConfig.DRONE_RADIUS,
+            "a thrown camera is the smaller device");
+    }
+
+    @Test
     @DisplayName("camera: 20 HP, speed 12 → 300 u/s, throwable gravity, 1.2× zoom, permanent")
     void cameraNumbers() {
         assertEquals(20f, GadgetConfig.CAMERA_HEALTH, EPSILON);

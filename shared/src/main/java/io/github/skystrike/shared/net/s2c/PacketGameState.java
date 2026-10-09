@@ -1,5 +1,7 @@
 package io.github.skystrike.shared.net.s2c;
 
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
@@ -11,9 +13,9 @@ import java.util.List;
 /**
  * The per-snapshot state broadcast.
  *
- * <p>Carries players, rounds and throwable utilities in flight. Entity lists can be culled per
- * recipient by the server; state the viewer is not allowed to observe must never be exposed by a
- * client-authored packet.
+ * <p>Carries players, rounds, throwable utilities, and the Phase 6 gadget devices (drones and
+ * throw cameras) in the world. Entity lists can be culled per recipient by the server; state the
+ * viewer is not allowed to observe must never be exposed by a client-authored packet.
  */
 public final class PacketGameState implements Packet {
 
@@ -37,6 +39,12 @@ public final class PacketGameState implements Packet {
 
     /** Persistent smoke, poison and fire zones currently in the arena. */
     public List<UtilityZone> utilityZones = new ArrayList<>();
+
+    /** Deployed surveillance drones currently in the arena (mechanics §7.1). */
+    public List<DroneEntity> drones = new ArrayList<>();
+
+    /** Thrown cameras in flight or stuck to a surface (mechanics §7.2). */
+    public List<CameraEntity> cameras = new ArrayList<>();
 
     /**
      * True while any joined session has a server debug toggle on ({@code sv_noclip},
@@ -88,6 +96,22 @@ public final class PacketGameState implements Packet {
         List<ThrownUtility> thrownUtilities,
         List<UtilityZone> utilityZones
     ) {
+        this(tick, serverTimeMillis, playerCount, players, projectiles, thrownUtilities,
+            utilityZones, null, null);
+    }
+
+    /** Full constructor: the entity lists ride the snapshot in the order they are declared. */
+    public PacketGameState(
+        long tick,
+        long serverTimeMillis,
+        int playerCount,
+        List<Player> players,
+        List<Projectile> projectiles,
+        List<ThrownUtility> thrownUtilities,
+        List<UtilityZone> utilityZones,
+        List<DroneEntity> drones,
+        List<CameraEntity> cameras
+    ) {
         this.tick = tick;
         this.serverTimeMillis = serverTimeMillis;
         this.playerCount = playerCount;
@@ -103,6 +127,12 @@ public final class PacketGameState implements Packet {
         if (utilityZones != null) {
             this.utilityZones = new ArrayList<>(utilityZones);
         }
+        if (drones != null) {
+            this.drones = new ArrayList<>(drones);
+        }
+        if (cameras != null) {
+            this.cameras = new ArrayList<>(cameras);
+        }
     }
 
     @Override
@@ -114,6 +144,8 @@ public final class PacketGameState implements Packet {
             + ", projectiles=" + projectiles.size()
             + ", thrownUtilities=" + thrownUtilities.size()
             + ", utilityZones=" + utilityZones.size()
+            + ", drones=" + drones.size()
+            + ", cameras=" + cameras.size()
             + ", cheatsActive=" + cheatsActive + "]";
     }
 }

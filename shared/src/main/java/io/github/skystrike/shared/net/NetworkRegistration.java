@@ -3,6 +3,8 @@ package io.github.skystrike.shared.net;
 import com.esotericsoftware.kryo.Kryo;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
@@ -105,7 +107,12 @@ public final class NetworkRegistration {
         // (append-only)
         EffectType.class,
         EffectSpawn.class,
-        PacketEffectSpawn.class);
+        PacketEffectSpawn.class,
+
+        // Phase 6 increment 3 (M10): the gadget device entities carried inside snapshots
+        // (append-only)
+        DroneEntity.class,
+        CameraEntity.class);
 
     private NetworkRegistration() {
     }

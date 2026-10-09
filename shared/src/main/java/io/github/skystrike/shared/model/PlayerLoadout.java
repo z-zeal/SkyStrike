@@ -233,6 +233,22 @@ public final class PlayerLoadout {
         return gadgetE.holds(GadgetId.FUEL_TANK) ? gadgetE : null;
     }
 
+    /** The slot holding the drone, or {@code null} when no drone is carried. */
+    public GadgetSlot droneSlot() {
+        if (gadgetQ.holds(GadgetId.DRONE)) {
+            return gadgetQ;
+        }
+        return gadgetE.holds(GadgetId.DRONE) ? gadgetE : null;
+    }
+
+    /** The slot holding the throw camera, or {@code null} when no camera is carried. */
+    public GadgetSlot cameraSlot() {
+        if (gadgetQ.holds(GadgetId.CAMERA)) {
+            return gadgetQ;
+        }
+        return gadgetE.holds(GadgetId.CAMERA) ? gadgetE : null;
+    }
+
     /** True while the shield is equipped, intact and therefore protecting the player. */
     public boolean shieldEquipped() {
         GadgetSlot slot = shieldSlot();
