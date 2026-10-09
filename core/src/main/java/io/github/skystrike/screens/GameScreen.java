@@ -46,6 +46,7 @@ import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.hud.MinimapModel;
+import io.github.skystrike.shared.hud.WorldProjection;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
@@ -438,12 +439,14 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     }
 
     /**
-     * Damage taken drives the directional vignette. Damage dealt arrives on the same event and
-     * is deliberately ignored here: the hit marker already reports it, and the session owns
-     * that timer.
+     * Damage taken drives the directional vignette. Damage dealt arrives on the same event: the
+     * hit marker reports it on the session's own timer, and the floating number is filed here
+     * at the impact point. The HUD keeps only the outgoing hits, so the one listener serves both
+     * parties without a second packet.
      */
     private void onDamageEvent(PacketDamageEvent damage) {
         hud.onDamage(damage, prediction.predicted());
+        hud.onDealtDamage(damage, System.currentTimeMillis());
     }
 
     @Override
@@ -718,7 +721,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             debugState.overlay()
                 ? statusLines(localPlayer, visionReach, projectiles.size(), minimapView)
                 : List.of(),
-            minimapView));
+            minimapView,
+            // The camera as this frame drew it: the damage numbers anchor in the same world the
+            // composite and the sprites were drawn in, so they cannot drift off their impacts.
+            new WorldProjection(
+                camera.x(),
+                camera.y(),
+                camera.viewportWidth(),
+                camera.viewportHeight(),
+                Gdx.graphics.getWidth(),
+                Gdx.graphics.getHeight())));
 
         // Pass 7: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
@@ -887,7 +899,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private List<String> statusLines(
             Player localPlayer, float visionReach, int projectileCount, MinimapModel.View minimap) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike - M12 (utility visibility: smoke shape, persistent fire, player light)");
+        lines.add("SkyStrike - M13 (HUD: gadget panel, floating damage numbers)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
             lines.add(String.format(

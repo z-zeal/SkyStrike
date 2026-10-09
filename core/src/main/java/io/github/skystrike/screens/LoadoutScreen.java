@@ -71,6 +71,8 @@ public final class LoadoutScreen extends de.eskalon.commons.screen.ManagedScreen
             List.of(),
             // No arena and no live local player while a loadout is being chosen, so there is
             // nothing to map: the widget draws nothing and the corner stays with the readouts.
+            null,
+            // No arena to project into either, so no floating damage numbers here.
             null));
     }
 

@@ -11,6 +11,7 @@ import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.render.RenderLayers;
 import io.github.skystrike.render.WeaponSprites;
+import io.github.skystrike.shared.hud.DamageNumberModel;
 import io.github.skystrike.shared.hud.KillFeedModel;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
@@ -61,6 +62,9 @@ public final class HudStage implements Disposable {
     private final SurveillanceBanner surveillanceBanner = new SurveillanceBanner(theme);
     private final KillFeedWidget killFeedWidget = new KillFeedWidget(theme, killFeed);
     private final DamageVignette damageVignette = new DamageVignette(theme);
+    private final DamageNumberModel damageNumberModel = new DamageNumberModel();
+    private final DamageNumberWidget damageNumbers = new DamageNumberWidget(theme, damageNumberModel);
+    private final GadgetPanel gadgetPanel = new GadgetPanel(theme);
     private final DebugPanel debugPanel = new DebugPanel(theme);
     private final LoadoutPicker picker;
 
@@ -120,9 +124,19 @@ public final class HudStage implements Disposable {
         damageVignette.onDamage(damage, localPlayer);
     }
 
+    /**
+     * Damage the local player dealt to someone else becomes a floating number at the impact
+     * point. The session already filters the packet to the two parties; the model keeps only the
+     * local player's outgoing hits.
+     */
+    public void onDealtDamage(PacketDamageEvent damage, long nowMillis) {
+        damageNumbers.onDealt(damage, nowMillis);
+    }
+
     /** Who "you" are in the kill feed, as soon as the server has said so. */
     public void setLocalPlayerId(int localPlayerId) {
         killFeed.setLocalPlayerId(localPlayerId);
+        damageNumberModel.setLocalPlayerId(localPlayerId);
     }
 
     public void resize(int width, int height) {
@@ -200,6 +214,7 @@ public final class HudStage implements Disposable {
         debugPanel.drawShapes(shapes, font, frame);
         killFeedWidget.drawShapes(shapes, font, frame);
         vitals.drawShapes(shapes, font, frame);
+        gadgetPanel.drawShapes(shapes, font, frame);
         loadoutBar.drawShapes(shapes, frame);
         crosshair.drawShapes(shapes, frame);
         picker.drawShapes(shapes, font, frame);
@@ -207,10 +222,13 @@ public final class HudStage implements Disposable {
 
         batch.setProjectionMatrix(projection);
         batch.begin();
+        // Floating numbers first among the text: they sit in the world, under every readout.
+        damageNumbers.drawText(batch, font, frame);
         surveillanceBanner.drawText(batch, font, frame);
         debugPanel.drawText(batch, font, frame);
         killFeedWidget.drawText(batch, font, frame);
         vitals.drawText(batch, font, frame);
+        gadgetPanel.drawText(batch, font, frame);
         loadoutBar.drawText(batch, font, frame);
         picker.drawText(batch, font, frame);
         batch.end();
@@ -241,6 +259,12 @@ public final class HudStage implements Disposable {
                 * (font.getLineHeight() + theme.console().lineGap * scale);
         vitals.layout(screenWidth, screenHeight, scale, chatStrip);
         loadoutBar.layout(screenWidth, screenHeight, scale, 0f);
+        // The gadget panel stacks above the loadout bar and its reload/swap captions: the bar's
+        // margin, its slot height, the two caption lines, and a padding gap.
+        float loadoutTop = theme.margin * scale + theme.slotHeight * scale
+            + font.getLineHeight() * 2f + theme.innerPadding * scale;
+        gadgetPanel.layout(screenWidth, screenHeight, scale, loadoutTop);
+        damageNumbers.layout(scale);
         crosshair.layout(screenWidth, screenHeight, scale);
         surveillanceBanner.layout(screenWidth, screenHeight, scale);
         killFeedWidget.layout(screenWidth, screenHeight, scale, 0f);
