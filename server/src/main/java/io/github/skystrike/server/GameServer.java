@@ -288,6 +288,11 @@ public final class GameServer {
         return config;
     }
 
+    /** True once the transport has bound both channels and is ready to accept clients. */
+    public boolean isStarted() {
+        return endpoint.isStarted();
+    }
+
     public ArenaMap arena() {
         return arena;
     }
@@ -370,35 +375,35 @@ public final class GameServer {
 
     /** Binds the transport and runs the tick loop. Blocks until {@link #stop()}. */
     public void run() throws IOException {
-        endpoint.start();
-
-        System.out.printf(
-                "[server] SkyStrike listening on tcp/%d udp/%d%n", config.tcpPort(), config.udpPort());
-        System.out.printf(
-                "[server] arena %dx%d, %d solids, %d spawns%n",
-                (int) arena.width(), (int) arena.height(), arena.solids().size(), arena.spawns().size());
-        System.out.printf(
-                "[server] tick %d Hz, snapshot %d Hz, max players %d, protocol %d%n",
-                config.tickRateHz(),
-                config.tickRateHz() / ticksPerSnapshot,
-                config.maxPlayers(),
-                NetConfig.PROTOCOL_VERSION);
-        if (config.devMode()) {
-            // Loud on purpose: a dev host must never be mistaken for a real one.
-            System.out.println("[server] DEV MODE — every joined player resolves to ADMIN");
-        }
-        if (!config.grants().isEmpty()) {
-            System.out.printf("[server] permission grants: %s%n", config.grants());
-        }
-        if (DebugFlags.enabled()) {
-            // Loud on purpose, like DEV MODE: a host with the built-in dev account active must
-            // not be mistaken for a real one.
-            System.out.printf(
-                "[server] built-in dev account active: '%s' resolves to ADMIN%n",
-                BUILTIN_DEV_ACCOUNT_NAME);
-        }
-
         try {
+            endpoint.start();
+
+            System.out.printf(
+                    "[server] SkyStrike listening on tcp/%d udp/%d%n", config.tcpPort(), config.udpPort());
+            System.out.printf(
+                    "[server] arena %dx%d, %d solids, %d spawns%n",
+                    (int) arena.width(), (int) arena.height(), arena.solids().size(), arena.spawns().size());
+            System.out.printf(
+                    "[server] tick %d Hz, snapshot %d Hz, max players %d, protocol %d%n",
+                    config.tickRateHz(),
+                    config.tickRateHz() / ticksPerSnapshot,
+                    config.maxPlayers(),
+                    NetConfig.PROTOCOL_VERSION);
+            if (config.devMode()) {
+                // Loud on purpose: a dev host must never be mistaken for a real one.
+                System.out.println("[server] DEV MODE — every joined player resolves to ADMIN");
+            }
+            if (!config.grants().isEmpty()) {
+                System.out.printf("[server] permission grants: %s%n", config.grants());
+            }
+            if (DebugFlags.enabled()) {
+                // Loud on purpose, like DEV MODE: a host with the built-in dev account active must
+                // not be mistaken for a real one.
+                System.out.printf(
+                    "[server] built-in dev account active: '%s' resolves to ADMIN%n",
+                    BUILTIN_DEV_ACCOUNT_NAME);
+            }
+
             loop.run();
         } finally {
             endpoint.stop();

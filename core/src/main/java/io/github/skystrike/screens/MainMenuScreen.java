@@ -41,7 +41,8 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     private static final float FORM_LABEL_WIDTH = 110f;
     private static final float FORM_FIELD_WIDTH = 300f;
     private static final float DIALOG_WIDTH = 480f;
-    private static final String[] ACTIONS = {"Play", "Loadout", "Settings", "Quit"};
+    public static final String LOCAL_TEST_ACTION = "Local test";
+    private static final String[] STANDARD_ACTIONS = {"Play", "Loadout", "Settings", "Quit"};
 
     /** A validated connection request produced only by Play. */
     public record Connection(String playerName, String host, int tcpPort, int udpPort) {
@@ -62,6 +63,8 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     private final Skin skin;
     private final Stage stage;
     private final InputMultiplexer input = new InputMultiplexer();
+    private final boolean localTestAvailable;
+    private final String[] menuActions;
 
     private final List<Actor> menuOrder = new ArrayList<>();
     private final List<Actor> dialogOrder = new ArrayList<>();
@@ -70,7 +73,7 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     private final TextField hostField;
     private final TextField tcpField;
     private final TextField udpField;
-    private final TextButton[] actionButtons = new TextButton[ACTIONS.length];
+    private final TextButton[] actionButtons;
     private final Label status;
     private final Label dialogStatus;
     private final Table overlay;
@@ -87,10 +90,23 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
             String host,
             String tcpText,
             String udpText) {
+        this(action, playerName, host, tcpText, udpText, false);
+    }
+
+    public MainMenuScreen(
+            Consumer<Request> action,
+            String playerName,
+            String host,
+            String tcpText,
+            String udpText,
+            boolean localTestAvailable) {
         if (action == null) {
             throw new IllegalArgumentException("action is required");
         }
         this.action = action;
+        this.localTestAvailable = localTestAvailable;
+        this.menuActions = buildMenuActions(localTestAvailable);
+        this.actionButtons = new TextButton[this.menuActions.length];
         this.skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
         this.stage = new Stage(new ScreenViewport());
 
@@ -125,6 +141,13 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
         addInputProcessor(input);
         resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         stage.setKeyboardFocus(actionButtons[0]);
+    }
+
+    private static String[] buildMenuActions(boolean localTestAvailable) {
+        if (!localTestAvailable) {
+            return STANDARD_ACTIONS.clone();
+        }
+        return new String[] {"Play", LOCAL_TEST_ACTION, "Loadout", "Settings", "Quit"};
     }
 
     private TextField field(String value, String message) {
@@ -163,8 +186,8 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
 
         Table menu = new Table();
         menu.defaults().width(BUTTON_WIDTH).height(BUTTON_HEIGHT).padBottom(9f);
-        for (int i = 0; i < ACTIONS.length; i++) {
-            String actionName = ACTIONS[i];
+        for (int i = 0; i < menuActions.length; i++) {
+            String actionName = menuActions[i];
             TextButton button = new TextButton(actionName, skin);
             button.addListener(new ChangeListener() {
                 @Override
@@ -274,12 +297,15 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     }
 
     private void activate(String selected) {
+        if (LOCAL_TEST_ACTION.equals(selected) && !localTestAvailable) {
+            return;
+        }
         if ("Play".equals(selected)) {
             showDialog();
             return;
         }
-        // Loadout, Settings and Quit keep the existing Request shape but do not require a
-        // validated connection. The current field texts are still forwarded so Main can preserve
+        // Non-Play actions keep the existing Request shape but do not require a validated
+        // connection. The current field texts are still forwarded so Main can preserve
         // saved/default values across screen transitions, and Loadout does not gain a second
         // always-visible connection form.
         action.accept(new Request(
@@ -414,7 +440,7 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
         Actor focused = stage.getKeyboardFocus();
         for (int i = 0; i < actionButtons.length; i++) {
             if (focused == actionButtons[i]) {
-                activate(ACTIONS[i]);
+                activate(menuActions[i]);
                 return;
             }
         }

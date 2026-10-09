@@ -10,9 +10,11 @@ import io.github.skystrike.screens.LoadoutScreen;
 import io.github.skystrike.screens.MainMenuScreen;
 import io.github.skystrike.screens.SettingsScreen;
 import io.github.skystrike.settings.ClientPreferences;
+import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.settings.Settings;
+import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -30,6 +32,7 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
     private static final String UDP = "skystrike.udpPort";
     private static final String NAME = "skystrike.name";
 
+    private final LocalHost localHost;
     private final Settings settings = new Settings();
     private final ClientPreferences preferences = new ClientPreferences();
     /** One bindings instance is shared by settings, the console and every game screen. */
@@ -42,6 +45,16 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
     private PacketLoadoutUpdate pendingLoadout = new PacketLoadoutUpdate();
     /** A joined match parked behind Settings; it must be released if the app exits there. */
     private GameScreen retainedGame;
+
+    /** Default application constructor for platforms without a desktop local-host adapter. */
+    public Main() {
+        this(null);
+    }
+
+    /** Injects the optional desktop local-host adapter; core has no dependency on its server. */
+    public Main(LocalHost localHost) {
+        this.localHost = localHost;
+    }
 
     @Override
     public void create() {
@@ -56,7 +69,13 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
     }
 
     private void showMenu() {
-        route(new MainMenuScreen(this::menuAction, menuName, menuHost, menuTcp, menuUdp));
+        route(new MainMenuScreen(
+            this::menuAction,
+            menuName,
+            menuHost,
+            menuTcp,
+            menuUdp,
+            localTestAvailable()));
     }
 
     private void menuAction(MainMenuScreen.Request request) {
@@ -67,6 +86,7 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
         switch (request.action()) {
             case "Settings" -> showMenuSettings();
             case "Play" -> connectToGame(request.connection());
+            case MainMenuScreen.LOCAL_TEST_ACTION -> startLocalTest();
             case "Loadout" -> route(new LoadoutScreen(this::showMenu, this::rememberLoadout));
             case "Quit" -> Gdx.app.exit();
             default -> throw new IllegalArgumentException("unknown menu action: " + request.action());
@@ -90,6 +110,44 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
             connection.udpPort(),
             joined,
             this::showMenu));
+    }
+
+    private boolean localTestAvailable() {
+        return localHost != null && DebugFlags.enabled();
+    }
+
+    /** Starts the desktop host, then uses the ordinary connection/join screens against loopback. */
+    private void startLocalTest() {
+        if (!localTestAvailable()) {
+            return;
+        }
+        try {
+            localHost.start();
+        } catch (IOException failure) {
+            // A real local server may already own the defaults; still try the normal join path.
+            Gdx.app.error(
+                "SkyStrike",
+                "Embedded host did not start; trying the local default ports "
+                    + "in case a server is already running.",
+                failure);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            Gdx.app.error(
+                "SkyStrike",
+                "Interrupted while waiting for the embedded host.",
+                interrupted);
+            return;
+        }
+
+        String playerName = menuName == null ? "" : menuName.trim();
+        if (!NetConfig.isValidPlayerName(playerName)) {
+            playerName = "Player";
+        }
+        connectToGame(new MainMenuScreen.Connection(
+            playerName,
+            NetConfig.DEFAULT_HOST,
+            NetConfig.DEFAULT_TCP_PORT,
+            NetConfig.DEFAULT_UDP_PORT));
     }
 
     private void startGame(ClientSession session, MainMenuScreen.Connection connection) {
@@ -173,9 +231,15 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
         // shown, so release that one explicit suspension as well.
         GameScreen suspended = retainedGame;
         retainedGame = null;
-        super.dispose();
-        if (suspended != null) {
-            suspended.dispose();
+        try {
+            super.dispose();
+            if (suspended != null) {
+                suspended.dispose();
+            }
+        } finally {
+            if (localHost != null) {
+                localHost.stop();
+            }
         }
     }
 }

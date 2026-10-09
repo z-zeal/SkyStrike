@@ -131,8 +131,10 @@ class EffectEmissionTest {
     @DisplayName("a molotov emits a tangent splash plus one fire-zone event per accepted zone")
     void molotovDetonationEmitsSplashAndFireZones() {
         UtilitySystem utilities = systemWithSink();
-        Player owner = player(1, 760f, 475f);
-        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 760f, 500f);
+        float groundY = WorldConfig.GROUND_HEIGHT;
+        float fireY = groundY + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
+        Player owner = player(1, 1500f, groundY);
+        ThrownUtility molotov = thrown(UtilityId.MOLOTOV, owner, 1500f, fireY);
         molotov.contactNormalX = 0f;
         molotov.contactNormalY = 1f; // floor: the tangent runs horizontally
 
@@ -143,8 +145,8 @@ class EffectEmissionTest {
 
         EffectSpawn splash = sink.emitted.get(0);
         assertEquals(EffectType.MOLOTOV_SPLASH, splash.type);
-        assertEquals(760f, splash.x, 0.001f);
-        assertEquals(500f, splash.y, 0.001f);
+        assertEquals(1500f, splash.x, 0.001f);
+        assertEquals(fireY, splash.y, 0.001f);
         // Floor normal (0, 1) gives tangent (-1, 0): the splash direction is 180 degrees.
         assertEquals(180f, splash.angle, 0.001f);
 
