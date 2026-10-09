@@ -61,6 +61,14 @@ public final class GadgetConfig {
     public static final float DRONE_VISION_BRIGHTNESS = 0.7f;
 
     /**
+     * Radius of a device's all-round vision bubble, in units (M14). Drones and throw cameras
+     * share it. It is deliberately smaller than a player's {@code VisionConfig.BODY_BUBBLE_RADIUS}
+     * (140): a device sees what is close to it, not what is close to a body.
+     * <b>Provisional</b> — the figure is the chosen value (about 70 units), not a tuned one.
+     */
+    public static final float DEVICE_BUBBLE_RADIUS = 70f;
+
+    /**
      * Exponential rate at which drone velocity lerps toward the piloted input direction, per
      * second. <b>Provisional</b> — §7.1 asks for "smooth velocity lerping" without a rate; 8/s
      * reaches ~63% of a direction change in an eighth of a second, responsive but visibly smooth.

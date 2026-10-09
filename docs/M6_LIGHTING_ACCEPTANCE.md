@@ -18,9 +18,12 @@ verification; source-only sandbox checks do not prove shader compilation or visu
   `r_player_light_shadows on`, confirm the far side stays occluded. Toggle `r_shadows off`: the
   shadow edge should become hard, not disappear. Toggle `r_player_light_shadows off` separately
   to confirm that cvar controls player-light SDF sampling.
-- [ ] **Hidden enemies:** Keep a remote player within 140 units but behind an occluder or outside
-  the local vision cone. Confirm the player remains black/dark and no glow identifies their
-  position. Move them clearly into the cone with line of sight; their player light may then appear.
+- [ ] **Hidden enemies:** *(M14: the rule below holds beyond the vision bubble only; see
+  `M14_VISION_BUBBLE_ACCEPTANCE.md`. Inside the 140-unit bubble an enemy with line of sight is now
+  visible all round, by decision.)* Keep a remote player **beyond 140 units**, or behind an occluder,
+  and outside the local vision cone. Confirm the player remains black/dark and no glow identifies
+  their position. Move them clearly into the cone or the bubble with line of sight; their player light
+  may then appear.
 - [ ] **Live cvars:** While the match is running, set `/r_player_light_radius 220` and
   `/r_player_light_intensity 0.6`; verify the circle and brightness change immediately. Confirm
   out-of-range values are rejected without changing the last valid value.

@@ -29,6 +29,22 @@ public final class VisionConfig {
     /** Angular feather width across the cone edge in degrees (15°). */
     public static final float FEATHER_ANGLE_DEGREES = 15f;
 
+    // --- Vision bubble (M14: the eye's own surroundings, all round) -----------------------------
+    /**
+     * Half-angle that makes an observer a full circle. A bubble is an ordinary observer whose cone
+     * is 360° wide: the shader's angular term is then 1 everywhere, and the CPU cone factor says
+     * the same (see {@link io.github.skystrike.shared.vision.VisionMath#calculateConeFactor}).
+     */
+    public static final float FULL_CIRCLE_HALF_ANGLE_DEGREES = 180f;
+
+    /**
+     * Radius of a player's vision bubble, in units: the close, all-round sight that lights the
+     * space around the body (M14). Equal to the player light's default radius, so by default the
+     * lit disc and the seen disc are the same disc. <b>Provisional</b> — a design number, not a
+     * tuned one.
+     */
+    public static final float BODY_BUBBLE_RADIUS = 140f;
+
     // --- Falloff and floor parameters (effects §6.2, mechanics §3) ------------------------------
     /** Quadratic distance falloff exponent (2.0 = continuous ease-out quadratic falloff). */
     public static final float DISTANCE_FALLOFF_EXPONENT = 2.0f;

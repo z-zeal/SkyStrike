@@ -100,13 +100,20 @@ class ObserverSetTest {
                 camera(21, 1, 0, 350f, 400f, 0f, false),
                 camera(22, 2, 1, 900f, 200f, 0f, true)));
 
-        assertEquals(3, set.size(),
-            "body, own drone, own stuck camera: the flying one and the enemy's two are not eyes");
-        assertEquals(viewer.eyeX(), set.observers().get(0).eyeX(), "the body comes first");
+        // M14: each eye is a cone and a bubble. Body, own drone, own stuck camera: six observers.
+        // The flying camera and the enemy's two devices are not eyes at all.
+        assertEquals(6, set.size(),
+            "body cone and bubble, own drone's pair, own stuck camera's pair: the flying one and the enemy's two are not eyes");
+        assertEquals(viewer.eyeX(), set.observers().get(0).eyeX(), "the body's cone comes first");
         assertEquals(1f, set.observers().get(0).brightness());
-        assertEquals(GadgetConfig.DRONE_VISION_BRIGHTNESS, set.observers().get(1).brightness(),
-            "then the drone, at its dimmer brightness");
-        assertEquals(1f, set.observers().get(2).brightness(), "then the stuck camera");
+        assertTrue(set.observers().get(1).isBubble(), "then the body's bubble, which follows its cone");
+        assertEquals(GadgetConfig.DRONE_VISION_BRIGHTNESS, set.observers().get(2).brightness(),
+            "then the drone's cone, at its dimmer brightness");
+        assertTrue(set.observers().get(3).isBubble(), "then the drone's bubble");
+        assertEquals(1f, set.observers().get(4).brightness(), "then the stuck camera's cone");
+        assertTrue(set.observers().get(5).isBubble(), "then the stuck camera's bubble");
+        assertEquals(3, set.deviceBubbles().size(),
+            "one bubble per device, never the body's: the device lights are these three");
     }
 
     @Test
@@ -158,9 +165,13 @@ class ObserverSetTest {
         viewer.surveillanceView = SurveillanceView.DRONE.ordinal();
         ObserverSet piloting =
             ObserverSet.forViewer(viewer, HIP, List.of(interpolated), predicted, List.of());
-        assertEquals(1, piloting.size(), "the body is not an observer while the view has moved");
+        assertEquals(2, piloting.size(),
+            "the drone's cone and its bubble: the body, its cone and its bubble, are not eyes while the view has moved");
         assertFalse(piloting.isLit(target, arena, null),
             "the drone is 800 units away and out of reach, and the body that could see it is gone");
+        Player behind = player(3, 1, 340f, 600f, 0f);
+        assertFalse(piloting.isLit(behind, arena, null),
+            "the body's bubble is gone too: a target 60 units behind the body is not lit by the view");
 
         viewer.surveillanceView = SurveillanceView.SELF.ordinal();
         assertTrue(ObserverSet.forViewer(viewer, HIP, List.of(interpolated), null, List.of())
@@ -200,6 +211,56 @@ class ObserverSetTest {
         assertFalse(eyes.isLit(player(3, 1, 200f, 600f, 0f), arena, null),
             "directly behind: the peripheral floor is not enough for a screen-facing query");
         assertFalse(eyes.isLit(player(4, 1, 700f, 1400f, 0f), arena, null), "beyond the 640-unit reach");
+    }
+
+    @Test
+    @DisplayName("a body's vision bubble lights what is close behind it, all round, and nothing further")
+    void bubbleLightsCloseBehind() {
+        Player viewer = player(1, 0, 400f, 600f, 0f);
+        Player behind = player(3, 1, 340f, 600f, 0f);
+        Player farBehind = player(4, 1, 200f, 600f, 0f);
+
+        ObserverSet cone = ObserverSet.of(List.of(Observer.body(viewer, HIP)));
+        ObserverSet bubble = ObserverSet.of(List.of(Observer.bodyBubble(viewer)));
+
+        assertFalse(cone.isLit(behind, arena, null), "the cone alone does not light what is behind");
+        assertTrue(bubble.isLit(behind, arena, null), "60 units behind, inside the 140-unit bubble");
+        assertFalse(bubble.isLit(farBehind, arena, null), "200 units behind, past the bubble's radius");
+        assertTrue(ObserverSet.forViewer(viewer, HIP, List.of(), null, List.of()).isLit(behind, arena, null),
+            "the body's set carries the bubble, so the minimap and the screen agree");
+    }
+
+    @Test
+    @DisplayName("a device's bubble lights what is close around it, whichever way it faces")
+    void deviceBubbleLightsCloseAroundIt() {
+        Player target = player(2, 1, 340f, 600f, 0f);
+        // The drone faces east, away from the target 60 units west of it: its cone cannot see the
+        // target, its 70-unit bubble can.
+        DroneEntity drone = drone(10, 1, 0, 400f, 600f, 0f);
+        Observer bubble = Observer.droneBubble(drone);
+
+        assertEquals(GadgetConfig.DEVICE_BUBBLE_RADIUS, bubble.reach());
+        assertEquals(GadgetConfig.DRONE_VISION_BRIGHTNESS, bubble.brightness(),
+            "a device's bubble is dimmed like its cone");
+        assertTrue(ObserverSet.of(List.of(bubble)).isLit(target, arena, null),
+            "60 units away, inside the device bubble");
+        assertFalse(ObserverSet.of(List.of(Observer.drone(drone))).isLit(target, arena, null),
+            "the drone's cone, facing away, does not");
+        assertFalse(ObserverSet.of(List.of(Observer.droneBubble(drone)))
+                .isLit(player(5, 1, 300f, 600f, 0f), arena, null),
+            "100 units away, beyond the 70-unit bubble");
+    }
+
+    @Test
+    @DisplayName("a bubble is a full circle and a cone is not, and the bubble's feather is zero")
+    void bubbleIsAFullCircle() {
+        Observer bubble = Observer.bubble(400f, 600f, 140f, 1f);
+        assertEquals(VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES, bubble.coneHalfAngleDeg());
+        assertEquals(0f, bubble.featherAngleDeg(), "a nonzero feather would dim a sliver behind it");
+        assertEquals(0f, bubble.aimAngleDeg(), "a bubble has no direction to aim");
+        assertEquals(140f, bubble.reach());
+        assertTrue(bubble.isBubble());
+        assertFalse(Observer.body(player(1, 0, 400f, 600f, 0f), HIP).isBubble());
     }
 
     @Test

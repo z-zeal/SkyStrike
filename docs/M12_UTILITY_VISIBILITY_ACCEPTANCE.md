@@ -65,8 +65,10 @@ Setup: host a match, join with two clients. Client B throws; client A observes.
 - [ ] **Toggleable:** `/r_player_light off` removes it immediately; `/r_player_light on` restores
   it. F10 toggles it in dev builds. `/r_player_light_shadows off` disables the lights' SDF
   occlusion sampling; `/r_shadows off` hardens the edges.
-- [ ] **Hidden enemies unchanged:** a remote player behind cover or outside the cone stays dark;
-  no glow identifies their position (M6's hidden-enemies check still holds with the light on).
+- [ ] **Hidden enemies, as amended by M14:** a remote player behind cover, or outside both the cone
+  and the 140-unit vision bubble, stays dark; no glow identifies their position. *(M14 superseded the
+  M6/M12 rule inside the bubble: an enemy within 140 units with line of sight is now visible all
+  round, by decision. See `M14_VISION_BUBBLE_ACCEPTANCE.md`.)*
 
 ## Known limitations (documented, not bugs)
 

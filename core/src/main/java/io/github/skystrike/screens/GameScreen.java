@@ -630,11 +630,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // the pool, then LightPass masks each fragment against the rendered visibility texture.
         float playerLightRadius = floatCvar("r_player_light_radius", Light.DEFAULT_PLAYER_RADIUS);
         float playerLightIntensity = floatCvar("r_player_light_intensity", Light.DEFAULT_PLAYER_INTENSITY);
+        // M14: the lights and the bubbles ask the same observer set, so a light is admitted exactly
+        // where the visibility pass lets it show, and each device carries a light of its own.
         pipeline.syncPlayerLights(
                 localPlayer,
                 remotePlayers,
                 arena,
-                visionReach,
+                eyes,
                 isPlayerLightOn(),
                 playerLightRadius,
                 playerLightIntensity,
@@ -899,7 +901,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private List<String> statusLines(
             Player localPlayer, float visionReach, int projectileCount, MinimapModel.View minimap) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike - M13 (HUD: gadget panel, floating damage numbers)");
+        lines.add("SkyStrike - M14 (vision bubble: all-round sight, device lights)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
             lines.add(String.format(

@@ -20,13 +20,14 @@ import io.github.skystrike.fx.sdf.SdfCache;
 import io.github.skystrike.fx.sdf.SdfDebugView;
 import io.github.skystrike.fx.sdf.SdfTexture;
 import io.github.skystrike.render.GameCamera;
-import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
+import io.github.skystrike.shared.vision.Observer;
+import io.github.skystrike.shared.vision.ObserverSet;
 import io.github.skystrike.shared.vision.SmokeVolume;
-import io.github.skystrike.shared.vision.VisionMath;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -62,6 +63,8 @@ public final class FxPipeline implements Disposable {
      */
     private final FxEventQueue effectQueue = new FxEventQueue();
     private final Map<Integer, Integer> remotePlayerLightHandles = new HashMap<>();
+    /** M14: one light per device bubble, by index in {@link ObserverSet#deviceBubbles()}. */
+    private List<Integer> deviceLightHandles = new ArrayList<>();
 
     /** Optional audio consumer; null until a screen installs one, and null again on disposal. */
     private EffectEventListener effectListener;
@@ -128,15 +131,21 @@ public final class FxPipeline implements Disposable {
      *
      * <p>Snapshots intentionally contain remote player state regardless of local field of view.
      * Never create a light for every snapshot entry: a hidden enemy's light would reveal the very
-     * position the fog is meant to conceal. A remote source is admitted only when its centre is
-     * clearly inside the local cone and has hard line of sight through the shared visibility math;
-     * the light shader then applies the rendered per-pixel visibility mask as a second guard.
+     * position the fog is meant to conceal. A remote source is admitted only when the viewer's eyes
+     * genuinely light it ({@link ObserverSet#isLit}: a cone, or a vision bubble, with hard line of
+     * sight); the light shader then applies the rendered per-pixel visibility mask as a second guard.
+     *
+     * <p>M14: every device the viewer owns carries a light of its own, the same radius as its vision
+     * bubble and dimmed by the bubble's brightness, so a drone or a stuck camera lights the space it
+     * can see just as the body's light does.
+     *
+     * @param eyes the viewer's observers for this frame, from {@code ObserverSet.forViewer}
      */
     public void syncPlayerLights(
             Player localPlayer,
             List<Player> remotePlayers,
             ArenaMap arena,
-            float visionReach,
+            ObserverSet eyes,
             boolean enabled,
             float radius,
             float intensity,
@@ -161,7 +170,8 @@ public final class FxPipeline implements Disposable {
                 if (remote == null
                         || !remote.alive
                         || remote.id == localPlayer.id
-                        || !isClearlyVisibleSource(localPlayer, remote, arena, smoke, visionReach)) {
+                        || eyes == null
+                        || !eyes.isLit(remote, arena, smoke)) {
                     continue;
                 }
 
@@ -179,6 +189,32 @@ public final class FxPipeline implements Disposable {
                 }
             }
         }
+
+        // M14: one light per device bubble, reused by index. A device that stops existing releases
+        // its light, so the pool never holds the light of a drone that has already gone.
+        List<Observer> bubbles = eyes == null ? List.of() : eyes.deviceBubbles();
+        List<Integer> previousDeviceHandles = deviceLightHandles;
+        List<Integer> nextDeviceHandles = new ArrayList<>(bubbles.size());
+        for (int i = 0; i < bubbles.size(); i++) {
+            Observer bubble = bubbles.get(i);
+            int oldHandle = i < previousDeviceHandles.size()
+                    ? previousDeviceHandles.get(i)
+                    : LightPool.INVALID_HANDLE;
+            int handle = upsertPlayerLight(
+                    oldHandle,
+                    bubble.eyeX(),
+                    bubble.eyeY(),
+                    bubble.reach(),
+                    intensity * bubble.brightness(),
+                    castsShadow);
+            if (handle != LightPool.INVALID_HANDLE) {
+                nextDeviceHandles.add(handle);
+            }
+        }
+        for (int i = bubbles.size(); i < previousDeviceHandles.size(); i++) {
+            lightPool.release(previousDeviceHandles.get(i));
+        }
+        deviceLightHandles = nextDeviceHandles;
 
         Iterator<Map.Entry<Integer, Integer>> iterator = remotePlayerLightHandles.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -332,29 +368,10 @@ public final class FxPipeline implements Disposable {
                 castsShadow);
     }
 
-    private boolean isClearlyVisibleSource(
-            Player observer,
-            Player target,
-            ArenaMap arena,
-            List<SmokeVolume> smoke,
-            float visionReach) {
-        float visibility = VisionMath.calculateVisibility(
-                observer.eyeX(),
-                observer.eyeY(),
-                observer.aimAngle,
-                visionReach,
-                target.centerX(),
-                target.centerY(),
-                arena,
-                smoke);
-        // The shared vision function retains a faint peripheral floor outside the cone. A light
-        // source must clear that floor to ensure the light does not identify a hidden remote.
-        return visibility > VisionConfig.PERIPHERAL_FLOOR + 0.001f;
-    }
-
     private void clearPlayerLights() {
         lightPool.clear();
         remotePlayerLightHandles.clear();
+        deviceLightHandles.clear();
         localPlayerLightHandle = LightPool.INVALID_HANDLE;
     }
 
