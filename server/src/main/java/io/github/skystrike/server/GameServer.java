@@ -180,6 +180,12 @@ public final class GameServer {
         // it. Both are resolver-state, so nothing downstream needs to know which mode the host is in.
         this.permissions.setDevMode(config.devMode());
         config.grants().forEach(this.permissions::grant);
+        // M12: the owner's built-in dev identity. Hardcoded by request, but gated on the debug
+        // master switch — the same gate as the server's debug command set — so a shipping host
+        // resolves the name to an ordinary player. An always-on hardcoded grant would publish a
+        // superuser name in a public repo: every server running this build, real ones included,
+        // would elevate whoever claims it (names are client-claimed and matched loosely).
+        applyBuiltinDevAccount(this.permissions, DebugFlags.enabled());
         this.commandService = new ServerCommandService(
             this.players,
             this.permissions,
@@ -194,6 +200,23 @@ public final class GameServer {
             debugCommandsEnabled(config));
 
         registerHandlers();
+    }
+
+    /**
+     * The hardcoded dev identity for the project owner (M12). Elevated to
+     * {@link Permission#ADMIN} — the top of the ladder, so every command — but only on a host
+     * running with the debug master switch on; see the wiring comment in the constructor.
+     */
+    static final String BUILTIN_DEV_ACCOUNT_NAME = "ZealDEV";
+
+    /**
+     * Grants {@link #BUILTIN_DEV_ACCOUNT_NAME} admin when {@code debugMasterSwitchOn}. A static
+     * seam so the gate is unit-testable without booting a server.
+     */
+    static void applyBuiltinDevAccount(PermissionResolver permissions, boolean debugMasterSwitchOn) {
+        if (debugMasterSwitchOn) {
+            permissions.grant(BUILTIN_DEV_ACCOUNT_NAME, Permission.ADMIN);
+        }
     }
 
     /**
@@ -366,6 +389,13 @@ public final class GameServer {
         }
         if (!config.grants().isEmpty()) {
             System.out.printf("[server] permission grants: %s%n", config.grants());
+        }
+        if (DebugFlags.enabled()) {
+            // Loud on purpose, like DEV MODE: a host with the built-in dev account active must
+            // not be mistaken for a real one.
+            System.out.printf(
+                "[server] built-in dev account active: '%s' resolves to ADMIN%n",
+                BUILTIN_DEV_ACCOUNT_NAME);
         }
 
         try {
