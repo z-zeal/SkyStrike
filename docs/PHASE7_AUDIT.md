@@ -194,9 +194,10 @@ So the honest sequencing recommendation is:
 | Console plan build-order Phase 3 — capabilities | Implemented: `shared/command/{Permission,ConsoleAccess}`, `PacketCapabilities`, `server/command/{PermissionResolver,CapabilityBroadcaster}`, `core/command/ClientCapabilities` |
 | Phase 5 increment 1 — shared throwable foundation | Implemented: `shared/config/UtilityConfig`, `shared/utility/{UtilityId,DetonationMode,UtilityEffect,UtilityDefinition,UtilityRegistry,ThrowablePhysics,ExplosionMath,StunMath}`, `shared/model/ThrownUtility` |
 | Phase 5 increment 2A — utility inventory and wire contract | Implemented: populated loadout slots 4–5 with carried counts and respawn refill; utility choices added to the server-authoritative loadout request; `ThrownUtility` appended at Kryo index 25 and added to `PacketGameState` |
-| Phase 5 increment 2B — authoritative lifecycle, zones and preview | Written but uncompiled: utility trigger edges and cooldowns; `server/utility/UtilitySystem` flight, fuse/contact/proximity detonation, occluded blast/impulse damage, stun lock, smoke/poison/fire zones, claymore placement; snapshots now carry `UtilityZone` at Kryo index 26; live smoke zones feed the client shader and `TrajectoryRenderer` uses `ThrowablePhysics` |
+| Phase 5 increment 2B — authoritative lifecycle, zones and preview | Implemented: utility trigger edges and cooldowns; `server/utility/UtilitySystem` flight, fuse/contact/proximity detonation, occluded blast/impulse damage, stun lock, smoke/poison/fire zones, claymore placement; snapshots now carry `UtilityZone` at Kryo index 26; live smoke zones feed the client shader and `TrajectoryRenderer` uses `ThrowablePhysics` |
 | Phase 6 increment 1 — shared gadget foundation and contracts | Implemented and merged in source commit `402b75b75d9864bd1dbee1a2207fbba8feddb63c`: `shared/gadget/{GadgetId,GadgetBehavior,GadgetDefinition,GadgetRegistry}`, populated `GadgetConfig` with the centralised §7 reference-unit conversion, `shared/model/{GadgetSlot,ShieldState}`, `shared/combat/ShieldArcMath`, two Q/E gadget slots inside `PlayerLoadout` with explicit respawn reset, gadget choices in `PacketLoadoutUpdate`, `GadgetSlot` appended at Kryo index 27, fuel-tank hit zone connected through `HitZoneMath.resolve(x, y, player)` into `DamageService` |
-| Phase 6 increment 2 — authoritative worn-gadget behavior and gadget input | Written but uncompiled: Q/E input edges with birth-sequence retransmission and protocol 9; server `ShieldSystem`/`FuelTankSystem`; shield arc interception in the central damage path, handgun-only locking, shared fuel-tank jetpack multipliers, and tank detonation through occluded `ExplosionMath` with gadget wire-id kill attribution. Drone/camera entities, surveillance, rendering and HUD remain out of scope |
+| Phase 6 increment 2 — authoritative worn-gadget behavior and gadget input | Implemented and merged: Q/E input edges with birth-sequence retransmission and protocol 9; server `ShieldSystem`/`FuelTankSystem`; shield arc interception in the central damage path, handgun-only locking, shared fuel-tank jetpack multipliers, and tank detonation through occluded `ExplosionMath` with gadget wire-id kill attribution |
+| Phase 6 increment 3 (M10) — drone, throw camera, surveillance lock, gadget vision, rendering and HUD | Implemented (branch `arena/f6b096ea-skystrike`, PR #37): `shared/model/{DroneEntity,CameraEntity}` snapshot state; `shared/gadget/{SurveillanceView,GadgetPress,DroneMotion,CameraFlight}`; server `gadget/{DroneSystem,CameraSystem,SurveillanceService}` following the `ShieldSystem`/`FuelTankSystem` patterns; `ThrowablePhysics.stepInPlaceUntilContact` (the one integrator, bounce off) for the camera's stick-to-first-surface; the surveillance lock enforced server-side in `PlayerMotion` and the loadout tick; view cycling (key 6) and Escape exit routed through the focus stack; rounds hit devices; `EffectBroadcaster.cullFor` counts a recipient's live drone/stuck camera as extra observers via `VisionMath.canObserverSeeTarget`; client `gameplay/SurveillanceController` prediction, camera follow + 1.2× zoom, device cones in the visibility pass (dimmer for the drone, per-observer brightness in the shader), `render/GadgetRenderer` (drones, cameras, shield front/rear arc, rear fuel tank) and the surveillance HUD banner; `DroneEntity`/`CameraEntity` appended at Kryo indices 33/34, `PROTOCOL_VERSION` 11 → 12 |
 
 Phase 5 is under way, so §3.6's "never started" now applies to Phase 6 only. What landed is the
 shared half: identity and wire encoding (2000 + ordinal, a third range in the existing `weaponId`
@@ -261,14 +262,17 @@ arc interception and handgun lock, shared fuel-tank movement multipliers, and th
 detonation path. The shield covers bullets, melee, explosions and utility damage through the
 central damage service; this broad non-bullet coverage and the provisional shield overflow rule
 remain tuning decisions where the plan is silent. The tank wearer's unconditional death is an
-intentional exception to shield interception. This increment is **written but uncompiled** until
-GitHub Actions validates the exact pushed commit.
+intentional exception to shield interception. **Increment 3 (M10) has since landed every item
+on that list** — the entities live in `shared/model` (snapshot payload, like `ThrownUtility`)
+with their systems in `server/gadget`, and the acceptance checklist is
+`docs/M10_GADGETS_ACCEPTANCE.md`.
 
 `TextSanitizer` and `RateLimiter` are no longer dead code — the relay is their only caller.
 `PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities, 5 → 6 for the throwable/loadout contract,
 6 → 7 for live utility zones and replicated throwable status, 7 → 8 for the gadget
-payload, and 8 → 9 for the appended Q/E input edges. §3.3 and §3.4 above describe the state *before* this work; the rest of §3 still
-stands.
+payload, 8 → 9 for the appended Q/E input edges, 9 → 10 for the M1 command packets, 10 → 11
+for the M7 effect channel, and 11 → 12 for the M10 gadget device entities. §3.3 and §3.4
+above describe the state *before* this work; the rest of §3 still stands.
 
 Still outstanding for Phase 7: the HUD in full (§3.1), the dialog in full (§3.2), and build-order
 Phases 4–9 (§3.5).
