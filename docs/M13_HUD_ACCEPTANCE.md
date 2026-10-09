@@ -50,15 +50,20 @@ Setup: host a match and join with two clients on **opposite** teams. Equip a shi
 - [ ] **Dead or surveilling:** while dead the panel still shows your gadgets (they survive death, the
   state resets on respawn). While piloting a drone the panel still shows the drone's state.
 
-## Cooldowns — read this before testing
+## Cooldowns — decided: none
 
-- [ ] **READY is the resting state:** a gadget the key can work reads `READY` in the state word
-  (drone, camera). The panel prints a `1.2s`-style countdown in the warning colour **only while a
-  cooldown is running**.
-- [ ] **No gadget starts a cooldown yet:** `GadgetSlot.cooldownRemaining` is part of the model and
-  the wire, but no authoritative system writes it in this increment. The countdown therefore
-  never appears in play. The path is in place: when a system arms a cooldown, the panel shows it
-  with no client change. See the open decision in the summary.
+Product decision (M13): **gadgets have no gameplay cooldowns.** Mechanics §7 gives none, and the
+owner chose not to invent them. Consequences for testing:
+
+- [ ] **No countdown ever shows:** no gadget starts a cooldown, so the panel never prints a
+  `1.2s`-style countdown. Every pressable gadget reads `READY` in its state word, and a fuel tank
+  reads `WORN`.
+- [ ] **Rapid presses behave as before:** pressing `Q`/`E` repeatedly is limited only by the
+  gadget's own rules (a drone's deploy-then-pilot sequence, a shield toggle), not by a timer.
+
+The countdown code (`GadgetSlot.cooldownRemaining`, `GadgetPanelModel.cooldownText`) is kept dormant
+rather than removed: it is harmless, it is covered by unit tests, and removing the wire-adjacent
+field is a protocol change with no gain. If cooldowns are ever added, the panel already renders them.
 
 ## Floating damage numbers
 
@@ -102,8 +107,8 @@ Setup: host a match and join with two clients on **opposite** teams. Equip a shi
 
 ## Known limitations (documented, not bugs)
 
-- **Cooldowns are not yet gameplay.** The panel is ready to show them. Whether gadgets should have
-  cooldowns, and of what length, is not specified by `MECHANICS_PLAN.md` §7 and needs a decision.
+- **No gadget cooldowns, by decision.** The countdown path is dormant (see above). Adding cooldowns
+  would be a new gameplay rule, not a HUD change.
 - **Provisional timing and colour.** The number hold (0.15 s), life (0.85 s), rise (25 world units),
   capacity (24) and the falloff tint ramp are chosen values. No plan document sets them; tune them
   by playing.
