@@ -153,6 +153,9 @@ shared/src/main/java/io/github/skystrike/shared/
 │   ├── HudSurveillance          The surveillance banner's read model
 │   ├── CrosshairMath, DamageVignetteMath   The other widget maths
 │   ├── KillFeedModel, LoadoutPickerModel   Feed and picker state
+│   ├── GadgetPanelModel         Durability, cooldown and state words for the Q/E gadget panel
+│   ├── DamageNumberModel        Which hits become floating numbers, how they fade and rise
+│   ├── WorldProjection          World-to-screen for the world-anchored HUD (damage numbers)
 │   └── MinimapModel             Which markers may exist, where, and how long a sighting lasts
 │
 ├── effect/
@@ -362,11 +365,11 @@ core/src/main/java/io/github/skystrike/
 │   │   ├── HealthFuelBars
 │   │   ├── LoadoutBar           Slots, ammo, utility counts, gadget slots
 │   │   ├── SurveillanceBanner   The viewed device, its HP, the live controls
-│   │   ├── GadgetPanel          State labels, durability, cooldowns
+│   │   ├── GadgetPanel          Q/E durability, state words and cooldowns, above the loadout bar
 │   │   ├── Crosshair            Spread-reactive, dimmed while surveilling
 │   │   ├── Minimap              The whole arena, fog-gated by shared/hud/MinimapModel
 │   │   ├── KillFeed
-│   │   ├── DamageNumbers        Floating, world-space
+│   │   ├── DamageNumberWidget   Floating, world-space, projected through WorldProjection
 │   │   └── DamageVignette       Screen-edge pulse
 │   ├── console/                 The shared chat and console dialog
 │   ├── text/                    Message buffer, wrapping, fonts, formatting

@@ -309,8 +309,15 @@ visible remote players. It is shadowed, so standing behind a crate does not ligh
 it; it is additive, so it brightens your own body independently of the cone — which is the whole
 point of the request.
 
+> **M14 amendment (decision, supersedes the rule below inside the bubble).** The player light now
+> acts as a vision light: each eye has a full-circle vision bubble (140 units for the body, 70 for a
+> drone or a stuck camera), and the light shows where the bubble and cone see. The user chose a
+> full bubble with enemies included, so an enemy within 140 units with line of sight is visible all
+> round. The rule of this section still holds **beyond** the bubble and outside the cone: a remote
+> player there stays black, and their light never shows. See `M14_VISION_BUBBLE_ACCEPTANCE.md`.
+
 Guards that matter:
-- Keep intensity low enough that it cannot reveal enemies *outside* the vision cone. Light adds
+- Keep intensity low enough that it cannot reveal enemies *outside* the vision cone and bubble. Light adds
   after visibility multiplies; a bright self-light is effectively a wallhack-lite in a fog game.
   Tune against `VisionConfig.AMBIENT_FLOOR = 0.04` and verify an enemy at 200 u stays black.
 - Cvars: `r_player_light` (on/off), `r_player_light_radius`, `r_player_light_intensity`,
@@ -478,7 +485,7 @@ tests.
 
 | Risk | Mitigation |
 | --- | --- |
-| The player light becomes a wallhack | Low intensity, shadowed, explicit test: enemy outside the cone but inside the light stays black |
+| The player light becomes a wallhack | Low intensity, shadowed, explicit test: enemy outside the cone and the M14 bubble but inside the light stays black |
 | Escape owned by three systems (dialog, surveillance view, pause) | Single focus stack; top of stack consumes. Fix in M2, before the pause menu exists |
 | Two owners of F2–F4 (debug keys vs loadout stopgap) | Delete the stopgap in M3, in the same change that binds the keys |
 | Snapshot bloat from effect events | Cull by `VisionMath`, cap per tick, send unreliable — a dropped spark is invisible, a dropped state packet is not |

@@ -25,9 +25,10 @@ import java.util.List;
  * lands on, while a fully hidden detonation sends nothing at all.
  *
  * <p>The visibility bar is the same one M6's player lights use: the peripheral floor is not
- * enough. An effect outside the observer's cone is culled, which is what keeps additive particles
- * from glowing at observers who cannot see the source. Gameplay state is never culled this way —
- * only these ephemeral visuals.
+ * enough. An effect outside both the observer's cone and their vision bubble (M14: the close,
+ * all-round sight around the body) is culled, which is what keeps additive particles from glowing
+ * at observers who cannot see the source. Gameplay state is never culled this way — only these
+ * ephemeral visuals.
  *
  * <p>Threading: emit and drain both run on the tick thread. The pending list is deliberately not
  * synchronised, like the rest of the simulation.
@@ -105,8 +106,9 @@ public final class EffectBroadcaster implements EffectSink {
     /**
      * The subset of {@code spawns} the given recipient can plausibly see: any sample point on the
      * effect's culling disc must clear the same visibility bar M6's player lights use (inside the
-     * cone, hard line of sight, smoke counts) — judged from the recipient's own eyes <b>or from
-     * any device they own</b>. A recipient piloting a drone is watching that drone's cone, so an
+     * cone or the all-round vision bubble, hard line of sight, smoke counts) — judged from the
+     * recipient's own eyes <b>or from any device they own</b>. M14 added the bubbles: an effect
+     * just behind the recipient is on their screen now, so it is sent. A recipient piloting a drone is watching that drone's cone, so an
      * effect the drone can see is an effect they can see, even with their back to it.
      *
      * @param recipient the recipient's authoritative player state plus their owned devices
@@ -163,6 +165,12 @@ public final class EffectBroadcaster implements EffectSink {
                     GadgetConfig.DRONE_VISION_RANGE, disc, arena, smoke)) {
                 return true;
             }
+            // M14: the drone's all-round bubble, on the screen-facing bar its screen shows.
+            if (VisionMath.isTargetLit(
+                    drone.x, drone.y, 0f, GadgetConfig.DEVICE_BUBBLE_RADIUS,
+                    VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES, disc, arena, smoke)) {
+                return true;
+            }
         }
         for (CameraEntity camera : recipient.cameras()) {
             if (camera == null || !camera.stuck) {
@@ -171,6 +179,11 @@ public final class EffectBroadcaster implements EffectSink {
             if (VisionMath.canObserverSeeTarget(
                     camera.x, camera.y, camera.aimAngle,
                     GadgetConfig.CAMERA_VISION_RANGE, disc, arena, smoke)) {
+                return true;
+            }
+            if (VisionMath.isTargetLit(
+                    camera.x, camera.y, 0f, GadgetConfig.DEVICE_BUBBLE_RADIUS,
+                    VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES, disc, arena, smoke)) {
                 return true;
             }
         }
@@ -219,6 +232,21 @@ public final class EffectBroadcaster implements EffectSink {
         // must clear that floor, exactly like M6's player-light sources, so additive particles
         // never identify a detonation the observer cannot see. The bar is the shared constant, so
         // the minimap's blip gate and this culler cannot drift apart about what "visible" means.
-        return visibility > VisionConfig.LIT_VISIBILITY_THRESHOLD;
+        if (visibility > VisionConfig.LIT_VISIBILITY_THRESHOLD) {
+            return true;
+        }
+        // M14: the body's vision bubble is all-round, so an effect close behind the observer is
+        // on screen too. It is judged on the same bar, with the bubble's full-circle cone.
+        float bubble = VisionMath.calculateVisibility(
+            observer.eyeX(),
+            observer.eyeY(),
+            0f,
+            VisionConfig.BODY_BUBBLE_RADIUS,
+            VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES,
+            x,
+            y,
+            arena,
+            smoke);
+        return bubble > VisionConfig.LIT_VISIBILITY_THRESHOLD;
     }
 }

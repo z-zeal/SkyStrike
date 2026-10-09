@@ -146,6 +146,27 @@ class VisionMathTest {
     }
 
     @Test
+    void testABubbleIsFullCircleInEveryDirection() {
+        // M14: a vision bubble has no periphery. At one distance every direction is inside it, so
+        // the cone factor is 1 whatever the aim, and the CPU agrees with the shader's zero-feather
+        // full-circle branch. The player's 120° cone still falls to the floor behind the observer.
+        for (int deg = 0; deg < 360; deg += 30) {
+            double rad = Math.toRadians(deg);
+            float tx = 400f + (float) (Math.cos(rad) * 100.0);
+            float ty = 600f + (float) (Math.sin(rad) * 100.0);
+            assertEquals(1f,
+                VisionMath.calculateConeFactor(400f, 600f, 0f,
+                    VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES, 0f, VisionConfig.PERIPHERAL_FLOOR, tx, ty),
+                1e-6f, "bubble at " + deg + " degrees");
+        }
+        assertEquals(VisionConfig.PERIPHERAL_FLOOR,
+            VisionMath.calculateConeFactor(400f, 600f, 0f,
+                VisionConfig.CONE_HALF_ANGLE_DEGREES, VisionConfig.FEATHER_ANGLE_DEGREES,
+                VisionConfig.PERIPHERAL_FLOOR, 300f, 600f),
+            1e-6f, "the player's cone still has a periphery");
+    }
+
+    @Test
     void testThePresentationBarIsStricterThanTheEntityBar() {
         Player observer = new Player(1, "Observer", 0, 400f, 600f);
         observer.aimAngle = 0f;

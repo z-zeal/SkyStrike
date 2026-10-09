@@ -94,6 +94,11 @@ public final class VisionMath {
      *
      * <p>Full 1.0 inside the cone core, smoothly feathered across the edge via smoothstep, and
      * holding {@link VisionConfig#PERIPHERAL_FLOOR} in peripheral space.
+     *
+     * <p>A full-circle observer ({@link VisionConfig#FULL_CIRCLE_HALF_ANGLE_DEGREES}, a vision
+     * bubble) has no periphery: every direction is inside it, so the factor is 1 everywhere. This
+     * is the CPU twin of the shader's {@code deltaAngle <= innerAngle} branch, which a bubble
+     * always takes because its feather is zero and its half-angle is π.
      */
     public static float calculateConeFactor(
             float eyeX,
@@ -104,6 +109,9 @@ public final class VisionMath {
             float peripheralFloor,
             float targetX,
             float targetY) {
+        if (coneHalfAngleDeg >= VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES) {
+            return 1.0f;
+        }
         float dx = targetX - eyeX;
         float dy = targetY - eyeY;
         if (dx == 0f && dy == 0f) {

@@ -82,15 +82,44 @@ class EffectBroadcasterTest {
     }
 
     @Test
-    @DisplayName("an observer with their back to the effect is not told about it")
+    @DisplayName("an observer with their back to a distant effect is not told about it")
     void facingAwayIsCulled() {
-        // Same room, but the impact is behind the observer: outside the cone, the peripheral
-        // floor is not enough (the same bar M6's player lights clear).
+        // The impact is 300 units behind the observer: outside the cone (the peripheral floor is
+        // not enough, the same bar M6's player lights clear) and outside the 140-unit vision bubble.
+        Player observer = player(1700f, 500f, 0f);
+        List<EffectSpawn> spawns = List.of(
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 500f, 0f, 1f));
+
+        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
+    }
+
+    @Test
+    @DisplayName("an effect just behind the observer is inside their vision bubble, so it is sent")
+    void behindInsideBubbleIsDelivered() {
+        // 100 units behind, facing away: outside the cone, inside the all-round bubble (M14).
         Player observer = player(1300f, 400f, 180f);
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
+        assertEquals(1, broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).size(),
+            "the body's bubble is all round, so the back of the body sees this close");
+    }
+
+    @Test
+    @DisplayName("a drone's bubble delivers an effect behind the drone, outside its own cone")
+    void droneBubbleDeliversEffectBehindIt() {
+        // The drone (70-unit bubble) faces east, away from an impact 50 units west of it. Note the
+        // culler's device branch still judges a device's cone on the looser entity bar, so this
+        // passes on the cone too; the bubble's own rule, on the presentation bar, is pinned by
+        // ObserverSetTest.deviceBubbleLightsCloseAroundIt. The observer is far enough off to see nothing.
+        Player observer = player(1700f, 500f, 0f);
+        DroneEntity drone = new DroneEntity(1, 1, 0, 1450f, 500f, 0f, 30f);
+        EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
+            observer, List.of(drone), List.of());
+        List<EffectSpawn> spawns = List.of(
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 500f, 0f, 1f));
+
+        assertEquals(1, broadcaster.cullFor(spawns, recipient, arena, null).size());
     }
 
     @Test
@@ -144,15 +173,16 @@ class EffectBroadcasterTest {
     @Test
     @DisplayName("an effect seen only through the recipient's own drone is still delivered")
     void effectVisibleOnlyThroughOwnedDroneIsDelivered() {
-        // The observer faces away from the impact: their own cone culls it. Their drone sits
-        // right beside the impact, facing it — the drone's cone is an extra observer.
-        Player observer = player(1300f, 400f, 180f);
-        DroneEntity drone = new DroneEntity(1, 1, 0, 1390f, 400f, 0f, 30f);
+        // The observer is 300 units from the impact and faces away: neither their cone nor their
+        // bubble reaches it. Their drone sits 50 units east of the impact, facing it: the drone's
+        // cone is an extra observer.
+        Player observer = player(1700f, 500f, 0f);
+        DroneEntity drone = new DroneEntity(1, 1, 0, 1450f, 500f, 180f, 30f);
         EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
             observer, List.of(drone), List.of());
 
         List<EffectSpawn> spawns = List.of(
-            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 500f, 0f, 1f));
 
         assertEquals(1, broadcaster.cullFor(spawns, recipient, arena, null).size(),
             "the drone sees the impact even with the player's back to it");
@@ -176,13 +206,13 @@ class EffectBroadcasterTest {
     @Test
     @DisplayName("a stuck camera the recipient owns counts as an observer; a flying one does not")
     void stuckCameraObservesButFlyingCameraDoesNot() {
-        Player observer = player(1300f, 400f, 180f);
-        CameraEntity stuck = new CameraEntity(1, 1, 0, 1390f, 400f, 0f, 0f, 0f, 20f);
+        Player observer = player(1700f, 500f, 0f);
+        CameraEntity stuck = new CameraEntity(1, 1, 0, 1450f, 500f, 0f, 0f, 180f, 20f);
         stuck.stuck = true;
-        CameraEntity flying = new CameraEntity(2, 1, 0, 1390f, 400f, 300f, 100f, 0f, 20f);
+        CameraEntity flying = new CameraEntity(2, 1, 0, 1450f, 500f, 300f, 100f, 180f, 20f);
 
         List<EffectSpawn> spawns = List.of(
-            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 500f, 0f, 1f));
 
         assertEquals(1, broadcaster.cullFor(
             spawns,
@@ -199,13 +229,13 @@ class EffectBroadcasterTest {
     @Test
     @DisplayName("someone else's drone is not this recipient's observer")
     void anotherPlayersDroneDoesNotCount() {
-        Player observer = player(1300f, 400f, 180f);
-        DroneEntity notMine = new DroneEntity(1, 99, 1, 1390f, 400f, 0f, 30f);
+        Player observer = player(1700f, 500f, 0f);
+        DroneEntity notMine = new DroneEntity(1, 99, 1, 1450f, 500f, 180f, 30f);
         EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
             observer, List.of(notMine), List.of());
 
         List<EffectSpawn> spawns = List.of(
-            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 500f, 0f, 1f));
 
         assertTrue(broadcaster.cullFor(spawns, recipient, arena, null).isEmpty(),
             "only the recipient's own devices are extra observers");

@@ -41,6 +41,45 @@ public record Observer(
 ) {
 
     /**
+     * An all-round vision bubble: a full circle of sight of the given radius around one point
+     * (M14). It is an ordinary observer whose cone is 360° wide, so the visibility pass, the CPU
+     * sight test and the minimap all read it the same way. Its feather is zero: a bubble has no
+     * edge direction to feather across, and a nonzero feather would dim a sliver behind it.
+     *
+     * @param brightness the composite's multiplier for this bubble, as for a cone
+     */
+    public static Observer bubble(float eyeX, float eyeY, float radius, float brightness) {
+        return new Observer(
+            eyeX,
+            eyeY,
+            0f,
+            radius,
+            VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES,
+            0f,
+            brightness);
+    }
+
+    /** A player's bubble, around the body's eye: {@link VisionConfig#BODY_BUBBLE_RADIUS}, undimmed. */
+    public static Observer bodyBubble(Player viewer) {
+        return bubble(viewer.eyeX(), viewer.eyeY(), VisionConfig.BODY_BUBBLE_RADIUS, 1f);
+    }
+
+    /** A deployed drone's bubble: {@link GadgetConfig#DEVICE_BUBBLE_RADIUS}, at the drone's dimmer brightness. */
+    public static Observer droneBubble(DroneEntity drone) {
+        return bubble(drone.x, drone.y, GadgetConfig.DEVICE_BUBBLE_RADIUS, GadgetConfig.DRONE_VISION_BRIGHTNESS);
+    }
+
+    /** A stuck camera's bubble: {@link GadgetConfig#DEVICE_BUBBLE_RADIUS}, undimmed like its cone. */
+    public static Observer cameraBubble(CameraEntity camera) {
+        return bubble(camera.x, camera.y, GadgetConfig.DEVICE_BUBBLE_RADIUS, 1f);
+    }
+
+    /** Whether this eye is a full-circle bubble rather than a directional cone. */
+    public boolean isBubble() {
+        return coneHalfAngleDeg >= VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES;
+    }
+
+    /**
      * A viewer's own eyes.
      *
      * @param reach the caller's reach, not {@code viewer.ads ? ADS : HIP}: the client eases reach

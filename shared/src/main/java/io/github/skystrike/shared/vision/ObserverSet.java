@@ -18,11 +18,18 @@ import java.util.List;
  * caller's predicted copy rather than the interpolated one, so the cone and the camera never
  * disagree about where the device is.
  *
+ * <p>M14 adds a vision <b>bubble</b> to each of those eyes: a full circle of close, all-round sight
+ * ({@link Observer#bodyBubble}, {@link Observer#droneBubble}, {@link Observer#cameraBubble}). A
+ * bubble follows its eye exactly as the cone does: it is gone while piloting with the body, and a
+ * device's bubble exists whenever the device does. Bubbles are ordinary observers in
+ * {@link #observers()}, so the visibility pass draws them with the cones and the minimap's blip
+ * gate sees them without a second rule.
+ *
  * <p>Putting that rule in {@code shared} is what lets a second consumer trust it. The visibility
  * pass draws the cones; anything that must not contradict the picture those cones produce — today
- * the minimap's blip gate — asks the same set the same question. Two implementations of "what am I
- * looking at" would eventually answer differently, and a HUD that shows an enemy the fog is hiding
- * is a cheat sheet.
+ * the minimap's blip gate and the player-light admission in {@code FxPipeline} — asks the same set
+ * the same question. Two implementations of "what am I looking at" would eventually answer
+ * differently, and a HUD that shows an enemy the fog is hiding is a cheat sheet.
  *
  * <p>This is deliberately <b>not</b> the server's effect-culling set
  * ({@code server/fx/EffectBroadcaster}). That one asks a different question — "could this recipient
@@ -33,12 +40,14 @@ import java.util.List;
  */
 public final class ObserverSet {
 
-    private static final ObserverSet EMPTY = new ObserverSet(List.of());
+    private static final ObserverSet EMPTY = new ObserverSet(List.of(), List.of());
 
     private final List<Observer> observers;
+    private final List<Observer> deviceBubbles;
 
-    private ObserverSet(List<Observer> observers) {
+    private ObserverSet(List<Observer> observers, List<Observer> deviceBubbles) {
         this.observers = List.copyOf(observers);
+        this.deviceBubbles = List.copyOf(deviceBubbles);
     }
 
     /** A set with no eyes in it: it sees nothing, and says so. */
@@ -46,7 +55,10 @@ public final class ObserverSet {
         return EMPTY;
     }
 
-    /** Wraps a caller-assembled list. Null entries are dropped, and the list is copied. */
+    /**
+     * Wraps a caller-assembled list. Null entries are dropped, and the list is copied. A set built
+     * this way has no device bubbles to light: {@link #deviceBubbles()} is empty.
+     */
     public static ObserverSet of(List<Observer> observers) {
         if (observers == null || observers.isEmpty()) {
             return EMPTY;
@@ -57,7 +69,7 @@ public final class ObserverSet {
                 kept.add(observer);
             }
         }
-        return kept.isEmpty() ? EMPTY : new ObserverSet(kept);
+        return kept.isEmpty() ? EMPTY : new ObserverSet(kept, List.of());
     }
 
     /**
@@ -85,9 +97,11 @@ public final class ObserverSet {
             return EMPTY;
         }
         int viewerId = viewer.id;
-        List<Observer> eyes = new ArrayList<>(4);
+        List<Observer> eyes = new ArrayList<>(8);
+        List<Observer> devices = new ArrayList<>(4);
         if (!viewer.isSurveillanceLocked()) {
             eyes.add(Observer.body(viewer, viewerReach));
+            eyes.add(Observer.bodyBubble(viewer));
         }
         for (DroneEntity drone : drones == null ? List.<DroneEntity>of() : drones) {
             if (drone == null || drone.ownerId != viewerId) {
@@ -96,23 +110,44 @@ public final class ObserverSet {
             if (pilotedDrone != null && drone.id == pilotedDrone.id) {
                 continue;
             }
-            eyes.add(Observer.drone(drone));
+            addDevice(eyes, devices, Observer.drone(drone), Observer.droneBubble(drone));
         }
         if (pilotedDrone != null) {
-            eyes.add(Observer.drone(pilotedDrone));
+            addDevice(eyes, devices, Observer.drone(pilotedDrone), Observer.droneBubble(pilotedDrone));
         }
         for (CameraEntity camera : cameras == null ? List.<CameraEntity>of() : cameras) {
             if (camera == null || camera.ownerId != viewerId || !camera.stuck) {
                 continue;
             }
-            eyes.add(Observer.camera(camera));
+            addDevice(eyes, devices, Observer.camera(camera), Observer.cameraBubble(camera));
         }
-        return of(eyes);
+        return eyes.isEmpty() ? EMPTY : new ObserverSet(eyes, devices);
     }
 
-    /** The observers, in the order they were assembled: body, devices, piloted device, cameras. */
+    /** A device's cone and bubble go into the draw list together; the bubble also joins the lights. */
+    private static void addDevice(
+            List<Observer> eyes, List<Observer> devices, Observer cone, Observer bubble) {
+        eyes.add(cone);
+        eyes.add(bubble);
+        devices.add(bubble);
+    }
+
+    /**
+     * The observers, in the order they were assembled: the body's cone and bubble, then each drone
+     * as its cone and bubble, then the piloted drone, then each stuck camera. A bubble always
+     * directly follows the cone of the same eye.
+     */
     public List<Observer> observers() {
         return observers;
+    }
+
+    /**
+     * The bubbles of the viewer's devices: one per owned drone and per stuck camera, and the piloted
+     * drone's. The player's own bubble is not in this list, because the body's light is drawn from
+     * the player's own light settings, not from a device's.
+     */
+    public List<Observer> deviceBubbles() {
+        return deviceBubbles;
     }
 
     public int size() {
@@ -126,7 +161,8 @@ public final class ObserverSet {
     /**
      * Whether any eye in this set has {@code targetBox} genuinely lit — above the peripheral floor,
      * on the presentation bar, and judged with each observer's own cone angle, so a device's
-     * narrower 70° cone reveals less than a body's 120°.
+     * narrower 70° cone reveals less than a body's 120°. A bubble is judged as a full circle, so a
+     * target right behind a body is lit if it is inside the body's bubble.
      *
      * <p>This is the question a screen-facing consumer has to ask, and it is deliberately stricter
      * than {@link VisionMath#canObserverSeeTarget}: that one reports a body standing behind the
