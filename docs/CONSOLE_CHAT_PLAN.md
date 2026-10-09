@@ -119,6 +119,12 @@ Two things worth knowing when tuning this later:
 - Dropping the threshold to Player grants everyone a console whose *registry is still filtered by permission* — so they would see only client-side commands (`help`, `clear`, `fps`, `quality`, `bind`, `mute`) and no privileged ones. That is a reasonable future policy for a settings-heavy game, and it needs no code change, only a different threshold.
 - Whatever the threshold, the **dedicated server's own terminal always runs at Admin**, since whoever holds that console already controls the machine.
 
+### 4.4 The built-in dev account
+
+The project owner has a hardcoded identity, `ZealDEV`, that resolves to **Admin** — the top of the ladder, so every command — but only while the host runs with the debug master switch on (`-Dskystrike.debug=true`, `SKYSTRIKE_DEBUG=1`, or `--dev`; `GameServer.applyBuiltinDevAccount`). The startup log announces it, loudly, exactly like DEV MODE. A shipping host resolves the name to an ordinary player.
+
+It is deliberately **not** an always-on grant. Names are client-claimed and matched case-insensitively, and this repository is public: an ungated hardcoded name would be a published superuser credential, elevating whoever claims it on every server running the build, real ones included. A deployer who wants the account elevated on their own server opts in per host with `--grant ZealDEV=admin` — deployment configuration, not source — which is the same mechanism any future authenticated identity will feed.
+
 ---
 
 ## 5. TEXT VISIBILITY

@@ -123,8 +123,19 @@ public final class UtilityConfig {
     /** Radius of one molotov fire zone, in world units. */
     public static final float FIRE_ZONE_RADIUS = 40f;
 
-    /** Fire spread zones are cast along the hit surface at this spacing. */
-    public static final float FIRE_SPREAD_OFFSET = 2.0f;
+    /**
+     * Fire spread zones are cast along the hit surface at this spacing, in world units.
+     *
+     * <p>Mechanics §6.2 quotes the offset as "2.0 units" in the plan's <b>reference units</b> —
+     * the small scale §7 quotes gadget distances in — converted here at
+     * {@link GadgetConfig#WORLD_UNITS_PER_REFERENCE_UNIT}, i.e. 50 world units. Against
+     * {@link #FIRE_ZONE_RADIUS} = 40 that chains neighbouring patches into one continuous line of
+     * fire along the surface. Read as 2.0 <i>world</i> units it would drop all seven zones within
+     * about 7 units of the impact — inside the central zone — leaving the spread, its jitter
+     * and its reduced {@link #FIRE_SPREAD_DAMAGE} as dead code.
+     */
+    public static final float FIRE_SPREAD_OFFSET =
+        2.0f * GadgetConfig.WORLD_UNITS_PER_REFERENCE_UNIT;
 
     /** Damage of a molotov's outward-cast spread zones, against 21 for the central one. */
     public static final float FIRE_SPREAD_DAMAGE = 17f;
