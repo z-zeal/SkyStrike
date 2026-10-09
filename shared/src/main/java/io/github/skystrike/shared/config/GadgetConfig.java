@@ -117,11 +117,12 @@ public final class GadgetConfig {
     public static final float CAMERA_VISION_ANGLE_DEGREES = DRONE_VISION_ANGLE_DEGREES;
 
     /**
-     * Collision half-extent of a camera, in world units. <b>Provisional</b> — §7.2 sizes
-     * nothing; a camera is a throwable-sized device, so it takes a throwable-adjacent 5 until
-     * the art pass says otherwise.
+     * Collision half-extent of a camera, in world units. The camera flies with the one shared
+     * throwable integrator, whose contact position is computed at {@link UtilityConfig#THROWABLE_RADIUS}
+     * — so the camera's radius <b>is</b> the throwable radius, and a camera stuck to a floor rests
+     * exactly tangent to it, neither sunk in nor floating above.
      */
-    public static final float CAMERA_RADIUS = 5f;
+    public static final float CAMERA_RADIUS = UtilityConfig.THROWABLE_RADIUS;
 
     // --- Shield (mechanics §7.3) -----------------------------------------------------------------
 

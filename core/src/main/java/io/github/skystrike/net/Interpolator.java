@@ -2,6 +2,8 @@ package io.github.skystrike.net;
 
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
@@ -234,6 +236,110 @@ public final class Interpolator {
     }
 
     /**
+     * Returns smoothly interpolated drones, the same treatment as utilities in flight: a deployed
+     * drone moves at up to 200 u/s, which steps visibly at the 20 Hz snapshot rate. The owner's
+     * own drone is predicted locally by the surveillance controller instead; this list is for
+     * everyone else's devices (and the fallback before the first prediction exists).
+     */
+    public List<DroneEntity> interpolateDrones() {
+        List<StateBuffer.Snapshot> snaps = buffer.snapshots();
+        if (snaps.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (snaps.size() == 1) {
+            return copyDrones(snaps.get(0).drones());
+        }
+
+        long renderTime = System.currentTimeMillis() - delayMillis;
+        StateBuffer.Snapshot from = null;
+        StateBuffer.Snapshot to = null;
+        for (int i = 0; i < snaps.size() - 1; i++) {
+            if (snaps.get(i).timestampMillis() <= renderTime
+                && snaps.get(i + 1).timestampMillis() >= renderTime) {
+                from = snaps.get(i);
+                to = snaps.get(i + 1);
+                break;
+            }
+        }
+        if (from == null || to == null) {
+            return copyDrones(snaps.get(snaps.size() - 1).drones());
+        }
+
+        long span = to.timestampMillis() - from.timestampMillis();
+        float alpha = span > 0 ? (float) (renderTime - from.timestampMillis()) / (float) span : 1f;
+        alpha = Lerp.clamp(alpha, 0f, 1f);
+        List<DroneEntity> result = new ArrayList<>();
+        for (Map.Entry<Integer, DroneEntity> entry : to.drones().entrySet()) {
+            DroneEntity newer = entry.getValue();
+            DroneEntity older = from.drones().get(entry.getKey());
+            if (older == null) {
+                result.add(newer.copy());
+                continue;
+            }
+            DroneEntity interpolated = newer.copy();
+            interpolated.x = Lerp.mix(older.x, newer.x, alpha);
+            interpolated.y = Lerp.mix(older.y, newer.y, alpha);
+            interpolated.vx = Lerp.mix(older.vx, newer.vx, alpha);
+            interpolated.vy = Lerp.mix(older.vy, newer.vy, alpha);
+            interpolated.aimAngle = Angles.wrap(
+                older.aimAngle + Angles.shortestDelta(older.aimAngle, newer.aimAngle) * alpha);
+            result.add(interpolated);
+        }
+        return result;
+    }
+
+    /**
+     * Returns smoothly interpolated cameras. A stuck camera never moves, so this matters only for
+     * the flight arc — and for the stuck ones the newest snapshot is exact anyway.
+     */
+    public List<CameraEntity> interpolateCameras() {
+        List<StateBuffer.Snapshot> snaps = buffer.snapshots();
+        if (snaps.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (snaps.size() == 1) {
+            return copyCameras(snaps.get(0).cameras());
+        }
+
+        long renderTime = System.currentTimeMillis() - delayMillis;
+        StateBuffer.Snapshot from = null;
+        StateBuffer.Snapshot to = null;
+        for (int i = 0; i < snaps.size() - 1; i++) {
+            if (snaps.get(i).timestampMillis() <= renderTime
+                && snaps.get(i + 1).timestampMillis() >= renderTime) {
+                from = snaps.get(i);
+                to = snaps.get(i + 1);
+                break;
+            }
+        }
+        if (from == null || to == null) {
+            return copyCameras(snaps.get(snaps.size() - 1).cameras());
+        }
+
+        long span = to.timestampMillis() - from.timestampMillis();
+        float alpha = span > 0 ? (float) (renderTime - from.timestampMillis()) / (float) span : 1f;
+        alpha = Lerp.clamp(alpha, 0f, 1f);
+        List<CameraEntity> result = new ArrayList<>();
+        for (Map.Entry<Integer, CameraEntity> entry : to.cameras().entrySet()) {
+            CameraEntity newer = entry.getValue();
+            CameraEntity older = from.cameras().get(entry.getKey());
+            if (older == null) {
+                result.add(newer.copy());
+                continue;
+            }
+            CameraEntity interpolated = newer.copy();
+            interpolated.x = Lerp.mix(older.x, newer.x, alpha);
+            interpolated.y = Lerp.mix(older.y, newer.y, alpha);
+            interpolated.vx = Lerp.mix(older.vx, newer.vx, alpha);
+            interpolated.vy = Lerp.mix(older.vy, newer.vy, alpha);
+            interpolated.aimAngle = Angles.wrap(
+                older.aimAngle + Angles.shortestDelta(older.aimAngle, newer.aimAngle) * alpha);
+            result.add(interpolated);
+        }
+        return result;
+    }
+
+    /**
      * Persistent zones do not move, so the newest snapshot is authoritative. Copies keep callers
      * from mutating the historical network buffer while preparing shader smoke uniforms.
      */
@@ -261,6 +367,22 @@ public final class Interpolator {
         List<ThrownUtility> list = new ArrayList<>(utilities.size());
         for (ThrownUtility utility : utilities.values()) {
             list.add(utility.copy());
+        }
+        return list;
+    }
+
+    private static List<DroneEntity> copyDrones(Map<Integer, DroneEntity> drones) {
+        List<DroneEntity> list = new ArrayList<>(drones.size());
+        for (DroneEntity drone : drones.values()) {
+            list.add(drone.copy());
+        }
+        return list;
+    }
+
+    private static List<CameraEntity> copyCameras(Map<Integer, CameraEntity> cameras) {
+        List<CameraEntity> list = new ArrayList<>(cameras.size());
+        for (CameraEntity camera : cameras.values()) {
+            list.add(camera.copy());
         }
         return list;
     }

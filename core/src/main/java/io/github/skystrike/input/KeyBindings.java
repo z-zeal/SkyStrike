@@ -414,6 +414,11 @@ public final class KeyBindings {
         return Gdx.input.isKeyJustPressed(gadgetE);
     }
 
+    /** Edge-triggered: true only on the frame the view-cycle key goes down (mechanics §9, key 6). */
+    public boolean isViewCycleJustPressed() {
+        return Gdx.input.isKeyJustPressed(viewCycle);
+    }
+
     /** Edge-triggered: true only on the frame the chat key goes down. */
     public boolean isOpenChatJustPressed() {
         return Gdx.input.isKeyJustPressed(openChat);

@@ -101,7 +101,7 @@ public final class ThrowablePhysics {
         Contact contact = Contact.NONE;
 
         for (int i = 0; i < substeps; i++) {
-            Contact stepContact = integrateOnce(t, h, map);
+            Contact stepContact = integrateOnce(t, h, map, true);
             if (stepContact != Contact.NONE) {
                 contact = stepContact;
             }
@@ -112,6 +112,48 @@ public final class ThrowablePhysics {
         return contact;
     }
 
+    /**
+     * Sticks-at-contact variant of {@link #stepInPlace} for devices that must stop on the first
+     * surface they touch rather than bounce off it (mechanics §7.2's throw camera).
+     *
+     * <p>The difference is one word in the substep loop: <b>break</b> on the first contact
+     * instead of carrying the bounced velocity through the remaining substeps. Without it, a
+     * fast-falling camera would bounce inside a single tick and end up parked several units past
+     * the surface it actually hit. The integration itself is the same {@code integrateOnce} —
+     * this is the one integrator, with the bounce switched off — and the throwable is left flush
+     * against the surface with the contact normal set, exactly where a stick belongs.
+     *
+     * @return what, if anything, was hit during this step
+     */
+    public static Contact stepInPlaceUntilContact(ThrownUtility t, float dt, ArenaMap map) {
+        if (t == null || dt <= 0f) {
+            return Contact.NONE;
+        }
+
+        t.prevX = t.x;
+        t.prevY = t.y;
+        t.age += dt;
+
+        if (t.fuseRemaining > 0f) {
+            t.fuseRemaining = Math.max(0f, t.fuseRemaining - dt);
+        }
+        if (t.resting) {
+            return Contact.NONE;
+        }
+
+        int substeps = substepsFor(t, dt);
+        float h = dt / substeps;
+
+        for (int i = 0; i < substeps; i++) {
+            Contact stepContact = integrateOnce(t, h, map, false);
+            if (stepContact != Contact.NONE) {
+                // First surface wins: park flush against it, do not bounce, do not continue.
+                return stepContact;
+            }
+        }
+        return Contact.NONE;
+    }
+
     /** How many substeps this tick needs for the throwable not to step over thin geometry. */
     public static int substepsFor(ThrownUtility t, float dt) {
         float travel = t.speed() * dt;
@@ -119,7 +161,12 @@ public final class ThrowablePhysics {
         return Math.max(1, Math.min(UtilityConfig.MAX_SUBSTEPS, needed));
     }
 
-    private static Contact integrateOnce(ThrownUtility t, float h, ArenaMap map) {
+    /**
+     * One integration substep. With {@code bounce} the throwable reflects off the surface it
+     * hit (grenades, molotovs); without it, the velocity component into the surface is spent
+     * and the throwable is left flush against it (a camera sticking to its first surface).
+     */
+    private static Contact integrateOnce(ThrownUtility t, float h, ArenaMap map, boolean bounce) {
         t.vy += UtilityConfig.GRAVITY * h;
         clampSpeed(t);
 
@@ -132,12 +179,24 @@ public final class ThrowablePhysics {
             t.x = t.vx > 0f
                 ? blockerX.left() - UtilityConfig.THROWABLE_RADIUS - UtilityConfig.CONTACT_SKIN
                 : blockerX.right() + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
-            bounceX(t);
+            if (bounce) {
+                bounceX(t);
+            } else {
+                t.contactNormalX = t.vx > 0f ? -1f : 1f;
+                t.contactNormalY = 0f;
+                t.vx = 0f;
+            }
             contact = Contact.SURFACE;
         } else if (outsideHorizontally(targetX)) {
             t.x = Lerp.clamp(
                 targetX, UtilityConfig.THROWABLE_RADIUS, WorldConfig.ARENA_WIDTH - UtilityConfig.THROWABLE_RADIUS);
-            bounceX(t);
+            if (bounce) {
+                bounceX(t);
+            } else {
+                t.contactNormalX = t.vx > 0f ? -1f : 1f;
+                t.contactNormalY = 0f;
+                t.vx = 0f;
+            }
             contact = Contact.BOUNDARY;
         } else {
             t.x = targetX;
@@ -150,12 +209,24 @@ public final class ThrowablePhysics {
             t.y = t.vy > 0f
                 ? blockerY.bottom() - UtilityConfig.THROWABLE_RADIUS - UtilityConfig.CONTACT_SKIN
                 : blockerY.top() + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
-            bounceY(t);
+            if (bounce) {
+                bounceY(t);
+            } else {
+                t.contactNormalX = 0f;
+                t.contactNormalY = t.vy > 0f ? -1f : 1f;
+                t.vy = 0f;
+            }
             contact = Contact.SURFACE;
         } else if (outsideVertically(targetY)) {
             t.y = Lerp.clamp(
                 targetY, UtilityConfig.THROWABLE_RADIUS, WorldConfig.ARENA_HEIGHT - UtilityConfig.THROWABLE_RADIUS);
-            bounceY(t);
+            if (bounce) {
+                bounceY(t);
+            } else {
+                t.contactNormalX = 0f;
+                t.contactNormalY = t.vy > 0f ? -1f : 1f;
+                t.vy = 0f;
+            }
             contact = contact == Contact.SURFACE ? Contact.SURFACE : Contact.BOUNDARY;
         } else {
             t.y = targetY;
@@ -163,7 +234,9 @@ public final class ThrowablePhysics {
 
         if (contact != Contact.NONE) {
             t.bounces++;
-            settleIfSpent(t, map);
+            if (bounce) {
+                settleIfSpent(t, map);
+            }
         }
         return contact;
     }

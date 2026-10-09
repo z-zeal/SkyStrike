@@ -3,10 +3,14 @@ package io.github.skystrike.server.weapons;
 import io.github.skystrike.server.combat.BulletSystem;
 import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.MeleeSystem;
+import io.github.skystrike.server.gadget.CameraSystem;
+import io.github.skystrike.server.gadget.DroneSystem;
 import io.github.skystrike.server.gadget.ShieldSystem;
+import io.github.skystrike.server.gadget.SurveillanceService;
 import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.utility.UtilitySystem;
 import io.github.skystrike.shared.combat.SpreadMath;
+import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.WeaponItem;
@@ -26,9 +30,17 @@ import java.util.Collection;
  * <p>This is the one place the rules of mechanics §8 meet the live simulation, and its order is
  * load-bearing:
  * <ol>
- *   <li><b>Slot press first.</b> A latched key press applies the shared tap rule — including the
+ *   <li><b>Edges first.</b> Every latched edge — slot press, gadget press, view action, trigger —
+ *       is consumed up front whether or not it may act, so a rejected edge is never banked
+ *       through death, stun or a surveillance lock.</li>
+ *   <li><b>Slot press.</b> A latched key press applies the shared tap rule — including the
  *       quick-swap detour to melee — so this tick's trigger acts on the weapon the player asked
- *       for, not last tick's.</li>
+ *       for, not last tick's. Locked out while piloting a device (mechanics §9).</li>
+ *   <li><b>View actions and gadget presses.</b> The view-cycle/exit edges and the Q/E dispatch
+ *       (shield, drone, camera) apply before the weapon rules: those are the input families that
+ *       stay live under the surveillance lock.</li>
+ *   <li><b>The surveillance lock.</b> While the player looks through a drone or camera the body
+ *       is frozen and defenceless — no fire, melee or utility.</li>
  *   <li><b>Live gun state follows the active slot.</b> Whenever the slot changes the gun's
  *       accumulated spread, recoil and cooldown are wiped ({@link GunInstance#resetTo}), per §8:
  *       switching resets that weapon's state. Reload state is in the loadout and cancelled by the
@@ -49,6 +61,9 @@ public final class LoadoutSystem {
     private final BulletSystem bulletSystem;
     private final UtilitySystem utilitySystem;
     private final ShieldSystem shieldSystem;
+    private final SurveillanceService surveillance;
+    private final DroneSystem droneSystem;
+    private final CameraSystem cameraSystem;
     private final FireController.Volley volley = new FireController.Volley();
 
     /** Legacy construction for gun/melee-only tests; active utilities require the four-arg form. */
@@ -72,15 +87,52 @@ public final class LoadoutSystem {
         UtilitySystem utilitySystem,
         ShieldSystem shieldSystem
     ) {
+        this(fireController, meleeSystem, bulletSystem, utilitySystem, shieldSystem, null, null, null);
+    }
+
+    /**
+     * Full construction with the Phase 6 gadget systems. The surveillance service applies the
+     * view-action edges; the drone and camera systems answer Q/E presses on their slots. All
+     * three may be null (legacy tests), in which case those edges are consumed and ignored —
+     * an edge is never banked, whatever acts on it.
+     */
+    public LoadoutSystem(
+        FireController fireController,
+        MeleeSystem meleeSystem,
+        BulletSystem bulletSystem,
+        UtilitySystem utilitySystem,
+        ShieldSystem shieldSystem,
+        SurveillanceService surveillance,
+        DroneSystem droneSystem,
+        CameraSystem cameraSystem
+    ) {
         this.fireController = fireController;
         this.meleeSystem = meleeSystem;
         this.bulletSystem = bulletSystem;
         this.utilitySystem = utilitySystem;
         this.shieldSystem = shieldSystem == null ? new ShieldSystem() : shieldSystem;
+        this.surveillance = surveillance;
+        this.droneSystem = droneSystem;
+        this.cameraSystem = cameraSystem;
     }
 
     /**
      * Steps one session's loadout by one tick.
+     *
+     * <p>Every edge is consumed up front, whether or not it may act: a rejected edge is never
+     * carried through death, stun or a surveillance lock. The order below is load-bearing:
+     * <ol>
+     *   <li><b>Slot press.</b> A latched press applies the shared tap rule — unless the body is
+     *       locked to a surveillance device, where slot selection is one of the locked-out
+     *       actions (mechanics §9).</li>
+     *   <li><b>View actions.</b> The view-cycle and exit-surveillance edges apply before every
+     *       other check: Escape must be able to leave a surveillance view even while stunned.</li>
+     *   <li><b>Gadget press dispatch.</b> Q/E routes to the system owning the pressed slot's
+     *       gadget — shield, drone or camera. Gadget keys stay live while piloting; only the
+     *       view keys and they do (mechanics §9).</li>
+     *   <li><b>The surveillance lock.</b> While piloting, the body is frozen and defenceless:
+     *       no weapons, no utilities, no melee — the input steers the device instead.</li>
+     * </ol>
      *
      * @param targets every live player in the match — melee swings resolve against them
      */
@@ -90,28 +142,47 @@ public final class LoadoutSystem {
         GunInstance gun = session.gun();
         session.tickUtilityCooldowns(dt);
 
-        // 1. A latched slot press applies the same tap rule the client's prediction ran.
+        // 1. Every edge is latched and consumed here, alive or not: none of them may be banked.
         int slotPress = session.consumeSlotPress();
-        if (loadout != null && slotPress != PacketPlayerInput.NO_SLOT_PRESS) {
+        int gadgetPress = session.consumeGadgetPress();
+        int viewAction = session.consumeViewAction();
+        boolean firePressed = session.consumeFirePressed();
+
+        // 2. A latched slot press applies the same tap rule the client's prediction ran — unless
+        //    the body is locked to a device, where slot selection is locked out.
+        if (loadout != null && slotPress != PacketPlayerInput.NO_SLOT_PRESS
+            && !player.isSurveillanceLocked()) {
             loadout.tapSlot(slotPress);
         }
-
-        // 2. Q/E edges are retired before alive/stun checks. A rejected edge is never carried
-        // through death or stun. Passive gadgets (the fuel tank) deliberately do nothing here.
-        int gadgetPress = session.consumeGadgetPress();
-        boolean firePressed = session.consumeFirePressed();
         if (!player.alive || loadout == null) {
             return;
+        }
+
+        // 3. View actions apply before every other lock: Escape must always be able to leave a
+        //    surveillance view, and the cycle key stays live under it too.
+        if (viewAction != PacketPlayerInput.NO_VIEW_ACTION && surveillance != null) {
+            surveillance.applyViewAction(player, viewAction);
         }
         if (player.isSlowed()) {
             mirror(player, loadout, gun);
             return;
         }
+
+        // 4. Q/E routes to the system owning the pressed slot's gadget. Passive gadgets (the
+        //    fuel tank) deliberately do nothing here.
         if (gadgetPress != PacketPlayerInput.NO_GADGET_PRESS) {
-            shieldSystem.toggle(player, gadgetPress);
+            dispatchGadgetPress(player, gadgetPress);
         }
 
-        // 3. An equipped shield forces the handgun when possible. With no handgun every weapon
+        // 5. The surveillance lock: while looking through a drone or camera the body cannot
+        //    fire, melee or throw — its input is the device's. Gadget keys already ran above.
+        if (player.isSurveillanceLocked()) {
+            syncGunForSlot(session, loadout, gun);
+            mirror(player, loadout, gun);
+            return;
+        }
+
+        // 6. An equipped shield forces the handgun when possible. With no handgun every weapon
         // action is blocked below; it is safer than silently granting melee or primary fire.
         boolean shieldEquipped = shieldSystem.enforceHandgunOnly(player);
         if (shieldEquipped && shieldSystem.blocksWeaponAction(player)) {
@@ -137,6 +208,42 @@ public final class LoadoutSystem {
 
         // 4. Mirror the authoritative result onto the networked player record.
         mirror(player, loadout, gun);
+    }
+
+    /**
+     * Routes one Q/E press to the system owning the pressed slot's gadget. A slot holds exactly
+     * one gadget, so exactly one system acts; the shield keeps its own toggle semantics, the
+     * drone and camera run the shared press machine. Empty and passive slots do nothing.
+     */
+    private void dispatchGadgetPress(Player player, int gadgetPress) {
+        int index = switch (gadgetPress) {
+            case PacketPlayerInput.GADGET_Q_PRESS -> 0;
+            case PacketPlayerInput.GADGET_E_PRESS -> 1;
+            default -> -1;
+        };
+        if (index < 0 || player.loadout == null) {
+            return;
+        }
+        GadgetSlot slot = player.loadout.gadgetSlot(index);
+        if (slot == null) {
+            return;
+        }
+        switch (slot.gadgetId()) {
+            case SHIELD -> shieldSystem.toggle(player, gadgetPress);
+            case DRONE -> {
+                if (droneSystem != null) {
+                    droneSystem.press(player);
+                }
+            }
+            case CAMERA -> {
+                if (cameraSystem != null) {
+                    cameraSystem.press(player);
+                }
+            }
+            default -> {
+                // NONE and the passive fuel tank: no press behaviour.
+            }
+        }
     }
 
     /** Aligns the session's volatile gun state after any active-slot transition. */

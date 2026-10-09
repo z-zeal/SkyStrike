@@ -43,9 +43,24 @@ public final class InputSampler {
     }
 
     /**
-     * Samples live input relative to {@code localPlayer} and {@code camera}.
+     * Samples live input relative to {@code localPlayer} and {@code camera}, aiming from the
+     * player's own eye.
      */
     public PacketPlayerInput sample(Player localPlayer, GameCamera camera) {
+        return sample(
+            localPlayer,
+            camera,
+            localPlayer == null ? 0f : localPlayer.eyeX(),
+            localPlayer == null ? 0f : localPlayer.eyeY());
+    }
+
+    /**
+     * Samples live input relative to {@code localPlayer} and {@code camera}, aiming from an
+     * explicit anchor. While the player pilots a drone or views through a camera, the anchor is
+     * the device's position — the aim is what steers the device's vision cone, so it must be
+     * measured from the eyes the player is actually looking through, not from the locked body.
+     */
+    public PacketPlayerInput sample(Player localPlayer, GameCamera camera, float aimAnchorX, float aimAnchorY) {
         long sequence = sequenceCounter++;
         PacketPlayerInput packet;
         if (!router.isGameplayActive() || localPlayer == null || camera == null || freecamActive) {
@@ -69,8 +84,8 @@ public final class InputSampler {
             mouseScreenVec.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
             camera.raw().unproject(mouseScreenVec);
             float aimAngle = Angles.ofVector(
-                mouseScreenVec.x - localPlayer.eyeX(),
-                mouseScreenVec.y - localPlayer.eyeY());
+                mouseScreenVec.x - aimAnchorX,
+                mouseScreenVec.y - aimAnchorY);
 
             packet = new PacketPlayerInput(
                 sequence, moveX, jump, crouch, jetpack, ads, fire, aimAngle);

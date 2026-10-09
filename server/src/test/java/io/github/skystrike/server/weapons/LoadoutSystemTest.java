@@ -2,15 +2,23 @@ package io.github.skystrike.server.weapons;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.server.combat.BulletSystem;
 import io.github.skystrike.server.combat.DamageService;
 import io.github.skystrike.server.combat.KillFeedService;
 import io.github.skystrike.server.combat.MeleeSystem;
+import io.github.skystrike.server.gadget.CameraSystem;
+import io.github.skystrike.server.gadget.DroneSystem;
+import io.github.skystrike.server.gadget.ShieldSystem;
+import io.github.skystrike.server.gadget.SurveillanceService;
 import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.utility.UtilitySystem;
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.gadget.GadgetId;
+import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
@@ -386,5 +394,141 @@ class LoadoutSystemTest {
         Player victim = new Player(2, "Victim", 0, 430f, 1200f);
         system.tick(session, DT, List.of(victim), damage);
         assertEquals(CombatConfig.MAX_HEALTH, victim.health, 1e-4f);
+    }
+
+    // --- Surveillance lock (mechanics §7, §9) ------------------------------------------------------
+
+    private LoadoutSystem gadgetSystem;
+    private DroneSystem drones;
+    private CameraSystem cameras;
+    private SurveillanceService surveillance;
+
+    private void buildGadgetLoadout() {
+        ArenaMap arena = ArenaMap.standard();
+        drones = new DroneSystem(arena);
+        cameras = new CameraSystem(arena);
+        surveillance = new SurveillanceService(drones, cameras);
+        gadgetSystem = new LoadoutSystem(
+            new FireController(new Random(20261005L), new RecoilService()),
+            new MeleeSystem(),
+            bulletSystem,
+            utilitySystem,
+            new ShieldSystem(),
+            surveillance,
+            drones,
+            cameras);
+    }
+
+    private void pressGadget(long sequence, int gadgetPress, long birthSeq) {
+        PacketPlayerInput packet = new PacketPlayerInput(
+            sequence, 0f, false, false, false, false, false, 0f, PacketPlayerInput.NO_SLOT_PRESS);
+        packet.gadgetPress = gadgetPress;
+        packet.gadgetPressSeq = birthSeq;
+        session.setInput(packet);
+    }
+
+    private void sendViewAction(long sequence, int viewAction, long birthSeq) {
+        PacketPlayerInput packet = new PacketPlayerInput(
+            sequence, 0f, false, false, false, false, false, 0f);
+        packet.viewAction = viewAction;
+        packet.viewActionSeq = birthSeq;
+        session.setInput(packet);
+    }
+
+    @Test
+    @DisplayName("a Q press on the drone slot deploys through the loadout tick's dispatch")
+    void gadgetPressDeploysDrone() {
+        buildGadgetLoadout();
+        player.loadout.setGadgets(GadgetId.DRONE, GadgetId.NONE);
+
+        pressGadget(1, PacketPlayerInput.GADGET_Q_PRESS, 1);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+
+        assertNotNull(drones.byOwner(player.id), "the drone entity exists");
+        assertTrue(player.loadout.gadgetQ.active);
+        assertEquals(SurveillanceView.SELF, player.surveillance());
+    }
+
+    @Test
+    @DisplayName("while piloting, the body cannot fire or change slots, but gadget keys stay live")
+    void surveillanceLockBlocksWeaponsAndSlots() {
+        buildGadgetLoadout();
+        player.loadout.setGadgets(GadgetId.DRONE, GadgetId.NONE);
+        pressGadget(1, PacketPlayerInput.GADGET_Q_PRESS, 1);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        pressGadget(2, PacketPlayerInput.GADGET_Q_PRESS, 2);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(SurveillanceView.DRONE, player.surveillance());
+
+        // Fire is locked out.
+        int magazine = player.loadout.primary.magazine;
+        holdTrigger(3);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(magazine, player.loadout.primary.magazine, "no round leaves a piloting body");
+        assertTrue(bulletSystem.active().isEmpty());
+
+        // Slot selection is locked out.
+        pressSlot(4, PlayerLoadout.SLOT_MELEE, 4);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(PlayerLoadout.SLOT_PRIMARY, player.loadout.activeSlot,
+            "a piloting body cannot switch weapons");
+
+        // The gadget key is still live: Q exits the pilot view.
+        pressGadget(5, PacketPlayerInput.GADGET_Q_PRESS, 5);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(SurveillanceView.SELF, player.surveillance(),
+            "Q still works under the lock — mechanics §9 keeps gadget keys live");
+
+        // And now the body can fire again.
+        holdTrigger(6);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(magazine - 1, player.loadout.primary.magazine);
+    }
+
+    @Test
+    @DisplayName("the view-cycle and exit edges apply under the lock, and are consumed even when dead")
+    void viewActionsApplyUnderEveryLock() {
+        buildGadgetLoadout();
+        player.loadout.setGadgets(GadgetId.DRONE, GadgetId.NONE);
+        pressGadget(1, PacketPlayerInput.GADGET_Q_PRESS, 1);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        pressGadget(2, PacketPlayerInput.GADGET_Q_PRESS, 2);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(SurveillanceView.DRONE, player.surveillance());
+
+        sendViewAction(3, PacketPlayerInput.VIEW_EXIT, 3);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(SurveillanceView.SELF, player.surveillance(), "Escape exits the pilot view");
+
+        // Cycle back in, then a stunned pilot still gets the exit edge.
+        sendViewAction(4, PacketPlayerInput.VIEW_CYCLE, 4);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(SurveillanceView.DRONE, player.surveillance());
+        player.slowRemaining = 1f;
+        sendViewAction(5, PacketPlayerInput.VIEW_EXIT, 5);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(SurveillanceView.SELF, player.surveillance(),
+            "a stunned pilot can still escape");
+
+        // A dead player's view edge is consumed, never banked.
+        player.alive = false;
+        sendViewAction(6, PacketPlayerInput.VIEW_EXIT, 6);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+        assertEquals(PacketPlayerInput.NO_VIEW_ACTION, session.consumeViewAction(),
+            "the edge was consumed by the tick");
+    }
+
+    @Test
+    @DisplayName("a stunned pilot's gadget press is refused, but the drone press still deploys when fresh")
+    void stunnedGadgetPressIsRefused() {
+        buildGadgetLoadout();
+        player.loadout.setGadgets(GadgetId.DRONE, GadgetId.NONE);
+        player.slowRemaining = 1f;
+
+        pressGadget(1, PacketPlayerInput.GADGET_Q_PRESS, 1);
+        gadgetSystem.tick(session, DT, List.of(), damage);
+
+        assertNull(drones.byOwner(player.id), "a stunned player cannot deploy");
+        assertFalse(player.loadout.gadgetQ.active);
     }
 }

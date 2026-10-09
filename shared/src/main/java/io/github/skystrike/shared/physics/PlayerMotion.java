@@ -65,6 +65,12 @@ public final class PlayerMotion {
      * {@code noclip} variant of {@link #stepInPlace(Player, PlayerInput, float, ArenaMap)} (build
      * plan M3 §4): the one place {@code sv_noclip} actually changes simulation behaviour, per the
      * gate — a server command toggles a session flag, and this is where the flag is honoured.
+     *
+     * <p><b>Surveillance lock</b> (mechanics §7, §9): while the player is looking through a
+     * drone or camera, the body is frozen and defenceless — its movement intent is ignored here
+     * and its weapons are blocked in the loadout tick. The lock lives in this shared function so
+     * server authority and client prediction freeze the body identically; the aim still tracks
+     * the cursor, because that aim is what steers the device's vision cone.
      */
     public static void stepInPlace(Player p, PlayerInput input, float dt, ArenaMap map, boolean noclip) {
         if (dt <= 0f) {
@@ -82,11 +88,18 @@ public final class PlayerMotion {
             p.lastProcessedInputSequence = input.sequence;
         }
 
+        // The surveillance lock zeroes the body's movement intent from here down; aim (above)
+        // still flows, so the piloted device's cone follows the cursor.
+        boolean locked = p.isSurveillanceLocked();
+
         // 2. Crouch state and ceiling clearance check
-        updateCrouchState(p, input, map);
+        updateCrouchState(p, input != null && input.crouch && !locked, map);
 
         // 3. Horizontal movement and damping
         float moveX = input != null ? Lerp.clamp(input.moveX, -1f, 1f) : 0f;
+        if (locked) {
+            moveX = 0f;
+        }
         float targetSpeed = p.crouched ? PlayerConfig.CROUCH_SPEED : PlayerConfig.WALK_SPEED;
         if (p.isSlowed()) {
             targetSpeed *= io.github.skystrike.shared.config.UtilityConfig.STUN_MOVE_SPEED_MULTIPLIER;
@@ -106,13 +119,13 @@ public final class PlayerMotion {
         float fuelCapacity = fuelCapacity(p);
         p.fuel = Math.min(Math.max(0f, p.fuel), fuelCapacity);
 
-        if (input != null && input.jump && (p.grounded || p.coyoteTimer > 0f)) {
+        if (input != null && input.jump && !locked && (p.grounded || p.coyoteTimer > 0f)) {
             p.vy = PlayerConfig.JUMP_SPEED;
             p.grounded = false;
             p.coyoteTimer = 0f;
         }
 
-        if (input != null && input.jetpack && p.fuel > 0f) {
+        if (input != null && input.jetpack && !locked && p.fuel > 0f) {
             p.jetpacking = true;
             float aimRad = Angles.toRadians(p.aimAngle);
             float thrust = PlayerConfig.JETPACK_THRUST
@@ -153,8 +166,7 @@ public final class PlayerMotion {
         updateRotationDynamics(p, dt);
     }
 
-    private static void updateCrouchState(Player p, PlayerInput input, ArenaMap map) {
-        boolean wantsCrouch = input != null && input.crouch;
+    private static void updateCrouchState(Player p, boolean wantsCrouch, ArenaMap map) {
         if (wantsCrouch) {
             p.crouched = true;
         } else if (p.crouched) {

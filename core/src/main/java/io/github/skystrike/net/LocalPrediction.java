@@ -105,6 +105,10 @@ public final class LocalPrediction {
             predicted.kills = replayed.kills;
             predicted.deaths = replayed.deaths;
             predicted.respawnTimer = replayed.respawnTimer;
+            // The surveillance view is authoritative like the loadout: the snapshot's value is
+            // copied here, and the SurveillanceController replays any unacknowledged view edges
+            // on top of it, exactly as the LoadoutController does for slot presses.
+            predicted.surveillanceView = replayed.surveillanceView;
         }
     }
 

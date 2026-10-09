@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,8 +59,8 @@ class EffectBroadcasterTest {
         broadcaster.emit(null);
         assertEquals(0, broadcaster.pendingCount());
         assertTrue(broadcaster.drain().isEmpty());
-        assertTrue(broadcaster.cullFor(List.of(), player(1300f, 400f, 0f), arena, null).isEmpty());
-        assertTrue(broadcaster.cullFor(null, player(1300f, 400f, 0f), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(List.of(), Recipient.of(player(1300f, 400f, 0f)), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(null, Recipient.of(player(1300f, 400f, 0f)), arena, null).isEmpty());
         assertTrue(broadcaster.cullFor(
             List.of(new EffectSpawn(EffectType.FRAG_EXPLOSION, 1400f, 400f, 0f, 1f)),
             null,
@@ -74,7 +76,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        List<EffectSpawn> visible = broadcaster.cullFor(spawns, observer, arena, null);
+        List<EffectSpawn> visible = broadcaster.cullFor(spawns, Recipient.of(observer), arena, null);
         assertEquals(1, visible.size());
         assertEquals(EffectType.BULLET_IMPACT_CONCRETE, visible.get(0).type);
     }
@@ -88,7 +90,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, observer, arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
     }
 
     @Test
@@ -98,7 +100,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, observer, arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
     }
 
     @Test
@@ -108,7 +110,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.FRAG_EXPLOSION, 2400f, 1000f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, observer, arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
     }
 
     @Test
@@ -122,8 +124,8 @@ class EffectBroadcasterTest {
         EffectSpawn unscaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1830f, 400f, 0f, 1f);
         EffectSpawn scaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1830f, 400f, 0f, 3f);
 
-        assertTrue(broadcaster.cullFor(List.of(unscaled), observer, arena, null).isEmpty());
-        assertEquals(1, broadcaster.cullFor(List.of(scaled), observer, arena, null).size());
+        assertTrue(broadcaster.cullFor(List.of(unscaled), Recipient.of(observer), arena, null).isEmpty());
+        assertEquals(1, broadcaster.cullFor(List.of(scaled), Recipient.of(observer), arena, null).size());
     }
 
     @Test
@@ -135,8 +137,78 @@ class EffectBroadcasterTest {
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f), // visible
             new EffectSpawn(EffectType.MUZZLE_FLASH, 300f, 1000f, 0f, 1f)); // out of reach
 
-        List<EffectSpawn> visible = broadcaster.cullFor(spawns, observer, arena, null);
+        List<EffectSpawn> visible = broadcaster.cullFor(spawns, Recipient.of(observer), arena, null);
         assertEquals(2, visible.size());
+    }
+
+    @Test
+    @DisplayName("an effect seen only through the recipient's own drone is still delivered")
+    void effectVisibleOnlyThroughOwnedDroneIsDelivered() {
+        // The observer faces away from the impact: their own cone culls it. Their drone sits
+        // right beside the impact, facing it — the drone's cone is an extra observer.
+        Player observer = player(1300f, 400f, 180f);
+        DroneEntity drone = new DroneEntity(1, 1, 0, 1390f, 400f, 0f, 30f);
+        EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
+            observer, List.of(drone), List.of());
+
+        List<EffectSpawn> spawns = List.of(
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
+
+        assertEquals(1, broadcaster.cullFor(spawns, recipient, arena, null).size(),
+            "the drone sees the impact even with the player's back to it");
+    }
+
+    @Test
+    @DisplayName("an effect beyond the drone's reach is culled even with the drone deployed")
+    void effectBeyondDroneReachIsCulled() {
+        Player observer = player(1300f, 400f, 180f);
+        DroneEntity drone = new DroneEntity(1, 1, 0, 1390f, 400f, 0f, 30f);
+        EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
+            observer, List.of(drone), List.of());
+
+        // 1400 units east of the drone: far past its 250-unit cone.
+        List<EffectSpawn> spawns = List.of(
+            new EffectSpawn(EffectType.FRAG_EXPLOSION, 2790f, 400f, 0f, 1f));
+
+        assertTrue(broadcaster.cullFor(spawns, recipient, arena, null).isEmpty());
+    }
+
+    @Test
+    @DisplayName("a stuck camera the recipient owns counts as an observer; a flying one does not")
+    void stuckCameraObservesButFlyingCameraDoesNot() {
+        Player observer = player(1300f, 400f, 180f);
+        CameraEntity stuck = new CameraEntity(1, 1, 0, 1390f, 400f, 0f, 0f, 0f, 20f);
+        stuck.stuck = true;
+        CameraEntity flying = new CameraEntity(2, 1, 0, 1390f, 400f, 300f, 100f, 0f, 20f);
+
+        List<EffectSpawn> spawns = List.of(
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
+
+        assertEquals(1, broadcaster.cullFor(
+            spawns,
+            new EffectBroadcaster.Recipient(observer, List.of(), List.of(stuck)),
+            arena,
+            null).size(), "the stuck camera's cone sees the impact");
+        assertTrue(broadcaster.cullFor(
+            spawns,
+            new EffectBroadcaster.Recipient(observer, List.of(), List.of(flying)),
+            arena,
+            null).isEmpty(), "a camera still in flight projects no cone");
+    }
+
+    @Test
+    @DisplayName("someone else's drone is not this recipient's observer")
+    void anotherPlayersDroneDoesNotCount() {
+        Player observer = player(1300f, 400f, 180f);
+        DroneEntity notMine = new DroneEntity(1, 99, 1, 1390f, 400f, 0f, 30f);
+        EffectBroadcaster.Recipient recipient = new EffectBroadcaster.Recipient(
+            observer, List.of(notMine), List.of());
+
+        List<EffectSpawn> spawns = List.of(
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
+
+        assertTrue(broadcaster.cullFor(spawns, recipient, arena, null).isEmpty(),
+            "only the recipient's own devices are extra observers");
     }
 
     private static Player player(float x, float y, float aimDegrees) {

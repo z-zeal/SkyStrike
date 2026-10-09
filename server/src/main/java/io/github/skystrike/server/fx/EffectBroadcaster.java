@@ -1,8 +1,12 @@
 package io.github.skystrike.server.fx;
 
+import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Rect;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.shared.vision.VisionMath;
@@ -40,6 +44,25 @@ public final class EffectBroadcaster implements EffectSink {
     private static final float DISC_SAMPLE_FRACTION = 0.75f;
 
     private static final int DISC_SAMPLE_COUNT = 8;
+
+    /**
+     * Who a culling decision is made for: the recipient's player, plus the gadget devices they
+     * own. A live drone or stuck camera is an extra observer in its own right — an effect seen
+     * only through the player's own drone must still be sent, because the recipient's screen is
+     * showing that drone's cone.
+     */
+    public record Recipient(Player player, List<DroneEntity> drones, List<CameraEntity> cameras) {
+
+        public Recipient {
+            drones = drones == null ? List.of() : List.copyOf(drones);
+            cameras = cameras == null ? List.of() : List.copyOf(cameras);
+        }
+
+        /** A recipient with no devices: the player observer alone. */
+        public static Recipient of(Player player) {
+            return new Recipient(player, List.of(), List.of());
+        }
+    }
 
     private final List<EffectSpawn> pending = new ArrayList<>();
     private int nextSeed = 1;
@@ -80,21 +103,25 @@ public final class EffectBroadcaster implements EffectSink {
     }
 
     /**
-     * The subset of {@code spawns} the given observer can plausibly see: any sample point on the
+     * The subset of {@code spawns} the given recipient can plausibly see: any sample point on the
      * effect's culling disc must clear the same visibility bar M6's player lights use (inside the
-     * cone, hard line of sight, smoke counts).
+     * cone, hard line of sight, smoke counts) — judged from the recipient's own eyes <b>or from
+     * any device they own</b>. A recipient piloting a drone is watching that drone's cone, so an
+     * effect the drone can see is an effect they can see, even with their back to it.
      *
-     * @param observer the recipient's authoritative player state
-     * @param smoke    live smoke volumes, exactly as gameplay sight queries see them
+     * @param recipient the recipient's authoritative player state plus their owned devices
+     * @param smoke     live smoke volumes, exactly as gameplay sight queries see them
      */
     public List<EffectSpawn> cullFor(
             List<EffectSpawn> spawns,
-            Player observer,
+            Recipient recipient,
             ArenaMap arena,
             List<SmokeVolume> smoke) {
-        if (spawns == null || spawns.isEmpty() || observer == null || arena == null) {
+        if (spawns == null || spawns.isEmpty() || recipient == null
+            || recipient.player() == null || arena == null) {
             return List.of();
         }
+        Player observer = recipient.player();
         float reach = observer.ads ? VisionConfig.REACH_ADS : VisionConfig.REACH_HIP;
         List<EffectSpawn> visible = new ArrayList<>(spawns.size());
         for (EffectSpawn spawn : spawns) {
@@ -102,11 +129,52 @@ public final class EffectBroadcaster implements EffectSink {
                 continue;
             }
             float radius = spawn.type.cullRadius() * Math.max(0.25f, spawn.scale);
-            if (isAnySampleVisible(observer, spawn.x, spawn.y, radius, arena, smoke, reach)) {
+            if (isVisibleToRecipient(observer, recipient, spawn.x, spawn.y, radius, arena, smoke, reach)) {
                 visible.add(spawn);
             }
         }
         return visible;
+    }
+
+    /**
+     * The recipient sees the effect if their own eyes do, or if any device they own does. The
+     * device check is the raw-position {@code VisionMath.canObserverSeeTarget} — a drone or
+     * camera is not a {@code Player} — with the effect's culling disc as the target box.
+     */
+    private static boolean isVisibleToRecipient(
+            Player observer,
+            Recipient recipient,
+            float x,
+            float y,
+            float radius,
+            ArenaMap arena,
+            List<SmokeVolume> smoke,
+            float reach) {
+        if (isAnySampleVisible(observer, x, y, radius, arena, smoke, reach)) {
+            return true;
+        }
+        Rect disc = new Rect(x - radius, y - radius, radius * 2f, radius * 2f);
+        for (DroneEntity drone : recipient.drones()) {
+            if (drone == null) {
+                continue;
+            }
+            if (VisionMath.canObserverSeeTarget(
+                    drone.x, drone.y, drone.aimAngle,
+                    GadgetConfig.DRONE_VISION_RANGE, disc, arena, smoke)) {
+                return true;
+            }
+        }
+        for (CameraEntity camera : recipient.cameras()) {
+            if (camera == null || !camera.stuck) {
+                continue;
+            }
+            if (VisionMath.canObserverSeeTarget(
+                    camera.x, camera.y, camera.aimAngle,
+                    GadgetConfig.CAMERA_VISION_RANGE, disc, arena, smoke)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isAnySampleVisible(

@@ -6,10 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.server.gadget.CameraSystem;
+import io.github.skystrike.server.gadget.DroneSystem;
 import io.github.skystrike.shared.config.CombatConfig;
+import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
+import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.weapons.WeaponBallistics;
@@ -258,5 +263,49 @@ class BulletSystemTest {
         assertNull(bullets.spawn(null, WeaponId.IRON_CARBINE, 0f));
         assertNull(bullets.spawn(shooter(500f, 100f, 0f), null, 0f));
         assertEquals(0, bullets.count());
+    }
+
+    @Test
+    @DisplayName("a round lands on a gadget device, and the nearest device beats a player behind it")
+    void aRoundHitsAGadgetDevice() {
+        DroneSystem drones = new DroneSystem(arena);
+        CameraSystem cameras = new CameraSystem(arena);
+        bullets.setGadgetSystems(drones, cameras);
+
+        // The owner stands well away from the line of fire; the drone is what's in it.
+        Player owner = new Player(2, "Owner", 0, 400f, 1500f);
+        owner.loadout.setGadgets(GadgetId.DRONE, GadgetId.NONE);
+        drones.press(owner);
+        DroneEntity drone = drones.byOwner(owner.id);
+        drone.x = 700f;
+        drone.y = 1242.5f;
+
+        Player victim = new Player(3, "Victim", 1, 900f, 1200f);
+        Player player = shooter(500f, 1200f, 0f);
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f));
+
+        for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player, owner, victim), damage);
+        }
+
+        assertEquals(0, bullets.count(), "the round is consumed by the device hit");
+        assertEquals(1, bullets.gadgetImpactCount());
+        assertEquals(0, bullets.playerImpactCount(), "the device shielded the player behind it");
+        assertTrue(drone.health < GadgetConfig.DRONE_HEALTH, "the drone took the damage");
+        assertEquals(PlayerConfig.MAX_HEALTH, victim.health, 1e-4f, "nobody behind the drone was hit");
+    }
+
+    @Test
+    @DisplayName("with no device systems wired, rounds ignore devices entirely")
+    void noGadgetSystemsMeansNoDeviceHits() {
+        Player player = shooter(500f, 1200f, 0f);
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f));
+
+        for (int tick = 0; tick < 60 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player), damage);
+        }
+
+        assertEquals(0, bullets.gadgetImpactCount());
+        assertEquals(0, bullets.count(), "the round still resolves against the world and ends");
     }
 }

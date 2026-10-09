@@ -23,6 +23,7 @@ import io.github.skystrike.audio.GunAudio;
 import io.github.skystrike.audio.SoundCatalog;
 import io.github.skystrike.audio.TinnitusEffect;
 import io.github.skystrike.gameplay.LoadoutController;
+import io.github.skystrike.gameplay.SurveillanceController;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.InputSampler;
 import io.github.skystrike.input.KeyBindings;
@@ -38,12 +39,16 @@ import io.github.skystrike.render.ThrownUtilityRenderer;
 import io.github.skystrike.render.TrajectoryRenderer;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.DebugFlags;
+import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.debug.DebugState;
+import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
@@ -147,12 +152,23 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final PauseOverlay pauseOverlay;
     private final GameSettingsDialog settingsDialog;
     private final LoadoutController loadoutController;
+    /**
+     * The client half of the surveillance lock (mechanics §7, §9): predicts the view, the piloted
+     * drone's motion and the manual-gadget presses, and retransmits the view edges until the
+     * server acknowledges them. The server remains the authority; this is feel.
+     */
+    private final SurveillanceController surveillance;
     private final InputSampler inputSampler;
     private final DebugKeyController debugKeyController;
     private final Runnable disconnectToMenu;
     private final Consumer<GameScreen> settingsOpener;
     private boolean disposeOnHide = true;
     private boolean disposed;
+
+    /** The viewport height before the current surveillance view, restored on exit. */
+    private float viewportBeforeSurveillance = -1f;
+    /** Tracks the predicted view so the zoom is applied and released exactly once per transition. */
+    private boolean wasSurveilling;
 
     /** The wheel reaches the loadout controller as slot cycles; everything else goes via polling. */
     private final InputAdapter scrollForwarder = new InputAdapter() {
@@ -225,7 +241,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.effectAudio = new EffectAudio(this.audio, this.soundCatalog, this::isAudioBlocked);
         this.gunAudio = new GunAudio(this.audio, this.soundCatalog, this::isAudioBlocked);
         this.tinnitus = new TinnitusEffect(this.audio, this.soundCatalog);
-        this.loadoutController = new LoadoutController(this.bindings, inputRouter);
+        this.surveillance = new SurveillanceController(this.bindings, inputRouter);
+        this.loadoutController = new LoadoutController(this.bindings, inputRouter, this.surveillance);
         this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
         this.settingsDialog = new GameSettingsDialog(inputRouter, this.settings, this.bindings);
@@ -242,6 +259,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setSessionResetListener(() -> {
             capabilities.reset();
             gunAudio.reset();
+            surveillance.reset();
             // Leaving a match must not leave the stun ring playing into the menu.
             tinnitus.stop();
         });
@@ -384,10 +402,14 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 if (p.id == localId) {
                     prediction.reconcile(p, arena);
                     loadoutController.onAuthoritativePlayer(p, prediction.predicted());
+                    surveillance.onAuthoritativePlayer(p, prediction.predicted());
                     break;
                 }
             }
         }
+        // The devices this player owns drive the surveillance prediction; the snapshot is the
+        // freshest word on what is deployed, so it feeds the controller directly.
+        surveillance.setDevices(snapshot.drones, snapshot.cameras, localId);
     }
 
     /** The kill feed is a HUD widget now (M4 §5); the log line stays for headless debugging. */
@@ -429,9 +451,20 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         lastDeltaMillis = delta * 1000f;
         consoleDialog.update(delta);
 
-        // Escape is polled only while no dialog/modal owns the focus stack.
-        if (inputRouter.isGameplayActive() && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            pauseOverlay.open();
+        // Escape is polled only while no dialog/modal owns the focus stack — the console and the
+        // pause menu keep their own claim on it through that focus. What is left over routes to
+        // surveillance: while piloting, Escape exits the view instead of opening the pause menu
+        // (mechanics §9; playable build plan §12's single-owner rule for a shared key).
+        boolean escapePressed = inputRouter.isGameplayActive()
+            && (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)
+                || Gdx.input.isKeyJustPressed(bindings.viewExit));
+        if (escapePressed) {
+            Player predictedNow = prediction.predicted();
+            if (predictedNow != null && predictedNow.isSurveillanceLocked()) {
+                surveillance.exitSurveillance(predictedNow);
+            } else {
+                pauseOverlay.open();
+            }
         }
 
         // Console plan §6.4: the open key is one press, one owner. While the dialog is closed
@@ -464,17 +497,38 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         if (localPlayer != null) {
             // 1. Loadout input first: a slot press this frame rides this frame's input packet
             loadoutController.update(localPlayer);
+            // The surveillance controller polls the view-cycle key the same way.
+            surveillance.update(localPlayer);
 
-            // 2. Sample input and simulate predicted local motion
-            PacketPlayerInput input = inputSampler.sample(localPlayer, camera);
+            // 2. Sample input and simulate predicted local motion. While surveilling, the aim is
+            //    measured from the device the player is looking through, so the piloted cone
+            //    follows the cursor rather than pointing from the locked body.
+            SurveillanceController.ViewTarget aimAnchor = surveillance.aimAnchor(localPlayer);
+            PacketPlayerInput input = inputSampler.sample(localPlayer, camera, aimAnchor.x(), aimAnchor.y());
+            surveillance.stampPacket(input);
             gunAudio.onLocalInput(input, localPlayer, bindings.isFireJustPressed());
             localPlayer = prediction.predict(input, delta, arena);
+            // The piloted drone is predicted locally, so the view and the cone stay crisp.
+            surveillance.predictDrone(localPlayer, input, delta, arena);
             session.sendUnreliable(input);
 
             if (debugState.freecam() && consoleDialog.isGameplayActive()) {
                 // The camera detaches entirely: pan/zoom by hand instead of following the player.
                 sampleCameraInput(delta);
+            } else if (localPlayer.isSurveillanceLocked()) {
+                // The camera follows the device the player is looking through, zoomed for a
+                // throw camera (mechanics §7.2). The pre-surveillance viewport is restored on exit.
+                SurveillanceController.ViewTarget viewTarget = surveillance.viewTarget(localPlayer);
+                if (!wasSurveilling) {
+                    viewportBeforeSurveillance = camera.viewportHeight();
+                }
+                camera.centreOn(viewTarget.x(), viewTarget.y());
+                camera.setViewportHeight(viewportBeforeSurveillance / viewTarget.zoom());
             } else {
+                if (wasSurveilling && viewportBeforeSurveillance > 0f) {
+                    camera.setViewportHeight(viewportBeforeSurveillance);
+                    viewportBeforeSurveillance = -1f;
+                }
                 // 2. Camera follow and smoothly interpolated ADS pan / vision reach
                 adsAlpha =
                     Lerp.smooth(adsAlpha, localPlayer.ads ? 1f : 0f, VisionConfig.ADS_TRANSITION_RATE, delta);
@@ -486,6 +540,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 float targetCamY = localPlayer.centerY() + panDist * (float) Math.sin(aimRad);
                 camera.centreOn(targetCamX, targetCamY);
             }
+            wasSurveilling = localPlayer.isSurveillanceLocked();
         } else if (consoleDialog.isGameplayActive()) {
             // Fallback manual camera pan while waiting for join/spawn
             sampleCameraInput(delta);
@@ -496,6 +551,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         List<Projectile> projectiles = interpolator.interpolateProjectiles();
         List<ThrownUtility> thrownUtilities = interpolator.interpolateThrownUtilities();
         List<UtilityZone> utilityZones = interpolator.latestUtilityZones();
+        List<DroneEntity> drones = interpolator.interpolateDrones();
+        List<CameraEntity> cameras = interpolator.interpolateCameras();
 
         // The snapshot zones are the sole source for the shader's smoke circles. This mirrors
         // the server's UtilitySystem smokeVolumes list rather than inventing a client-only cloud.
@@ -507,10 +564,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
 
         // Phase 9: the mixer's ears follow the local player — or the camera before a spawn — so
-        // every sound the drain asks for this frame is placed from the right position.
-        audio.updateListener(
-            localPlayer == null ? camera.x() : localPlayer.centerX(),
-            localPlayer == null ? camera.y() : localPlayer.centerY());
+        // every sound the drain asks for this frame is placed from the right position. While
+        // surveilling, the ears follow the device: the player is listening through it.
+        float listenerX = localPlayer == null ? camera.x() : localPlayer.centerX();
+        float listenerY = localPlayer == null ? camera.y() : localPlayer.centerY();
+        if (localPlayer != null && localPlayer.isSurveillanceLocked()) {
+            SurveillanceController.ViewTarget ears = surveillance.viewTarget(localPlayer);
+            listenerX = ears.x();
+            listenerY = ears.y();
+        }
+        audio.updateListener(listenerX, listenerY);
 
         // M7: the effects tier follows the quality cvar live (falling back to the settings
         // object's tier), and the FX update drains the effect queue — once — handing each event
@@ -546,10 +609,53 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         pipeline.endScene();
 
         // Pass 2: VISIBILITY (Observers + SDF Soft Shadows into half-res visibility buffer)
+        // The observer set is the player's own cone plus every device they own: a deployed drone
+        // projects its own (narrower, dimmer) cone even when nobody is piloting it, and a stuck
+        // camera's cone is an observation post. While piloting, the body's cone is replaced by
+        // the piloted device's — the point of view has genuinely moved.
         observers.clear();
         if (localPlayer != null) {
-            observers.add(ObserverState.standardPlayer(
-                    localPlayer.eyeX(), localPlayer.eyeY(), localPlayer.aimAngle, visionReach));
+            int localId = session.playerId();
+            if (!localPlayer.isSurveillanceLocked()) {
+                observers.add(ObserverState.standardPlayer(
+                        localPlayer.eyeX(), localPlayer.eyeY(), localPlayer.aimAngle, visionReach));
+            }
+            DroneEntity piloted = localPlayer.surveillance() == SurveillanceView.DRONE
+                ? surveillance.predictedDrone()
+                : null;
+            for (DroneEntity drone : drones) {
+                if (drone.ownerId != localId) {
+                    continue;
+                }
+                if (piloted != null && drone.id == piloted.id) {
+                    continue; // drawn from the local prediction below, so the cone matches the view
+                }
+                observers.add(ObserverState.gadget(
+                    drone.x, drone.y, drone.aimAngle,
+                    GadgetConfig.DRONE_VISION_RANGE,
+                    GadgetConfig.DRONE_VISION_ANGLE_DEGREES / 2f,
+                    VisionConfig.FEATHER_ANGLE_DEGREES,
+                    GadgetConfig.DRONE_VISION_BRIGHTNESS));
+            }
+            if (piloted != null) {
+                observers.add(ObserverState.gadget(
+                    piloted.x, piloted.y, piloted.aimAngle,
+                    GadgetConfig.DRONE_VISION_RANGE,
+                    GadgetConfig.DRONE_VISION_ANGLE_DEGREES / 2f,
+                    VisionConfig.FEATHER_ANGLE_DEGREES,
+                    GadgetConfig.DRONE_VISION_BRIGHTNESS));
+            }
+            for (CameraEntity camera : cameras) {
+                if (camera.ownerId != localId || !camera.stuck) {
+                    continue;
+                }
+                observers.add(ObserverState.gadget(
+                    camera.x, camera.y, camera.aimAngle,
+                    GadgetConfig.CAMERA_VISION_RANGE,
+                    GadgetConfig.CAMERA_VISION_ANGLE_DEGREES / 2f,
+                    VisionConfig.FEATHER_ANGLE_DEGREES,
+                    1f));
+            }
         }
         pipeline.renderVisibility(camera, observers, !isShadowsOn());
 
@@ -712,7 +818,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     private List<String> statusLines(Player localPlayer, float visionReach, int projectileCount) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike - Phase 5 (Throwables and Zones)");
+        lines.add("SkyStrike - M10 (Gadgets: drone, throw camera, shield, fuel tank)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
             lines.add(String.format(
@@ -807,6 +913,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 if (!pendingPress.isEmpty()) {
                     lines.add(pendingPress);
                 }
+                if (localPlayer.isSurveillanceLocked()) {
+                    DroneEntity piloted = surveillance.predictedDrone();
+                    lines.add(String.format(
+                        "surveillance: %s  %s",
+                        localPlayer.surveillance(),
+                        piloted == null
+                            ? "device position unavailable"
+                            : String.format(
+                                "drone (%.0f, %.0f) hp %.0f", piloted.x, piloted.y, piloted.health)));
+                }
             }
         } else {
             lines.add(String.format(
@@ -819,7 +935,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     arena.solids().size()));
         }
         lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
-            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Enter chat/console");
+            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  6 view cycle"
+            + "  Esc exit/pause  Enter chat/console");
         return lines;
     }
 

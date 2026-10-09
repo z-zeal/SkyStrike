@@ -12,6 +12,7 @@ uniform float u_aimAngle;
 uniform float u_reach;
 uniform float u_coneHalfAngle;
 uniform float u_featherAngle;
+uniform float u_brightness;
 uniform float u_peripheralFloor;
 uniform float u_shadowK;
 uniform int u_maxMarchSteps;
@@ -84,6 +85,9 @@ void main() {
 
     float vis = distFactor * angFactor * shadow;
     vis = max(0.0, vis - smokeAtten);
+
+    // Per-observer brightness: a gadget device's cone is dimmer than a player's (mechanics §7.1).
+    vis *= u_brightness;
 
     gl_FragColor = vec4(vis, vis, vis, 1.0);
 }

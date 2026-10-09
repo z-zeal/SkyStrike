@@ -1,5 +1,7 @@
 package io.github.skystrike.net;
 
+import io.github.skystrike.shared.model.CameraEntity;
+import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.ThrownUtility;
@@ -27,6 +29,8 @@ public final class StateBuffer {
         private final Map<Integer, Projectile> projectiles;
         private final Map<Integer, ThrownUtility> thrownUtilities;
         private final Map<Integer, UtilityZone> utilityZones;
+        private final Map<Integer, DroneEntity> drones;
+        private final Map<Integer, CameraEntity> cameras;
 
         public Snapshot(long tick, long timestampMillis, List<Player> playerList) {
             this(tick, timestampMillis, playerList, null, null, null);
@@ -47,6 +51,20 @@ public final class StateBuffer {
                 List<Projectile> projectileList,
                 List<ThrownUtility> thrownUtilityList,
                 List<UtilityZone> utilityZoneList) {
+            this(tick, timestampMillis, playerList, projectileList, thrownUtilityList,
+                utilityZoneList, null, null);
+        }
+
+        /** Full snapshot: players, rounds, utilities, zones and the gadget devices. */
+        public Snapshot(
+                long tick,
+                long timestampMillis,
+                List<Player> playerList,
+                List<Projectile> projectileList,
+                List<ThrownUtility> thrownUtilityList,
+                List<UtilityZone> utilityZoneList,
+                List<DroneEntity> droneList,
+                List<CameraEntity> cameraList) {
             this.tick = tick;
             this.timestampMillis = timestampMillis;
 
@@ -81,6 +99,22 @@ public final class StateBuffer {
                 }
             }
             this.utilityZones = Collections.unmodifiableMap(zoneMap);
+
+            Map<Integer, DroneEntity> droneMap = new HashMap<>();
+            if (droneList != null) {
+                for (DroneEntity drone : droneList) {
+                    droneMap.put(drone.id, drone.copy());
+                }
+            }
+            this.drones = Collections.unmodifiableMap(droneMap);
+
+            Map<Integer, CameraEntity> cameraMap = new HashMap<>();
+            if (cameraList != null) {
+                for (CameraEntity camera : cameraList) {
+                    cameraMap.put(camera.id, camera.copy());
+                }
+            }
+            this.cameras = Collections.unmodifiableMap(cameraMap);
         }
 
         public long tick() {
@@ -106,6 +140,14 @@ public final class StateBuffer {
         public Map<Integer, UtilityZone> utilityZones() {
             return utilityZones;
         }
+
+        public Map<Integer, DroneEntity> drones() {
+            return drones;
+        }
+
+        public Map<Integer, CameraEntity> cameras() {
+            return cameras;
+        }
     }
 
     private static final int MAX_SNAPSHOTS = 64;
@@ -123,7 +165,8 @@ public final class StateBuffer {
         }
         long time = state.serverTimeMillis > 0 ? state.serverTimeMillis : System.currentTimeMillis();
         snapshots.add(new Snapshot(
-            state.tick, time, state.players, state.projectiles, state.thrownUtilities, state.utilityZones));
+            state.tick, time, state.players, state.projectiles, state.thrownUtilities,
+            state.utilityZones, state.drones, state.cameras));
         while (snapshots.size() > MAX_SNAPSHOTS) {
             snapshots.remove(0);
         }
