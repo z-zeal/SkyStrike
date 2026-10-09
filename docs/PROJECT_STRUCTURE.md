@@ -101,7 +101,7 @@ shared/src/main/java/io/github/skystrike/shared/
 │   ├── GadgetSlot               Type, count, charge, active flag
 │   ├── DroneEntity              Deployed surveillance drone: kinematics, health, cone aim
 │   ├── CameraEntity             Thrown camera: flight state, stuck flag, contact normal
-│   ├── Team                     A, B, Neutral, with cycling
+│   ├── Team                     A, B, Neutral, with cycling and the one ally test
 │   ├── HitZone                  Head, body, fuel tank
 │   └── ShieldState              Stowed, equipped, broken
 │
@@ -141,12 +141,19 @@ shared/src/main/java/io/github/skystrike/shared/
 │   ├── PlayerInput              One input sample, prediction and authority alike
 │   └── PlayerMotion             Movement, collision, rotation — enforces the surveillance lock
 │
+├── vision/                      The one visibility maths, and the eyes it is asked about
+│   ├── VisionMath               Cone/distance/smoke factors, LOS, the lit-target bar
+│   ├── SmokeVolume              An opaque sight-blocking circle, server and shader alike
+│   ├── Observer                 One eye: position, aim, reach, cone, feather, brightness
+│   └── ObserverSet              Every eye a viewer looks through, plus the sight query for them
+│
 ├── hud/                         Pure HUD read models (client has no test source set)
 │   ├── HudLoadoutView           Slot/ammo/utility/gadget views behind the loadout bar
 │   ├── HudVitals                Health/fuel fractions and the recharge-grounded rule
 │   ├── HudSurveillance          The surveillance banner's read model
 │   ├── CrosshairMath, DamageVignetteMath   The other widget maths
-│   └── KillFeedModel, LoadoutPickerModel   Feed and picker state
+│   ├── KillFeedModel, LoadoutPickerModel   Feed and picker state
+│   └── MinimapModel             Which markers may exist, where, and how long a sighting lasts
 │
 ├── effect/
 │   ├── EffectType               The spawnable visual effect vocabulary
@@ -357,7 +364,7 @@ core/src/main/java/io/github/skystrike/
 │   │   ├── SurveillanceBanner   The viewed device, its HP, the live controls
 │   │   ├── GadgetPanel          State labels, durability, cooldowns
 │   │   ├── Crosshair            Spread-reactive, dimmed while surveilling
-│   │   ├── Minimap
+│   │   ├── Minimap              The whole arena, fog-gated by shared/hud/MinimapModel
 │   │   ├── KillFeed
 │   │   ├── DamageNumbers        Floating, world-space
 │   │   └── DamageVignette       Screen-edge pulse
