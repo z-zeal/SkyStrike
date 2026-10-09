@@ -55,6 +55,7 @@ public final class HudStage implements Disposable {
     private final HealthFuelBars vitals = new HealthFuelBars(theme);
     private final LoadoutBar loadoutBar = new LoadoutBar(theme);
     private final Crosshair crosshair = new Crosshair(theme);
+    private final SurveillanceBanner surveillanceBanner = new SurveillanceBanner(theme);
     private final KillFeedWidget killFeedWidget = new KillFeedWidget(theme, killFeed);
     private final DamageVignette damageVignette = new DamageVignette(theme);
     private final DebugPanel debugPanel = new DebugPanel(theme);
@@ -179,6 +180,7 @@ public final class HudStage implements Disposable {
         shapes.setProjectionMatrix(projection);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         damageVignette.drawShapes(shapes, frame);
+        surveillanceBanner.drawShapes(shapes, font, frame);
         debugPanel.drawShapes(shapes, font, frame);
         killFeedWidget.drawShapes(shapes, font, frame);
         vitals.drawShapes(shapes, font, frame);
@@ -189,6 +191,7 @@ public final class HudStage implements Disposable {
 
         batch.setProjectionMatrix(projection);
         batch.begin();
+        surveillanceBanner.drawText(batch, font, frame);
         debugPanel.drawText(batch, font, frame);
         killFeedWidget.drawText(batch, font, frame);
         vitals.drawText(batch, font, frame);
@@ -221,6 +224,7 @@ public final class HudStage implements Disposable {
         vitals.layout(screenWidth, screenHeight, scale, chatStrip);
         loadoutBar.layout(screenWidth, screenHeight, scale, 0f);
         crosshair.layout(screenWidth, screenHeight, scale);
+        surveillanceBanner.layout(screenWidth, screenHeight, scale);
         killFeedWidget.layout(screenWidth, screenHeight, scale, 0f);
         damageVignette.layout(screenWidth, screenHeight);
         debugPanel.layout(screenWidth, screenHeight, scale);

@@ -32,6 +32,7 @@ import io.github.skystrike.net.Interpolator;
 import io.github.skystrike.net.LocalPrediction;
 import io.github.skystrike.net.StateBuffer;
 import io.github.skystrike.render.GameCamera;
+import io.github.skystrike.render.GadgetRenderer;
 import io.github.skystrike.render.HitboxOverlay;
 import io.github.skystrike.render.PlayerRenderer;
 import io.github.skystrike.render.ProjectileRenderer;
@@ -94,6 +95,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final GameCamera camera = new GameCamera(arena.width(), arena.height());
     private final TerrainRenderer terrain = new TerrainRenderer(arena);
     private final PlayerRenderer playerRenderer = new PlayerRenderer();
+    /** Drones, throw cameras, shield arcs and fuel tanks, in the entity layer (roadmap §6.5). */
+    private final GadgetRenderer gadgetRenderer = new GadgetRenderer();
     private final ProjectileRenderer projectileRenderer = new ProjectileRenderer();
     /**
      * Phase 9: the client's one mixer, and the three things that ask it for sound — the world
@@ -602,6 +605,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         terrain.render(camera);
         trajectoryRenderer.render(camera, localPlayer, arena);
         playerRenderer.render(camera, remotePlayers, localPlayer);
+        // The piloted drone is drawn from the local prediction so it never lags the view.
+        gadgetRenderer.render(camera, remotePlayers, localPlayer, renderedDrones(localPlayer, drones), cameras);
         projectileRenderer.render(camera, projectiles);
         thrownUtilityRenderer.render(camera, thrownUtilities);
         // M7: the alpha particle batch joins the scene, so the fog darkens smoke and dust.
@@ -946,6 +951,33 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         return snapshot != null && snapshot.cheatsActive ? "  [CHEATS]" : "";
     }
 
+    /**
+     * The drone list to render: the interpolated drones, with the piloted one replaced by the
+     * local prediction, so the device the camera is following never lags behind the view.
+     */
+    private List<DroneEntity> renderedDrones(Player localPlayer, List<DroneEntity> drones) {
+        DroneEntity piloted = localPlayer != null
+                && localPlayer.surveillance() == SurveillanceView.DRONE
+            ? surveillance.predictedDrone()
+            : null;
+        if (piloted == null) {
+            return drones;
+        }
+        List<DroneEntity> rendered = new ArrayList<>(drones);
+        boolean replaced = false;
+        for (int i = 0; i < rendered.size(); i++) {
+            if (rendered.get(i).id == piloted.id) {
+                rendered.set(i, piloted.copy());
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            rendered.add(piloted.copy());
+        }
+        return rendered;
+    }
+
     @Override
     public void resize(int width, int height) {
         camera.resize(width, height);
@@ -1039,6 +1071,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         audio.dispose();
         terrain.dispose();
         playerRenderer.dispose();
+        gadgetRenderer.dispose();
         projectileRenderer.dispose();
         thrownUtilityRenderer.dispose();
         trajectoryRenderer.dispose();
