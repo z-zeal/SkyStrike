@@ -79,6 +79,28 @@ public final class HudTheme {
     public final Color killFeedLocal = new Color(0.45f, 0.92f, 0.78f, 1f);
     public final Color killFeedDeath = new Color(0.95f, 0.52f, 0.48f, 1f);
 
+    // --- Minimap --------------------------------------------------------------------------------
+
+    /**
+     * The arena's own geometry, drawn as the map's silhouette. Dimmer than any marker: the map is
+     * a background for positions, not a second terrain renderer.
+     */
+    public final Color mapTerrain = new Color(0.31f, 0.35f, 0.43f, 0.85f);
+
+    /** Your own marker — the one thing on the map that is never in doubt. */
+    public final Color mapSelf = new Color(0.96f, 0.97f, 1f, 1f);
+
+    /**
+     * Teammates and enemies, on the ally/enemy convention rather than the world's team tints
+     * (Team A blue, Team B red). The map answers "whose side are they on", which is the question a
+     * glance asks, and the answer has to read the same whether you are on A or on B.
+     */
+    public final Color mapAlly = new Color(0.45f, 0.92f, 0.78f, 1f);
+    public final Color mapEnemy = new Color(0.95f, 0.42f, 0.38f, 1f);
+
+    /** The rectangle the camera is currently showing, so "where am I" is one glance too. */
+    public final Color mapViewport = new Color(0.72f, 0.76f, 0.83f, 0.50f);
+
     // --- Metrics, in design pixels at ConsoleTheme.DESIGN_HEIGHT ----------------------------------
 
     public final float margin = 14f;
@@ -107,6 +129,22 @@ public final class HudTheme {
 
     /** The crosshair's stroke. */
     public final float crosshairThickness = 2f;
+
+    /**
+     * Minimap, top left. The shipped arena is 3000 × 2000, so this frame is exactly 3:2 and the
+     * map fills it; {@code MinimapModel.View.fit} letterboxes any other aspect rather than
+     * stretching it, because a squashed map puts a marker further from the centre than the world
+     * does.
+     */
+    public final float minimapWidth = 210f;
+    public final float minimapHeight = 140f;
+
+    /**
+     * Marker size in design pixels. Markers are a fixed size rather than scaled bodies: at
+     * whole-arena zoom a 30-unit player is under a pixel wide, and a marker you cannot see is not
+     * a map.
+     */
+    public final float mapBlipSize = 4f;
 
     public HudTheme() {
     }

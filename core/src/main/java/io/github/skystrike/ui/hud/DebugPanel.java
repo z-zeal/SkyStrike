@@ -19,6 +19,10 @@ import java.util.List;
  *
  * <p>The content is still {@code GameScreen.statusLines()} — the composition root knows what is
  * worth printing; this only prints it.
+ *
+ * <p>It shares the top-left corner with the minimap, so it takes an inset rather than a position:
+ * when the map is on it starts below the map, and when the map is off it moves back into the
+ * corner. Neither widget knows the other exists — {@link HudStage} hands down the number.
  */
 final class DebugPanel {
 
@@ -33,10 +37,14 @@ final class DebugPanel {
         this.theme = theme;
     }
 
-    void layout(int screenWidth, int screenHeight, float scale) {
+    /**
+     * @param topInset how much of the top-left corner the minimap is using, so the readout starts
+     *                 below it instead of drawing through it. Zero when the map is off.
+     */
+    void layout(int screenWidth, int screenHeight, float scale, float topInset) {
         this.scale = scale;
         this.x = theme.margin * scale;
-        this.top = screenHeight - theme.margin * scale;
+        this.top = screenHeight - topInset - theme.margin * scale;
     }
 
     void drawShapes(ShapeRenderer shapes, BitmapFont font, HudFrame frame) {

@@ -217,7 +217,8 @@ public final class EffectBroadcaster implements EffectSink {
             smoke);
         // The shared vision function retains a faint peripheral floor outside the cone. An effect
         // must clear that floor, exactly like M6's player-light sources, so additive particles
-        // never identify a detonation the observer cannot see.
-        return visibility > VisionConfig.PERIPHERAL_FLOOR + 0.001f;
+        // never identify a detonation the observer cannot see. The bar is the shared constant, so
+        // the minimap's blip gate and this culler cannot drift apart about what "visible" means.
+        return visibility > VisionConfig.LIT_VISIBILITY_THRESHOLD;
     }
 }

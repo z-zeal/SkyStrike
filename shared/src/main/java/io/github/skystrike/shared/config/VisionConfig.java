@@ -48,6 +48,20 @@ public final class VisionConfig {
     /** Visibility threshold below which an entity is considered completely hidden / culled. */
     public static final float VISIBILITY_THRESHOLD = 0.01f;
 
+    /**
+     * The bar a <b>screen-facing</b> visibility query clears: above the peripheral floor, not
+     * merely above zero.
+     *
+     * <p>{@link #VISIBILITY_THRESHOLD} answers an authoritative question — is this body lit at all
+     * — and 6% of peripheral floor clears it, so a body standing directly behind the observer
+     * counts as seen. That is correct for gameplay and wrong for presentation, because the
+     * composite draws 6% of a sprite as indistinguishable from the black around it. Everything
+     * that decides what a player is <i>shown</i> — M6's player lights, M7's per-recipient effect
+     * culler, the minimap's blip gate — asks this stricter question instead, and this constant is
+     * its one spelling. The epsilon keeps the comparison off the floor value itself.
+     */
+    public static final float LIT_VISIBILITY_THRESHOLD = PERIPHERAL_FLOOR + 0.001f;
+
     // --- SDF (Signed Distance Field) grid parameters (effects §4.2) -----------------------------
     /** Arena width in world units matching {@link WorldConfig#ARENA_WIDTH}. */
     public static final float SDF_WORLD_WIDTH = 3000f;

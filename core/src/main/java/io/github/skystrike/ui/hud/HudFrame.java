@@ -1,5 +1,6 @@
 package io.github.skystrike.ui.hud;
 
+import io.github.skystrike.shared.hud.MinimapModel;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import java.util.List;
@@ -24,6 +25,10 @@ import java.util.List;
  * @param deltaSeconds      frame time, for the vignette's decay
  * @param debugPanelVisible {@code cl_debug_overlay} (F1)
  * @param debugLines        what the debug panel prints when it is visible
+ * @param minimap           this frame's map — markers, terrain and the camera's view rectangle,
+ *                          already decided by {@link MinimapModel} — or {@code null} when
+ *                          {@code cl_minimap} is off, which draws nothing and hands the corner
+ *                          back to the debug panel
  */
 public record HudFrame(
     Player player,
@@ -35,7 +40,8 @@ public record HudFrame(
     long nowMillis,
     float deltaSeconds,
     boolean debugPanelVisible,
-    List<String> debugLines
+    List<String> debugLines,
+    MinimapModel.View minimap
 ) {
 
     public HudFrame {
