@@ -632,10 +632,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 remotePlayers,
                 arena,
                 visionReach,
-                debugState.playerLight(),
+                isPlayerLightOn(),
                 playerLightRadius,
                 playerLightIntensity,
-                debugState.playerLightShadows());
+                isPlayerLightShadowsOn());
 
         // 4. Multi-pass rendering pipeline (effects §5)
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
@@ -809,7 +809,25 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         return cvar == null || Boolean.parseBoolean(cvar.value());
     }
 
-    /** Reads a validated float cvar, with the feature's documented default when debug is locked. */
+    /**
+     * {@code r_player_light}: on by default since M12 — the local silhouette is part of the
+     * shipped look. Unrouted through {@link DebugState} for the same reason as
+     * {@link #isShadowsOn()}: a master-gated read would answer {@code false} in a release build
+     * and silently drop the light the player is meant to see. The cvar is registered in every
+     * build, so the fallback only covers a missing registry, not a locked one.
+     */
+    private boolean isPlayerLightOn() {
+        Cvar cvar = commandService.cvars().find("r_player_light");
+        return cvar == null || Boolean.parseBoolean(cvar.value());
+    }
+
+    /** {@code r_player_light_shadows}: SDF occlusion for player lights, on by default (M6). */
+    private boolean isPlayerLightShadowsOn() {
+        Cvar cvar = commandService.cvars().find("r_player_light_shadows");
+        return cvar == null || Boolean.parseBoolean(cvar.value());
+    }
+
+    /** Reads a validated float cvar, falling back when it is not registered at all. */
     private float floatCvar(String name, float fallback) {
         Cvar cvar = commandService.cvars().find(name);
         if (cvar == null) {
@@ -869,7 +887,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private List<String> statusLines(
             Player localPlayer, float visionReach, int projectileCount, MinimapModel.View minimap) {
         List<String> lines = new ArrayList<>();
-        lines.add("SkyStrike - M11 (HUD: fog-gated minimap)");
+        lines.add("SkyStrike - M12 (utility visibility: smoke shape, persistent fire, player light)");
         lines.add("server: " + session.statusLine() + cheatsTagOrEmpty());
         if (debugState.playerLight() || debugState.playerLightShadows() || debugState.fxDebug()) {
             lines.add(String.format(

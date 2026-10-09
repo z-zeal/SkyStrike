@@ -190,18 +190,42 @@ public final class ClientCommandModule {
      * Debug-toolkit cvars from build plan M3 §4 and M6. The ten debug cvars are invisible — not
      * refused, never even registered — while the master switch is off, exactly like the server's
      * own gate on {@code noclip} et al. Boolean toggles mirror into {@link DebugState}, whose
-     * master-gated reads keep a stray local toggle inert even if registration were bypassed. M6's
-     * radius and intensity are read live from this same registry; they do not create a second
-     * settings path.
+     * master-gated reads keep a stray local toggle inert even if registration were bypassed.
      *
-     * <p>{@code r_shadows} is the always-available exception: it is a real graphics setting, not
-     * a debug one, so it stays registered regardless of the master switch and defaults to
-     * {@code true} (the shipped soft-shadow look).
+     * <p>{@code r_shadows} and the four {@code r_player_light*} cvars are the always-available
+     * exceptions: they are real graphics settings, not debug ones, so they stay registered
+     * regardless of the master switch. The player light ships {@code true} (M12) — the local
+     * silhouette is part of the look, not a debug aid — and {@code r_shadows} defaults to
+     * {@code true} (the shipped soft-shadow look). Both are still live-tunable from the console
+     * in every build; F10 remains a dev-build shortcut for the light.
      */
     private static void registerDebugToolkitCvars(CvarRegistry cvars, Deps deps) {
         cvars.register(Cvar.builder("r_shadows", ArgTypes.BOOL, "true")
             .description("SDF soft shadows; off falls back to hard edges, as the low tier does (F3)")
             .build());
+
+        Cvar playerLight = Cvar.builder("r_player_light", ArgTypes.BOOL, "true")
+            .description("warm-white local and visible-player lights (M6, on by default) (F10)")
+            .onChange((prev, next) -> deps.debugState().setPlayerLight(Boolean.parseBoolean(next)))
+            .build();
+        cvars.register(playerLight);
+        Cvar playerLightShadows = Cvar.builder("r_player_light_shadows", ArgTypes.BOOL, "true")
+            .description("SDF-shadow player lights; off disables their occlusion sampling")
+            .onChange(
+                (prev, next) -> deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(next)))
+            .build();
+        cvars.register(playerLightShadows);
+        cvars.register(Cvar.builder(
+                "r_player_light_radius", ArgTypes.FLOAT(32f, 512f), "140.0")
+            .description("player-light radius in world units; live-tunable (M6)")
+            .build());
+        cvars.register(Cvar.builder(
+                "r_player_light_intensity", ArgTypes.FLOAT(0f, 1f), "0.35")
+            .description("player-light additive intensity from 0 to 1; live-tunable (M6)")
+            .build());
+        // Cvar hooks fire on changes, not on construction; seed the mirrored defaults explicitly.
+        deps.debugState().setPlayerLight(Boolean.parseBoolean(playerLight.value()));
+        deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(playerLightShadows.value()));
 
         if (!DebugFlags.enabled()) {
             return;
@@ -221,26 +245,6 @@ public final class ClientCommandModule {
         cvars.register(Cvar.builder("r_show_hitboxes", ArgTypes.BOOL, "false")
             .description("body/head/fuel-tank hit zones from HitZoneMath (F9)")
             .onChange((prev, next) -> deps.debugState().setHitboxes(Boolean.parseBoolean(next)))
-            .build());
-        cvars.register(Cvar.builder("r_player_light", ArgTypes.BOOL, "false")
-            .description("warm-white local and visible-player lights (M6) (F10)")
-            .onChange((prev, next) -> deps.debugState().setPlayerLight(Boolean.parseBoolean(next)))
-            .build());
-        Cvar playerLightShadows = Cvar.builder("r_player_light_shadows", ArgTypes.BOOL, "true")
-            .description("SDF-shadow player lights; off disables their occlusion sampling")
-            .onChange(
-                (prev, next) -> deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(next)))
-            .build();
-        cvars.register(playerLightShadows);
-        // Cvar hooks fire on changes, not on construction; seed the mirrored default explicitly.
-        deps.debugState().setPlayerLightShadows(Boolean.parseBoolean(playerLightShadows.value()));
-        cvars.register(Cvar.builder(
-                "r_player_light_radius", ArgTypes.FLOAT(32f, 512f), "140.0")
-            .description("player-light radius in world units; live-tunable (M6)")
-            .build());
-        cvars.register(Cvar.builder(
-                "r_player_light_intensity", ArgTypes.FLOAT(0f, 1f), "0.35")
-            .description("player-light additive intensity from 0 to 1; live-tunable (M6)")
             .build());
         cvars.register(Cvar.builder("fx_debug", ArgTypes.BOOL, "false")
             .description("particle/light counts and phase queue against the tier budget (M7) (F11)")

@@ -3,13 +3,17 @@
 These checks require a runnable desktop build with a local match. They were documented for manual
 verification; source-only sandbox checks do not prove shader compilation or visual behavior.
 
-Enable the client development console (`-Dskystrike.debug=true` or the existing client dev switch),
-then use `/r_player_light on`. The player-light defaults are a 140-unit radius, 0.35 intensity, and
-SDF shadows enabled. `r_player_light_radius` accepts 32–512 units and
-`r_player_light_intensity` accepts 0–1.
+> **M12 update:** the player light now ships **on by default** and its cvars are real graphics
+> settings, registered in every build — no dev console or debug master switch needed. `/r_player_light
+> off` turns it off, F10 still toggles it in dev builds (`-Dskystrike.debug=true` / `--dev`), and
+> `/r_player_light_shadows off` disables the lights' SDF occlusion sampling. The defaults are a
+> 140-unit radius, 0.35 intensity, and SDF shadows enabled. `r_player_light_radius` accepts 32–512
+> units and `r_player_light_intensity` accepts 0–1. The checks below were written for the opt-in
+> version; the "enable" step is now "confirm it is on, and toggle it off to compare".
 
-- [ ] **Local silhouette:** In a dark corner, enable the player light and confirm the local player
-  remains readable while the surrounding scene still follows the vision/fog rules.
+- [ ] **Local silhouette:** In a dark corner, confirm the player light is on by default and the
+  local player remains readable while the surrounding scene still follows the vision/fog rules.
+  Toggle `/r_player_light off` and confirm the silhouette goes dark with the rest of the scene.
 - [ ] **Wall occlusion:** Put a solid crate or wall between the light and a surface. With
   `r_player_light_shadows on`, confirm the far side stays occluded. Toggle `r_shadows off`: the
   shadow edge should become hard, not disappear. Toggle `r_player_light_shadows off` separately
