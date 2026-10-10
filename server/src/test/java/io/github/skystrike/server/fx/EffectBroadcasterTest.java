@@ -1,6 +1,7 @@
 package io.github.skystrike.server.fx;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.effect.EffectSpawn;
@@ -9,6 +10,7 @@ import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +44,33 @@ class EffectBroadcasterTest {
         assertEquals(2, drained.get(1).seed);
         assertEquals(0, broadcaster.pendingCount());
         assertTrue(broadcaster.drain().isEmpty(), "the window restarts empty");
+    }
+
+    @Test
+    @DisplayName("sound cues copy only attributed muzzle flashes, independently of visual culling")
+    void gunfireCuesCopyAttributedMuzzleFlashes() {
+        EffectSpawn ordinaryFlash = new EffectSpawn(EffectType.MUZZLE_FLASH, 10f, 20f, 0f, 1f);
+        EffectSpawn attributedFlash = new EffectSpawn(EffectType.MUZZLE_FLASH, 1400f, 500f, 90f, 1f);
+        attributedFlash.sourcePlayerId = 7;
+        attributedFlash.weaponId = WeaponId.IRON_CARBINE.ordinal();
+        EffectSpawn attributedExplosion = new EffectSpawn(EffectType.FRAG_EXPLOSION, 50f, 60f, 0f, 1f);
+        attributedExplosion.sourcePlayerId = 8;
+        attributedExplosion.weaponId = WeaponId.IRON_CARBINE.ordinal();
+
+        broadcaster.emit(ordinaryFlash);
+        broadcaster.emit(attributedFlash);
+        broadcaster.emit(attributedExplosion);
+        List<EffectSpawn> window = broadcaster.drain();
+        List<EffectSpawn> gunfire = broadcaster.gunfireFor(window);
+
+        assertEquals(1, gunfire.size());
+        assertTrue(broadcaster.cullFor(
+            window, Recipient.of(player(1700f, 500f, 0f)), arena, null).isEmpty(),
+            "the sound cue is retained even though this recipient cannot see its muzzle flash");
+        assertNotSame(attributedFlash, gunfire.get(0));
+        assertEquals(attributedFlash.seed, gunfire.get(0).seed);
+        assertEquals(7, gunfire.get(0).sourcePlayerId);
+        assertEquals(WeaponId.IRON_CARBINE.ordinal(), gunfire.get(0).weaponId);
     }
 
     @Test

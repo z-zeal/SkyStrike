@@ -6,8 +6,9 @@ that a WAV loads, that a voice is stolen where it should be, or that the mix sou
 
 The Phase 9 layer is small on purpose: one mixer (`AudioSystem`), one catalogue (`SoundCatalog`,
 half weapon data and half `EffectSoundTable`), one spatial formula (`shared/audio/SpatialAudio`),
-one ring envelope (`shared/audio/TinnitusMath`), and **two consumers of the effects plan's single
-event queue** — the particles and `EffectAudio`, both fed by `FxPipeline` in the same frame.
+one ring envelope (`shared/audio/TinnitusMath`), the effects-event consumers (particles and
+`EffectAudio`, fed by `FxPipeline` in the same frame), and `GunAudio`, which reads authoritative
+successful-volley cues from `PacketGameState`.
 
 The three sliders this layer obeys already exist: Master, Music and Effects, in both the main
 settings screen and the in-game dialog. With `fx_debug` on (F11), the `sfx:` line reports the
@@ -21,10 +22,11 @@ mixer's pool, the event channel's counters, and the ring level.
   along the surface. The ignition reads as one fire starting, not five clicks (`FIRE_ZONE` is
   capped at two voices and lowest priority, deliberately).
 - [ ] **Exactly one gun report:** fire any weapon, including a shotgun and a burst rifle. One
-  report per shot or volley; the muzzle-flash event is silent so the snapshot-driven report is the
-  only fire sound the player hears.
-- [ ] **Counters:** with `fx_debug on`, the `sfx:` line's `silent` count grows only from muzzle
-  flashes (one per shot) and never from a malformed event.
+  report per successful shot/volley; the authoritative cue travels with the state snapshot,
+  independent of projectile lifetime and visual muzzle-flash culling. The generic muzzle-flash
+  effect remains silent, so the shot is never doubled.
+- [ ] **Counters:** with `fx_debug on`, the `sfx:` line's `silent` count grows only from visible
+  muzzle-flash effects (one per shot) and never from a malformed event.
 
 ## Spatialisation and occlusion
 
@@ -43,12 +45,15 @@ mixer's pool, the event channel's counters, and the ring level.
 ## Pooling and priorities
 
 - [ ] **Under spam:** a full squad auto-firing plus grenades and fire. The mix stays legible:
-  casing tinkles and fire ignitions drop first, detonations always come through. Watch `voices`,
-  `stolen` and `dropped` in the `sfx:` line.
+  casing tinkles and fire ignitions drop first, detonations always come through, and fresh FIRE
+  attacks continue to replace the oldest same-priority gunfire voice when their path/bus cap is
+  full. This exception is limited to authoritative gunfire; other sound priorities stay unchanged.
+  Watch `voices`, `stolen` and `dropped` in the `sfx:` line.
 - [ ] **Bus caps:** `voices` never exceeds the effects bus cap (24); music and UI have their own
   small caps (2 and 4) and nothing else plays on them yet.
-- [ ] **Ties never steal:** a casing arriving while casings are at their two-voice cap does not
-  replace one; it is dropped.
+- [ ] **Ordinary ties never steal:** a casing arriving while casings are at their two-voice cap
+  does not replace one; it is dropped. Only a fresh cue explicitly marked by `GunAudio` may
+  replace an older equal-priority `FIRE` voice under pressure.
 - [ ] **Missing asset (optional):** rename one world WAV and run a match. One logged error, silence
   for that effect only, no crash, no per-frame retry, and `missing 1` in the `sfx:` line.
 

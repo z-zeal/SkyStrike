@@ -591,6 +591,9 @@ public final class GameServer {
         if (connections.count() == 0) {
             return;
         }
+        // Keep gun reports from the same authoritative event window as the visible muzzle effects,
+        // but carry them independently so hearing does not depend on vision or projectile lifetime.
+        List<EffectSpawn> gunfireEvents = effectBroadcaster.gunfireFor(effectSpawns);
 
         long tick = clock.tick();
         long now = System.currentTimeMillis();
@@ -610,6 +613,9 @@ public final class GameServer {
 
             PacketGameState snapshot = new PacketGameState(tick, now, totalJoined);
             snapshot.cheatsActive = cheatsActive;
+            for (EffectSpawn gunfire : gunfireEvents) {
+                snapshot.gunfireEvents.add(gunfire.copy());
+            }
             for (PlayerSession s : players.all()) {
                 snapshot.players.add(s.player().copy());
             }

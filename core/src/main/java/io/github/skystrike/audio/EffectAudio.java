@@ -21,8 +21,9 @@ import io.github.skystrike.shared.effect.EffectSpawn;
  * turns into a pitch that every client hearing the same shot will reproduce identically.
  *
  * <p>Silent events are counted, not ignored blindly: {@code MUZZLE_FLASH} is deliberately silent
- * (the weapon-specific report already comes from authoritative snapshots), and the counter is what
- * lets the debug line show that the omission is a decision rather than a missing row.
+ * here; {@code GunAudio} plays its separate weapon-specific cue from
+ * {@code PacketGameState.gunfireEvents}. The counter lets the debug line show that silence is a
+ * decision rather than a missing row.
  */
 public final class EffectAudio implements EffectEventListener {
 

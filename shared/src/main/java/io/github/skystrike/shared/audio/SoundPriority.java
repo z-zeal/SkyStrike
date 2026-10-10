@@ -9,9 +9,11 @@ package io.github.skystrike.shared.audio;
  * design decision, not an implementation detail — so it is written down here and attached to each
  * catalogue entry.
  *
- * <p>The rule the client applies: a request that arrives at a full pool plays only when it
+ * <p>The default rule the client applies: a request that arrives at a full pool plays only when it
  * outranks the weakest voice already holding a slot, and it takes that voice's place. A casing
- * tinkle never steals from an explosion; an explosion always steals from a casing.
+ * tinkle never steals from an explosion; an explosion always steals from a casing. The mixer has
+ * one narrow opt-in for rapid fresh attacks: a new marked attack may roll over an older marked
+ * peer at the same rank, without changing this global priority ordering.
  */
 public enum SoundPriority {
 

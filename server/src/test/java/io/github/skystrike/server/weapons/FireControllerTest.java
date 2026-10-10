@@ -5,9 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.WeaponConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.weapons.WeaponId;
 import io.github.skystrike.shared.weapons.WeaponRegistry;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -114,6 +118,27 @@ class FireControllerTest {
 
         // A burst applies its recoil once, at 1.20x.
         assertEquals(WeaponConfig.BURST_RECOIL_MULTIPLIER, volley.recoilMultiplier(), 1e-4f);
+    }
+
+    @Test
+    @DisplayName("one successful burst emits one weapon-tagged muzzle cue, cooldown emits none")
+    void successfulBurstEmitsOneAttributedMuzzleCue() {
+        List<EffectSpawn> effects = new ArrayList<>();
+        controller.setEffectSink(effects::add);
+        GunInstance burstRifle = gun(WeaponId.HALCYON_16);
+
+        assertEquals(WeaponConfig.BURST_ROUNDS,
+            controller.fire(player, burstRifle, true, true, volley));
+        assertEquals(2, effects.size(), "one muzzle cue and one casing event for the burst");
+        EffectSpawn muzzle = effects.get(0);
+        assertEquals(EffectType.MUZZLE_FLASH, muzzle.type);
+        assertEquals(player.id, muzzle.sourcePlayerId);
+        assertEquals(WeaponId.HALCYON_16.ordinal(), muzzle.weaponId);
+        assertEquals(EffectType.SHELL_EJECT, effects.get(1).type);
+
+        assertEquals(0, controller.fire(player, burstRifle, true, false, volley),
+            "a held burst trigger cannot fire during cooldown");
+        assertEquals(2, effects.size(), "an unsuccessful trigger emits no sound cue");
     }
 
     @Test

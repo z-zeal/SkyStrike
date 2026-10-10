@@ -51,9 +51,9 @@ public record SoundSpec(
      *
      * <p>A catalogue entry returns this rather than {@code null} so "this event makes no sound" is
      * a decision the table states, not a value a caller has to remember to check for. One entry
-     * currently uses it: {@code MUZZLE_FLASH}, whose weapon-specific report the client already
-     * plays from authoritative snapshots (the effect event carries no weapon identity, and playing
-     * both would double every shot).
+     * currently uses it: {@code MUZZLE_FLASH}, whose attributed shot report is routed through
+     * {@code PacketGameState.gunfireEvents} rather than the generic visual-effect audio path; playing
+     * both would double every shot.
      */
     public static final SoundSpec SILENT =
         new SoundSpec(null, AudioBus.EFFECTS, 0f, 0f, 0f, 0f, 0f, 0, SoundPriority.LOW, false);

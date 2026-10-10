@@ -9,7 +9,7 @@ package io.github.skystrike.shared.config;
 public final class NetConfig {
 
     /**
-     * Bumped whenever the packet set or its registration order changes.
+     * Bumped whenever a packet schema changes or the packet set/registration order changes.
      *
      * <p>3 — Phase 3 combat: {@code Projectile}, {@code HitZone}, {@code PacketDamageEvent} and
      * {@code PacketKillEvent} registered; rounds in flight added to the state snapshot and a
@@ -47,8 +47,12 @@ public final class NetConfig {
      * <p>12 — Phase 6 increment 3 (M10): {@code DroneEntity} and {@code CameraEntity} appended
      * as snapshot payload types; the snapshot gained the drone and camera lists, and the input
      * packet gained the view-action edge. No Kryo registration was reordered or inserted.
+     *
+     * <p>13 — {@code EffectSpawn} gained shooter/weapon metadata, and successful volleys now carry
+     * those sound cues in the existing {@code PacketGameState}, independent of projectile state
+     * and vision-culled visuals. The packet schema changed; no registration order changed.
      */
-    public static final int PROTOCOL_VERSION = 12;
+    public static final int PROTOCOL_VERSION = 13;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

@@ -21,7 +21,9 @@ package io.github.skystrike.shared.effect;
  * </ul>
  *
  * <p>{@code seed} is assigned by the server's broadcaster, not the emitter: every client that
- * receives the same event lays out the same particles.
+ * receives the same event lays out the same particles. Successful muzzle flashes also carry the
+ * shooter and weapon ordinals so the matching report can be sent with state even when the visual
+ * flash is outside a recipient's view.
  */
 public final class EffectSpawn {
 
@@ -34,6 +36,10 @@ public final class EffectSpawn {
     public float scale = 1f;
     /** Deterministic layout seed, assigned by the server's effect broadcaster. */
     public int seed;
+    /** Shooter id for an authoritative gunfire cue; -1 for ordinary visual effects. */
+    public int sourcePlayerId = -1;
+    /** Weapon ordinal for an authoritative gunfire cue; -1 for ordinary visual effects. */
+    public int weaponId = -1;
 
     public EffectSpawn() {
     }
@@ -57,6 +63,8 @@ public final class EffectSpawn {
         this.angle = other.angle;
         this.scale = other.scale;
         this.seed = other.seed;
+        this.sourcePlayerId = other.sourcePlayerId;
+        this.weaponId = other.weaponId;
     }
 
     public EffectSpawn copy() {

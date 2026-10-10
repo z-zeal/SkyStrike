@@ -245,10 +245,13 @@ client surveillance experience:
 - **Configuration.** `GadgetConfig` is populated from mechanics §7. The §7 gadget numbers are
   quoted in the plan's old small-scale reference units; the conversion (25 world units per
   reference unit, derived from the 50-unit player against the reference two-unit character)
-  exists exactly once as `WORLD_UNITS_PER_REFERENCE_UNIT`, giving drone speed 200 u/s, drone
-  cone 250 u @ 70°, camera launch 300 u/s, tank blast radius 100 u. Genuinely unspecified
-  tuning (drone lerp/damping and cone brightness, camera cone, rear shield arc width, tank
-  impulse, shield overflow-to-health) is explicitly flagged provisional in the javadoc.
+  exists exactly once as `WORLD_UNITS_PER_REFERENCE_UNIT`, giving the original drone
+  speed 200 u/s, drone cone 250 u @ 70°, camera launch 300 u/s, tank blast radius 100 u.
+  Genuinely unspecified tuning (drone lerp/damping and cone brightness, camera cone, rear shield
+  arc width, tank impulse, shield overflow-to-health) is explicitly flagged provisional in the
+  javadoc. The original drone 200 u/s speed and 8/s lerp were later retuned to 500 u/s and
+  16/s for more responsive piloting; the faster path remains collision-safe at the authoritative
+  60 Hz tick.
 - **Live state and loadout.** `shared/model/GadgetSlot` (gadget ordinal, durability, active,
   broken, cooldown) rides as two independent Q/E slots inside `PlayerLoadout`, outside the 1–5
   selection system. Both default to empty — the plan names no default gadget. Duplicates are

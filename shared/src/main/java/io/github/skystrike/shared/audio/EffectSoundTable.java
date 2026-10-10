@@ -6,11 +6,12 @@ import io.github.skystrike.shared.effect.EffectType;
  * The world half of the phase-9 sound catalogue: one decision per {@link EffectType} the server
  * can raise (roadmap Phase 9, effects plan §9).
  *
- * <p>This table is why audio needed no new gameplay hook. The server already culls and broadcasts
- * a closed vocabulary of effect events, the client already drains them into one queue, and both
- * layers now read the same event: {@code FxPipeline} hands each drained spawn to the particle
- * system <em>and</em> to the audio layer. Nothing in gameplay knows a sound exists, and there is
- * no second list of "things that make noise" to keep in step with the effect catalogue.
+ * <p>This table is why audio needed no new gameplay hook. The server already emits a closed
+ * vocabulary of effect events, and {@code FxPipeline} hands each drained visual spawn to the
+ * particle system and generic effects-audio layer. Weapon reports use a separate authoritative
+ * cue copied into {@code PacketGameState}: audible range and terrain attenuation must not depend
+ * on whether a recipient's vision allowed the muzzle flash through. Nothing in gameplay knows a
+ * sound exists, and there is no second list of world effects to keep in step with this catalogue.
  *
  * <p><b>Every effect type is listed.</b> The switch is exhaustive on purpose: adding an
  * {@code EffectType} stops the build until someone decides what it sounds like, either an entry or
@@ -20,11 +21,10 @@ import io.github.skystrike.shared.effect.EffectType;
  * <p><b>Two entries are worth explaining.</b>
  *
  * <ul>
- *   <li>{@code MUZZLE_FLASH} is silent. The event carries no weapon identity — a wire change would
- *       be needed — and the client already plays a weapon-specific report from authoritative
- *       snapshots. Playing both would double every shot, so the audio layer stays out of it. The
- *       seam is documented in {@code GunAudio}: weapon <em>identity</em> sounds are snapshot-driven,
- *       world sounds are event-driven.</li>
+ *   <li>{@code MUZZLE_FLASH} stays silent in this generic effect table. A successful shot's
+ *       attributed muzzle event is copied into {@code PacketGameState.gunfireEvents}, where
+ *       {@code GunAudio} resolves its weapon-specific report and applies audible range/occlusion
+ *       independently of visual culling. Playing a second sound here would double every shot.</li>
  *   <li>{@code FIRE_ZONE} is emitted once per fire patch, and one molotov lays down a patch at the
  *       impact point plus a spread across the surface tangent. All of those arrive in the same
  *       tick, so this row is quiet, {@link SoundPriority#LOW} and capped at two voices: the pool

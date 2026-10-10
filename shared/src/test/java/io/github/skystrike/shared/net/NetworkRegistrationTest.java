@@ -184,7 +184,7 @@ class NetworkRegistrationTest {
         assertEquals(DroneEntity.class, types.get(33));
         assertEquals(CameraEntity.class, types.get(34));
         assertEquals(35, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(12, NetConfig.PROTOCOL_VERSION);
+        assertEquals(13, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -425,9 +425,15 @@ class NetworkRegistrationTest {
         camera.contactNormalX = 0f;
         camera.contactNormalY = 1f;
 
-        PacketGameState state = roundTrip(
-            new PacketGameState(4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown),
-                List.of(zone), List.of(drone), List.of(camera)));
+        PacketGameState outbound = new PacketGameState(
+            4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown),
+            List.of(zone), List.of(drone), List.of(camera));
+        EffectSpawn gunfire = new EffectSpawn(EffectType.MUZZLE_FLASH, 125f, 225f, 30f, 1f);
+        gunfire.seed = 321;
+        gunfire.sourcePlayerId = 1;
+        gunfire.weaponId = WeaponId.IRON_CARBINE.ordinal();
+        outbound.gunfireEvents.add(gunfire);
+        PacketGameState state = roundTrip(outbound);
         assertEquals(4242L, state.tick);
         assertEquals(99L, state.serverTimeMillis);
         assertEquals(1, state.playerCount);
@@ -470,6 +476,13 @@ class NetworkRegistrationTest {
         assertEquals(SurveillanceView.DRONE, state.players.get(0).surveillance(),
             "the surveillance view rides the player record");
         assertTrue(state.players.get(0).isSurveillanceLocked());
+
+        assertEquals(1, state.gunfireEvents.size());
+        EffectSpawn decodedGunfire = state.gunfireEvents.get(0);
+        assertEquals(EffectType.MUZZLE_FLASH, decodedGunfire.type);
+        assertEquals(321, decodedGunfire.seed);
+        assertEquals(1, decodedGunfire.sourcePlayerId);
+        assertEquals(WeaponId.IRON_CARBINE.ordinal(), decodedGunfire.weaponId);
 
         assertEquals(1, state.projectiles.size());
         Projectile decoded = state.projectiles.get(0);

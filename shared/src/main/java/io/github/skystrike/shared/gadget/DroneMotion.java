@@ -21,10 +21,10 @@ import io.github.skystrike.shared.model.DroneEntity;
  * exactly as mechanics §9 puts it. With no input the drone does not stop dead: velocity damps at
  * {@link GadgetConfig#DRONE_DAMPING}, so a released drone coasts to a hover.
  *
- * <p>Collision is a box test at the target position per axis, not a swept segment: at 200 u/s a
- * drone covers 3.3 units per 60 Hz tick, comfortably inside the 14-unit thinnest arena geometry,
- * so it cannot tunnel. A final depenetration pass pushes the drone out of any solid it still
- * overlaps — which is also what makes a deploy point inside a low ceiling survivable.
+ * <p>Collision is a box test at the target position per axis, not a swept segment: at 500 u/s a
+ * drone covers 8.3 units per 60 Hz tick, inside the 14-unit thinnest arena geometry, so it cannot
+ * tunnel at the authoritative tick rate. A final depenetration pass pushes the drone out of any
+ * solid it still overlaps — which is also what makes a deploy point inside a low ceiling survivable.
  */
 public final class DroneMotion {
 

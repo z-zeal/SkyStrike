@@ -25,8 +25,9 @@ Setup: host a match, join with two clients. On client A, open the loadout picker
 - [ ] **Pilot:** press Q again. The camera moves to the drone immediately, the banner reads
   `DRONE` with its HP (`HP 30/30`), and the controls line reads `WASD steer  LMB locked  6 cycle
   Esc exit`.
-- [ ] **Steering:** A/D move the drone left/right, W (or Space) climbs, S descends. The motion is
-  smooth (lerped), not instant, and releasing the keys coasts to a hover within about a second.
+- [ ] **Steering:** A/D move the drone left/right, W (or Space) climbs, S descends. Full flight
+  speed is 500 world units/s (2.5× player walk speed); the 16/s velocity response is quick but
+  still eased, and releasing the keys coasts to a hover within about a second.
 - [ ] **Aim:** the mouse steers the drone's vision cone — move the cursor and the revealed area
   follows it, measured from the drone, not from your body.
 - [ ] **Exit with Q:** press Q a third time. The view returns to your body instantly, the banner
