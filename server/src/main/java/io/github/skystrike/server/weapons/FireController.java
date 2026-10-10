@@ -9,6 +9,7 @@ import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.weapons.FireMode;
+import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.Random;
 
 /**
@@ -133,7 +134,7 @@ public final class FireController {
 
         gun.startCooldown();
         gun.countRounds(out.count);
-        emitMuzzleEffects(player);
+        emitMuzzleEffects(player, gun.weaponId());
         return out.count;
     }
 
@@ -143,14 +144,18 @@ public final class FireController {
      * is silent. The muzzle offset is the same one {@code BulletSystem} spawns rounds at, so the
      * flash sits where the tracers leave.
      */
-    private void emitMuzzleEffects(Player player) {
+    private void emitMuzzleEffects(Player player, WeaponId weapon) {
         if (effectSink == null) {
             return;
         }
         float aimRadians = Angles.toRadians(player.aimAngle);
         float muzzleX = player.eyeX() + (float) Math.cos(aimRadians) * CombatConfig.MUZZLE_OFFSET;
         float muzzleY = player.eyeY() + (float) Math.sin(aimRadians) * CombatConfig.MUZZLE_OFFSET;
-        effectSink.emit(new EffectSpawn(EffectType.MUZZLE_FLASH, muzzleX, muzzleY, player.aimAngle, 1f));
+        EffectSpawn muzzle = new EffectSpawn(
+            EffectType.MUZZLE_FLASH, muzzleX, muzzleY, player.aimAngle, 1f);
+        muzzle.sourcePlayerId = player.id;
+        muzzle.weaponId = weapon.ordinal();
+        effectSink.emit(muzzle);
         effectSink.emit(new EffectSpawn(EffectType.SHELL_EJECT, muzzleX, muzzleY, player.aimAngle, 1f));
     }
 

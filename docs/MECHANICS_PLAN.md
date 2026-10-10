@@ -232,7 +232,7 @@ Two independent gadget slots (Q and E) that work regardless of which main slot i
 
 ### 7.1 Drone — manual
 
-Press to deploy a flying drone 1 unit above you; press again to switch your point of view to it. The drone flies freely at speed 8 with smooth velocity lerping and damping, clamps to the arena bounds and pushes out of walls. It has 30 health and is destroyed by gunfire.
+Press to deploy a flying drone 1 unit above you; press again to switch your point of view to it. The drone flies freely at the tuned speed of 20 reference units/s (500 world units/s) with a responsive 16/s velocity lerp and damping, clamps to the arena bounds and pushes out of walls. It has 30 health and is destroyed by gunfire. The speed is raised from the original speed-8 baseline so piloting feels like a nimble aircraft rather than a second player moving at walk pace.
 
 The drone projects **its own vision cone** — 10 units at 70°, narrower and dimmer than a player's — so it reveals territory you cannot see yourself. While piloting the drone your body is **completely vulnerable**: all your own movement and weapons are locked out. Scouting is a genuine risk, not free information.
 

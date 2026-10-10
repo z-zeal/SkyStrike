@@ -238,7 +238,7 @@ public final class Interpolator {
 
     /**
      * Returns smoothly interpolated drones, the same treatment as utilities in flight: a deployed
-     * drone moves at up to 200 u/s, which steps visibly at the 20 Hz snapshot rate. The owner's
+     * drone moves at up to 500 u/s, a 25-unit step at the 20 Hz snapshot rate. The owner's
      * own drone is predicted locally by the surveillance controller instead; this list is for
      * everyone else's devices (and the fallback before the first prediction exists).
      */

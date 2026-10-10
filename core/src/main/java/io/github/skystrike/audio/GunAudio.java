@@ -1,56 +1,48 @@
 package io.github.skystrike.audio;
 
 import io.github.skystrike.shared.audio.SoundSpec;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.model.Player;
-import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
-import io.github.skystrike.shared.weapons.FireMode;
-import io.github.skystrike.shared.weapons.WeaponDefinition;
 import io.github.skystrike.shared.weapons.WeaponId;
-import io.github.skystrike.shared.weapons.WeaponRegistry;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Client presentation bridge for authoritative gun state and projectile snapshots (M7), now a
+ * Client presentation bridge for authoritative gun state and fire-cue snapshots (M7), now a
  * client of the shared mixer rather than an owner of its own (Phase 9).
  *
- * <p>It never creates or authorises gameplay. A fire sound is emitted only after a projectile is
- * observed in an authoritative snapshot; reload, equip and ADS sounds come from player-state
+ * <p>It never creates or authorises gameplay. Fire sounds follow the server's authoritative
+ * successful-volley cues carried with each snapshot, so a short-lived projectile or hidden muzzle
+ * flash cannot drop or delay a report. Reload, equip and ADS sounds come from player-state
  * transitions. The one local prediction hook is the dry-fire click, which has no gameplay effect.
  *
- * <p><b>Why this is still snapshot-driven.</b> Phase 9 routes world sounds through the effect-event
- * channel, and every other sound in the game goes that way. Weapon <em>reports</em> cannot: a
- * muzzle-flash event carries no weapon identity, and the report is the one sound that must differ
- * between a pistol and a sniper. So identity-bearing weapon sounds read the snapshot — which is
- * authoritative state, not a second source of truth — while world sounds read the event channel.
- * The catalogue holds both halves, so there is still exactly one answer to "what does this sound
- * like".
+ * <p><b>Why fire cues travel with snapshots.</b> The visual muzzle-flash event is vision-culled and
+ * intentionally silent here; the separate sound cue keeps its weapon identity and is spatialised
+ * with the catalogue's range/occlusion policy. That keeps audio aligned to an actual server fire
+ * tick without exposing hidden visual effects.
  *
  * <p><b>Voice sharing.</b> The mixer, its buses and its voice pool are borrowed, never owned: this
  * class is disposed when the match ends, and the mixer outlives it because the screen owns it.
  */
 public final class GunAudio {
 
-    private static final int MAX_SEEN_PROJECTILES = 2048;
+    private static final int MAX_SEEN_GUNFIRE_EVENTS = 2048;
 
     private record ObservedGun(WeaponId weapon, boolean reloading, boolean ads) {
-    }
-
-    private record VolleyKey(int ownerId, WeaponId weapon, int ageBucket) {
     }
 
     private final AudioSystem audio;
     private final SoundCatalog catalog;
     private final OcclusionTest occlusion;
     private final Map<Integer, ObservedGun> observedPlayers = new HashMap<>();
-    private final Set<Integer> seenProjectileIds = new LinkedHashSet<>();
+    private final Set<Integer> seenGunfireSeeds = new LinkedHashSet<>();
     private boolean initialSnapshotReceived;
 
     public GunAudio(AudioSystem audio, SoundCatalog catalog, OcclusionTest occlusion) {
@@ -81,8 +73,8 @@ public final class GunAudio {
 
         if (!initialSnapshotReceived) {
             rememberPlayers(snapshot.players);
-            rememberProjectiles(snapshot.projectiles);
             initialSnapshotReceived = true;
+            playGunfire(snapshot.gunfireEvents);
             return;
         }
 
@@ -113,30 +105,28 @@ public final class GunAudio {
         }
         observedPlayers.keySet().retainAll(players.keySet());
 
-        Set<VolleyKey> playedVolleys = new HashSet<>();
-        List<Projectile> projectiles =
-            snapshot.projectiles == null ? List.of() : snapshot.projectiles;
-        for (Projectile projectile : projectiles) {
-            if (projectile == null || !rememberProjectile(projectile.id)) {
+        playGunfire(snapshot.gunfireEvents);
+    }
+
+    /** Plays one report (and any applicable cycle) per authoritative successful volley. */
+    private void playGunfire(List<EffectSpawn> events) {
+        if (events == null || events.isEmpty()) {
+            return;
+        }
+        for (EffectSpawn event : events) {
+            if (event == null || event.type != EffectType.MUZZLE_FLASH) {
                 continue;
             }
-            WeaponId weapon = gunId(projectile.weaponId);
-            if (weapon == null) {
+            WeaponId weapon = gunId(event.weaponId);
+            if (weapon == null || !seenGunfireSeeds.add(event.seed)) {
                 continue;
             }
-            WeaponDefinition definition = WeaponRegistry.of(weapon);
-            boolean oneSoundPerVolley =
-                definition.firesPellets() || definition.fireMode() == FireMode.BURST;
-            VolleyKey volley = new VolleyKey(
-                projectile.ownerId,
-                weapon,
-                Math.round(projectile.age * 20f));
-            if (!oneSoundPerVolley || playedVolleys.add(volley)) {
-                playAt(GunSoundEvent.FIRE, weapon, projectile.x, projectile.y, projectile.id);
-                if (catalog.hasCycle(weapon)) {
-                    playAt(GunSoundEvent.CYCLE, weapon, projectile.x, projectile.y,
-                        projectile.id * 31 + 5);
-                }
+            while (seenGunfireSeeds.size() > MAX_SEEN_GUNFIRE_EVENTS) {
+                seenGunfireSeeds.remove(seenGunfireSeeds.iterator().next());
+            }
+            playAt(GunSoundEvent.FIRE, weapon, event.x, event.y, event.seed, true);
+            if (catalog.hasCycle(weapon)) {
+                playAt(GunSoundEvent.CYCLE, weapon, event.x, event.y, event.seed * 31 + 5);
             }
         }
     }
@@ -174,7 +164,7 @@ public final class GunAudio {
     /** Clears session-scoped observations when the transport leaves a match. */
     public void reset() {
         observedPlayers.clear();
-        seenProjectileIds.clear();
+        seenGunfireSeeds.clear();
         initialSnapshotReceived = false;
     }
 
@@ -194,12 +184,22 @@ public final class GunAudio {
     }
 
     private void playAt(GunSoundEvent event, WeaponId weapon, float x, float y, int seed) {
+        playAt(event, weapon, x, y, seed, false);
+    }
+
+    private void playAt(
+            GunSoundEvent event, WeaponId weapon, float x, float y, int seed, boolean freshAttack) {
         SoundSpec spec = catalog.specFor(weapon, event);
         if (spec.isSilent()) {
             return;
         }
         boolean blocked = occlusion.isBlocked(audio.listenerX(), audio.listenerY(), x, y);
-        audio.playAt(spec, x, y, blocked, spec.pitchForSeed(seed), 1f);
+        float pitch = spec.pitchForSeed(seed);
+        if (freshAttack) {
+            audio.playAtFresh(spec, x, y, blocked, pitch, 1f);
+        } else {
+            audio.playAt(spec, x, y, blocked, pitch, 1f);
+        }
     }
 
     private void rememberPlayers(List<Player> players) {
@@ -214,27 +214,6 @@ public final class GunAudio {
                         player.ads));
             }
         }
-    }
-
-    private void rememberProjectiles(List<Projectile> projectiles) {
-        if (projectiles == null) {
-            return;
-        }
-        for (Projectile projectile : projectiles) {
-            if (projectile != null) {
-                rememberProjectile(projectile.id);
-            }
-        }
-    }
-
-    private boolean rememberProjectile(int id) {
-        if (!seenProjectileIds.add(id)) {
-            return false;
-        }
-        while (seenProjectileIds.size() > MAX_SEEN_PROJECTILES) {
-            seenProjectileIds.remove(seenProjectileIds.iterator().next());
-        }
-        return true;
     }
 
     private static WeaponId gunId(int wireId) {

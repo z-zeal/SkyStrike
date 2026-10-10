@@ -1,5 +1,6 @@
 package io.github.skystrike.shared.net.s2c;
 
+import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
@@ -33,6 +34,13 @@ public final class PacketGameState implements Packet {
 
     /** Rounds in flight visible to the recipient. */
     public List<Projectile> projectiles = new ArrayList<>();
+
+    /**
+     * One authoritative sound cue per successful weapon volley in this snapshot window. Kept
+     * separate from vision-culled muzzle visuals and live projectiles so short rounds are not
+     * silent when they hit before the next snapshot.
+     */
+    public List<EffectSpawn> gunfireEvents = new ArrayList<>();
 
     /** Thrown utilities in flight or settled while their fuse counts down. */
     public List<ThrownUtility> thrownUtilities = new ArrayList<>();
@@ -142,6 +150,7 @@ public final class PacketGameState implements Packet {
             + ", playerCount=" + playerCount
             + ", players=" + players.size()
             + ", projectiles=" + projectiles.size()
+            + ", gunfireEvents=" + gunfireEvents.size()
             + ", thrownUtilities=" + thrownUtilities.size()
             + ", utilityZones=" + utilityZones.size()
             + ", drones=" + drones.size()

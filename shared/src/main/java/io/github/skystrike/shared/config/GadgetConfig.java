@@ -26,9 +26,10 @@ public final class GadgetConfig {
     /**
      * World units per mechanics-§7 reference unit. Derived from the player: 50 world units of
      * standing height ({@link PlayerConfig#STAND_HEIGHT}) for the reference scale's two-unit
-     * character, so 25. Sanity check at this scale: drone speed 8 → 200 u/s, exactly a player's
-     * walk speed; its 10-unit cone → 250 units, well inside the player's 640 and "narrower";
-     * the fuel tank's 4-unit blast → 100 units, a close-quarters pocket against the frag's 350.
+     * character, so 25. The §7 baseline drone speed 8 → 200 u/s; the current flight tuning is
+     * 20 reference units/s → 500 u/s. Its 10-unit cone → 250 units, well inside the player's 640
+     * and "narrower"; the fuel tank's 4-unit blast → 100 units, a close-quarters pocket against
+     * the frag's 350.
      */
     public static final float WORLD_UNITS_PER_REFERENCE_UNIT = 25f;
 
@@ -42,8 +43,11 @@ public final class GadgetConfig {
     /** Drone hit points. Destroyed by gunfire. */
     public static final float DRONE_HEALTH = 30f;
 
-    /** Free-flight speed: §7.1's "speed 8" × 25 = 200 u/s — a drone flies at player walk speed. */
-    public static final float DRONE_SPEED = 8f * WORLD_UNITS_PER_REFERENCE_UNIT;
+    /**
+     * Free-flight speed: tuned to 20 reference units/s × 25 = 500 u/s (2.5× player walk speed),
+     * up from §7.1's sluggish baseline of 8 reference units/s.
+     */
+    public static final float DRONE_SPEED = 20f * WORLD_UNITS_PER_REFERENCE_UNIT;
 
     /** The drone deploys this far above the owner: §7.1's "1 unit above you" × 25. */
     public static final float DRONE_SPAWN_OFFSET_Y = 1f * WORLD_UNITS_PER_REFERENCE_UNIT;
@@ -70,10 +74,10 @@ public final class GadgetConfig {
 
     /**
      * Exponential rate at which drone velocity lerps toward the piloted input direction, per
-     * second. <b>Provisional</b> — §7.1 asks for "smooth velocity lerping" without a rate; 8/s
-     * reaches ~63% of a direction change in an eighth of a second, responsive but visibly smooth.
+     * second. <b>Provisional</b> — §7.1 asks for "smooth velocity lerping" without a rate; 16/s
+     * reaches ~63% of a direction change in 1/16 second, giving the faster flight crisp control.
      */
-    public static final float DRONE_VELOCITY_LERP_RATE = 8f;
+    public static final float DRONE_VELOCITY_LERP_RATE = 16f;
 
     /**
      * Linear damping applied to a drone with no pilot input, per second. <b>Provisional</b> —

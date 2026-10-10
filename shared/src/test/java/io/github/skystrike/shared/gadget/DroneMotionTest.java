@@ -26,12 +26,14 @@ class DroneMotionTest {
     }
 
     @Test
-    @DisplayName("piloted input lerps the velocity toward the flight speed, smoothly")
+    @DisplayName("piloted input accelerates responsively but still eases toward the flight speed")
     void pilotedInputLerpsVelocity() {
         DroneEntity drone = droneAt(400f, 600f);
         DroneMotion.stepInPlace(drone, 1f, false, false, DT, map);
 
         assertTrue(drone.vx > 0f, "the drone accelerates right");
+        assertTrue(drone.vx > GadgetConfig.DRONE_SPEED * 0.2f,
+            "the 16/s response rate gets the faster drone moving promptly");
         assertTrue(drone.vx < GadgetConfig.DRONE_SPEED,
             "one tick is a lerp toward the speed, not an instant reach");
         assertTrue(drone.x > 400f, "and it moves");

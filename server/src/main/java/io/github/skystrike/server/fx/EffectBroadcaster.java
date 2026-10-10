@@ -3,6 +3,7 @@ package io.github.skystrike.server.fx;
 import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.CameraEntity;
@@ -10,6 +11,7 @@ import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.shared.vision.VisionMath;
+import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -92,6 +94,27 @@ public final class EffectBroadcaster implements EffectSink {
         List<EffectSpawn> drained = List.copyOf(pending);
         pending.clear();
         return drained;
+    }
+
+    /**
+     * Copies successful muzzle reports into the state packet's sound-cue list. These cues are not
+     * vision-culled: the client applies the weapon's audible radius and terrain attenuation, while
+     * the visual muzzle flash remains governed by {@link #cullFor}.
+     */
+    public List<EffectSpawn> gunfireFor(List<EffectSpawn> spawns) {
+        if (spawns == null || spawns.isEmpty()) {
+            return List.of();
+        }
+        List<EffectSpawn> gunfire = new ArrayList<>();
+        for (EffectSpawn spawn : spawns) {
+            if (spawn != null
+                && spawn.type == EffectType.MUZZLE_FLASH
+                && spawn.sourcePlayerId >= 0
+                && WeaponId.isValidOrdinal(spawn.weaponId)) {
+                gunfire.add(spawn.copy());
+            }
+        }
+        return List.copyOf(gunfire);
     }
 
     /** Drops everything buffered; used on shutdown so a reused broadcaster starts clean. */

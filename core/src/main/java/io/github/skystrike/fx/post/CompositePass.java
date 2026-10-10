@@ -13,9 +13,14 @@ import io.github.skystrike.shared.config.VisionConfig;
  * Fog composite pass: {@code scene * max(visibility, ambientFloor) + light}.
  *
  * <p>Multiplies world-space scene contents by the occluded vision field, leaving non-cone and
- * wall-occluded space in pitch black or faint ambient illumination.
+ * wall-occluded space in pitch black or faint ambient illumination. A display-only gamma curve
+ * lifts the cone's midtones while preserving the peripheral floor and the raw visibility mask used
+ * by gameplay-facing queries and additive lights.
  */
 public final class CompositePass implements Disposable {
+
+    /** Display-only midtone lift; the raw visibility texture remains the gameplay/light mask. */
+    private static final float VISIBILITY_DISPLAY_GAMMA = 0.7f;
 
     private final ShaderLibrary shaders;
     private final FullscreenQuad quad;
@@ -58,6 +63,8 @@ public final class CompositePass implements Disposable {
         }
 
         shader.setUniformf("u_ambientFloor", ambientFloor);
+        shader.setUniformf("u_peripheralFloor", VisionConfig.PERIPHERAL_FLOOR);
+        shader.setUniformf("u_visibilityGamma", VISIBILITY_DISPLAY_GAMMA);
 
         quad.render(shader);
 

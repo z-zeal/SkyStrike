@@ -259,9 +259,10 @@ smoke blocks sight for both the shader and the server, and your own molotov kill
 ## PHASE 6 — Gadgets
 
 ### 6.1 Drone (manual)
-Deploys above you; press again to take POV. Speed 8, velocity lerp + damping, clamped to arena, pushed out of
-walls, 30 HP. Projects **its own cone** (10 units, 70°) into the visibility pass — it is already a multi-observer
-system from Phase 2, so this is additive.
+Deploys above you; press again to take POV. Flight speed is tuned to 20 reference units/s (500 world
+units/s) with a responsive 16/s velocity lerp and damping, clamped to arena, pushed out of walls, 30 HP.
+Projects **its own cone** (10 units, 70°) into the visibility pass — it is already a multi-observer system
+from Phase 2, so this is additive.
 **While piloting, your body is fully locked and vulnerable.** `core/gameplay/SurveillanceController` owns the
 input lock; the server must enforce it, not just the client.
 

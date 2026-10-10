@@ -29,10 +29,11 @@ import java.util.Set;
  *       exposes; every request is mixed through {@link AudioBus#gain} in one place, and a slider
  *       move also re-applies to any live loop.</li>
  *   <li><b>Pooling.</b> A phone will not mix five players' automatic fire, a grenade and every
- *       casing on screen. The pool bounds per-asset voices and per-bus voices, and when a cap is
- *       reached the incoming request plays only if it outranks the weakest voice holding a slot
- *       ({@link SoundPriority}) — it then takes that slot. Loops live in their own small pool, so
- *       an impact tick can never steal the stun ring's voice.</li>
+ *       casing on screen. The pool bounds per-asset voices and per-bus voices; normally an
+ *       incoming request must outrank the weakest voice holding a slot ({@link SoundPriority}).
+ *       A narrowly opted-in fresh attack may instead roll over an older marked peer at the same
+ *       priority, keeping automatic-fire transients current without changing other sound policy.
+ *       Loops live in their own small pool, so an impact tick can never steal the stun ring's voice.</li>
  *   <li><b>Spatialisation.</b> Gain and pan come from {@link SpatialAudio}; the caller supplies
  *       only the listener's position (once per frame), the source's, and whether terrain blocks
  *       the line between them.</li>
@@ -72,6 +73,7 @@ public final class AudioSystem implements Disposable {
         private final String path;
         private final AudioBus bus;
         private final SoundPriority priority;
+        private final boolean replaceableByFreshPeer;
         private final float expiresAt;
 
         private Voice(
@@ -80,12 +82,14 @@ public final class AudioSystem implements Disposable {
                 String path,
                 AudioBus bus,
                 SoundPriority priority,
+                boolean replaceableByFreshPeer,
                 float expiresAt) {
             this.sound = sound;
             this.id = id;
             this.path = path;
             this.bus = bus;
             this.priority = priority;
+            this.replaceableByFreshPeer = replaceableByFreshPeer;
             this.expiresAt = expiresAt;
         }
     }
@@ -188,7 +192,7 @@ public final class AudioSystem implements Disposable {
             return false;
         }
         float gain = spec.gain() * busGain(spec.bus());
-        return start(sound, spec, gain, 1f, 0f);
+        return start(sound, spec, gain, 1f, 0f, false);
     }
 
     /**
@@ -203,6 +207,27 @@ public final class AudioSystem implements Disposable {
      */
     public boolean playAt(
             SoundSpec spec, float x, float y, boolean occluded, float pitch, float gainScale) {
+        return playAt(spec, x, y, occluded, pitch, gainScale, false);
+    }
+
+    /**
+     * Plays a fresh world attack, allowing it to replace the oldest same-priority fresh-attack
+     * voice when the path or bus pool is full. Use only for rapid, authoritative one-shot cues such
+     * as gunfire; all other sounds retain ordinary strict-priority admission.
+     */
+    public boolean playAtFresh(
+            SoundSpec spec, float x, float y, boolean occluded, float pitch, float gainScale) {
+        return playAt(spec, x, y, occluded, pitch, gainScale, true);
+    }
+
+    private boolean playAt(
+            SoundSpec spec,
+            float x,
+            float y,
+            boolean occluded,
+            float pitch,
+            float gainScale,
+            boolean freshAttack) {
         if (spec == null || spec.isSilent()) {
             return false;
         }
@@ -219,7 +244,7 @@ public final class AudioSystem implements Disposable {
             // the debug line look like the pool is starving when nothing is wrong.
             return false;
         }
-        if (!admit(spec)) {
+        if (!admit(spec, freshAttack)) {
             return false;
         }
         Sound sound = soundFor(spec.path());
@@ -229,7 +254,7 @@ public final class AudioSystem implements Disposable {
         }
         float scale = Float.isFinite(gainScale) ? Math.max(0f, gainScale) : 1f;
         float gain = spec.gain() * placement.gain() * scale * busGain(spec.bus());
-        return start(sound, spec, gain, pitch, placement.pan());
+        return start(sound, spec, gain, pitch, placement.pan(), freshAttack);
     }
 
     // --- loops ---------------------------------------------------------------------------------
@@ -339,15 +364,91 @@ public final class AudioSystem implements Disposable {
     // --- pooling -------------------------------------------------------------------------------
 
     /**
-     * Whether the pool can take this request. The asset cap is checked first, then the bus cap;
-     * either one may be satisfied by taking the weakest voice already holding a slot there.
+     * Whether the pool can take this request. Normal requests check the asset cap first, then the
+     * bus cap; fresh attacks reserve both together so a rejected request cannot evict a voice.
      */
     private boolean admit(SoundSpec spec) {
+        return admit(spec, false);
+    }
+
+    private boolean admit(SoundSpec spec, boolean freshAttack) {
+        if (freshAttack) {
+            if (!admitFreshAttack(spec)) {
+                droppedRequests++;
+                return false;
+            }
+            return true;
+        }
         if (!admitOnPath(spec) || !admitOnBus(spec)) {
             droppedRequests++;
             return false;
         }
         return true;
+    }
+
+    /** Reserves path and bus slots atomically, with an equal-priority exception for fresh cues. */
+    private boolean admitFreshAttack(SoundSpec spec) {
+        boolean pathFull = countVoices(spec.path(), null) >= spec.maxVoices();
+        boolean busFull = countVoices(null, spec.bus()) >= busCapacity(spec.bus());
+        Voice pathVictim = pathFull
+            ? findFreshAttackVictim(spec.path(), null, spec.priority())
+            : null;
+        if (pathFull && pathVictim == null) {
+            return false;
+        }
+
+        Voice busVictim = null;
+        if (busFull) {
+            busVictim = pathVictim != null && pathVictim.bus == spec.bus()
+                ? pathVictim
+                : findFreshAttackVictim(null, spec.bus(), spec.priority());
+            if (busVictim == null) {
+                return false;
+            }
+        }
+
+        if (pathVictim != null) {
+            stopVoice(pathVictim);
+        }
+        if (busVictim != null && busVictim != pathVictim) {
+            stopVoice(busVictim);
+        }
+        return true;
+    }
+
+    /** Lowest-priority eligible voice wins; a marked equal-priority voice yields only as a fallback. */
+    private Voice findFreshAttackVictim(String path, AudioBus bus, SoundPriority incoming) {
+        Voice weakest = null;
+        for (Voice voice : voices) {
+            if (!matches(voice, path, bus) || !incoming.outranks(voice.priority)) {
+                continue;
+            }
+            if (weakest == null || voice.priority.rank() < weakest.priority.rank()) {
+                weakest = voice;
+            }
+        }
+        if (weakest != null) {
+            return weakest;
+        }
+        for (Voice voice : voices) {
+            if (matches(voice, path, bus)
+                && voice.replaceableByFreshPeer
+                && voice.priority == incoming) {
+                return voice;
+            }
+        }
+        return null;
+    }
+
+    private static boolean matches(Voice voice, String path, AudioBus bus) {
+        return (path == null || path.equals(voice.path)) && (bus == null || bus == voice.bus);
+    }
+
+    private void stopVoice(Voice voice) {
+        if (voices.remove(voice)) {
+            voice.sound.stop(voice.id);
+            stolenVoices++;
+        }
     }
 
     private boolean admitOnPath(SoundSpec spec) {
@@ -415,7 +516,13 @@ public final class AudioSystem implements Disposable {
 
     // --- playback ------------------------------------------------------------------------------
 
-    private boolean start(Sound sound, SoundSpec spec, float gain, float pitch, float pan) {
+    private boolean start(
+            Sound sound,
+            SoundSpec spec,
+            float gain,
+            float pitch,
+            float pan,
+            boolean replaceableByFreshPeer) {
         float mixed = clamp(gain);
         if (mixed <= MIN_MIX_GAIN) {
             return false;
@@ -429,7 +536,13 @@ public final class AudioSystem implements Disposable {
         float life = spec.durationSeconds() / Math.max(SoundSpec.MIN_PITCH, playablePitch)
             + VOICE_SLACK_SECONDS;
         voices.add(new Voice(
-            sound, id, spec.path(), spec.bus(), spec.priority(), clockSeconds + life));
+            sound,
+            id,
+            spec.path(),
+            spec.bus(),
+            spec.priority(),
+            replaceableByFreshPeer,
+            clockSeconds + life));
         return true;
     }
 

@@ -92,8 +92,9 @@ alongside all of this.
 ## Known limitations (documented, not bugs)
 
 - All arena solids emit the concrete impact; metal and wood await a surface-material pass.
-- The muzzle-flash preset has no semi-automatic-only smoke wisp: the event carries no weapon
-  identity, and adding one is a wire change.
+- The shared muzzle-flash preset has no separate semi-automatic-only smoke wisp. Muzzle events now
+  carry shooter/weapon metadata for gunfire cues, so this visual variation would no longer need a
+  wire change.
 - The blindness pass has no chromatic aberration or film grain beyond the animated grain it does
   have; the full secondary-effects treatment is a later phase.
 - The particle vertex shader uses 12 vertex attributes. Desktop GL guarantees 16; every real

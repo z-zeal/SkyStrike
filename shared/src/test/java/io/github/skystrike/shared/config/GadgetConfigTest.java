@@ -22,10 +22,11 @@ class GadgetConfigTest {
     }
 
     @Test
-    @DisplayName("drone: 30 HP, speed 8 → 200 u/s, cone 10 units → 250 at 70°, deploys 1 unit → 25 up")
+    @DisplayName("drone: 30 HP, tuned speed 20 → 500 u/s, cone 10 units → 250 at 70°, "
+        + "deploys 1 unit → 25 up")
     void droneNumbers() {
         assertEquals(30f, GadgetConfig.DRONE_HEALTH, EPSILON);
-        assertEquals(200f, GadgetConfig.DRONE_SPEED, EPSILON);
+        assertEquals(500f, GadgetConfig.DRONE_SPEED, EPSILON);
         assertEquals(25f, GadgetConfig.DRONE_SPAWN_OFFSET_Y, EPSILON);
         assertEquals(250f, GadgetConfig.DRONE_VISION_RANGE, EPSILON);
         assertEquals(70f, GadgetConfig.DRONE_VISION_ANGLE_DEGREES, EPSILON);
@@ -36,9 +37,9 @@ class GadgetConfigTest {
         assertTrue(GadgetConfig.DRONE_VISION_BRIGHTNESS > 0f
             && GadgetConfig.DRONE_VISION_BRIGHTNESS < 1f);
 
-        // A drone flies exactly at player walk speed — the conversion's sanity anchor.
-        assertEquals(PlayerConfig.WALK_SPEED, GadgetConfig.DRONE_SPEED, EPSILON);
-        assertTrue(GadgetConfig.DRONE_VELOCITY_LERP_RATE > 0f);
+        // The flight tuning is deliberately faster than the §7 baseline and player walk speed.
+        assertTrue(GadgetConfig.DRONE_SPEED > PlayerConfig.WALK_SPEED * 2f);
+        assertEquals(16f, GadgetConfig.DRONE_VELOCITY_LERP_RATE, EPSILON);
         assertTrue(GadgetConfig.DRONE_DAMPING > 0f);
     }
 
