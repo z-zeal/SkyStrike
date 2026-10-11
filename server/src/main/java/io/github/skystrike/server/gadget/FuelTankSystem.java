@@ -5,6 +5,7 @@ import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
@@ -26,11 +27,34 @@ public final class FuelTankSystem {
 
     private final ArenaMap arena;
 
+    /**
+     * The per-round destruction state, set by the server. Null in geometry-only tests, where the
+     * authored map is the whole world and nothing can be hurt.
+     */
+    private MapDamageState destruction;
+
     public FuelTankSystem(ArenaMap arena) {
         if (arena == null) {
             throw new IllegalArgumentException("arena is required");
         }
         this.arena = arena;
+    }
+
+    /**
+     * Wires the live destruction state: the tank's blast then damages the breakables it reaches,
+     * and its own occlusion reads the live map. Null detaches.
+     *
+     * <p>A break caused here changes the geometry with no debris of its own: this system has no
+     * effect sink, which is a pre-existing gap in the tank's own detonation visual rather than one
+     * this pass introduces.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+    }
+
+    /** The map this system resolves against: the live one when a destruction state is wired. */
+    private ArenaMap liveMap() {
+        return destruction == null ? arena : destruction.liveMap();
     }
 
     /**
@@ -81,8 +105,11 @@ public final class FuelTankSystem {
             GadgetConfig.FUEL_TANK_EXPLOSION_IMPULSE,
             attackerId,
             wireId);
+        if (destruction != null) {
+            ExplosionMath.resolveBlocks(blast, destruction);
+        }
         if (candidates != null) {
-            for (ExplosionMath.BlastHit hit : ExplosionMath.resolve(blast, candidates, arena)) {
+            for (ExplosionMath.BlastHit hit : ExplosionMath.resolve(blast, candidates, liveMap())) {
                 Player target = byId(candidates, hit.playerId());
                 if (target == null || target == wearer || !DamageService.canDamage(attacker, target)) {
                     continue;
@@ -122,8 +149,9 @@ public final class FuelTankSystem {
             damage);
     }
 
+    /** The map this system is resolving against: the live one when a destruction state is wired. */
     public ArenaMap arena() {
-        return arena;
+        return liveMap();
     }
 
     private static Player byId(Collection<Player> players, int id) {

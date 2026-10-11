@@ -9,6 +9,7 @@ import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.gadget.GadgetPress;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
@@ -44,6 +45,12 @@ public final class CameraSystem {
     private final List<CameraEntity> cameras = new ArrayList<>();
 
     /**
+     * The per-round destruction state, set by the server. Null in geometry-only tests; a camera
+     * then flies and is released against the authored map.
+     */
+    private MapDamageState destruction;
+
+    /**
      * Where destruction and stick visuals go (build plan M7 §8.1). Null in geometry-only tests;
      * a missing sink never changes gameplay, only presentation.
      */
@@ -67,6 +74,20 @@ public final class CameraSystem {
     /** Installs the effect sink. Null detaches; safe to call more than once. */
     public void setEffectSink(EffectSink effectSink) {
         this.effectSink = effectSink;
+    }
+
+    /**
+     * Wires the live destruction state: a camera then flies and is released against the map the
+     * server is actually playing on, so a destroyed block stops vetoing a throw nobody can see
+     * anything wrong with. Null detaches.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+    }
+
+    /** The map this system resolves against: the live one when a destruction state is wired. */
+    private ArenaMap liveMap() {
+        return destruction == null ? arena : destruction.liveMap();
     }
 
     /**
@@ -178,8 +199,9 @@ public final class CameraSystem {
         return cameras.size();
     }
 
+    /** The map this system is resolving against: the live one when a destruction state is wired. */
     public ArenaMap arena() {
-        return arena;
+        return liveMap();
     }
 
     public void clear() {
@@ -223,7 +245,7 @@ public final class CameraSystem {
         flightScratch.contactNormalX = 0f;
         flightScratch.contactNormalY = 0f;
 
-        CameraFlight.Outcome outcome = CameraFlight.step(flightScratch, dt, arena);
+        CameraFlight.Outcome outcome = CameraFlight.step(flightScratch, dt, liveMap());
         camera.x = flightScratch.x;
         camera.y = flightScratch.y;
         camera.prevX = flightScratch.prevX;
@@ -302,14 +324,15 @@ public final class CameraSystem {
         float x = CameraFlight.launchX(owner.eyeX(), owner.aimAngle);
         float y = CameraFlight.launchY(owner.eyeY(), owner.aimAngle);
         float radius = GadgetConfig.CAMERA_RADIUS;
-        if (x < radius || x > arena.width() - radius || y < radius || y > arena.height() - radius) {
+        ArenaMap map = liveMap();
+        if (x < radius || x > map.width() - radius || y < radius || y > map.height() - radius) {
             return false;
         }
         Rect release = new Rect(x - radius, y - radius, radius * 2f, radius * 2f);
-        if (MapQueries.overlapsMovementBlocker(arena, release)) {
+        if (MapQueries.overlapsMovementBlocker(map, release)) {
             return false;
         }
-        return VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, arena);
+        return VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, map);
     }
 
     private void emit(EffectType type, float x, float y, float angle, float scale) {

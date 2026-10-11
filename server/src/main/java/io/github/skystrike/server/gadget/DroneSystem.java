@@ -9,6 +9,7 @@ import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.gadget.GadgetPress;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.GadgetSlot;
@@ -41,6 +42,12 @@ public final class DroneSystem {
     private final List<DroneEntity> drones = new ArrayList<>();
 
     /**
+     * The per-round destruction state, set by the server. Null in geometry-only tests; a drone
+     * then flies over the authored map, which is the whole world until something can break.
+     */
+    private MapDamageState destruction;
+
+    /**
      * Where destruction visuals go (build plan M7 §8.1). Null in geometry-only tests; a missing
      * sink never changes gameplay, only presentation.
      */
@@ -58,6 +65,19 @@ public final class DroneSystem {
     /** Installs the effect sink. Null detaches; safe to call more than once. */
     public void setEffectSink(EffectSink effectSink) {
         this.effectSink = effectSink;
+    }
+
+    /**
+     * Wires the live destruction state: a drone then flies through the holes the round opened,
+     * because it obeys the same movement column a body does. Null detaches.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+    }
+
+    /** The map this system resolves against: the live one when a destruction state is wired. */
+    private ArenaMap liveMap() {
+        return destruction == null ? arena : destruction.liveMap();
     }
 
     /**
@@ -101,10 +121,10 @@ public final class DroneSystem {
         }
         if (player.surveillance() == SurveillanceView.DRONE && input != null) {
             DroneMotion.stepInPlace(
-                drone, input.moveX, input.jump || input.jetpack, input.crouch, dt, arena);
+                drone, input.moveX, input.jump || input.jetpack, input.crouch, dt, liveMap());
             drone.aimAngle = Angles.wrap(input.aimAngle);
         } else {
-            DroneMotion.stepInPlace(drone, 0f, false, false, dt, arena);
+            DroneMotion.stepInPlace(drone, 0f, false, false, dt, liveMap());
         }
         mirrorDurability(player, drone);
     }
@@ -161,8 +181,9 @@ public final class DroneSystem {
         return drones.size();
     }
 
+    /** The map this system is resolving against: the live one when a destruction state is wired. */
     public ArenaMap arena() {
-        return arena;
+        return liveMap();
     }
 
     public void clear() {
