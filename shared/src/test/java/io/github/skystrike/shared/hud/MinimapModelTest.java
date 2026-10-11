@@ -104,7 +104,10 @@ class MinimapModelTest {
     @DisplayName("the arena is normalised bottom-left origin, y up, and the aspect is quoted")
     void terrainIsNormalised() {
         assertEquals(WorldConfig.ARENA_WIDTH / WorldConfig.ARENA_HEIGHT, model.arenaAspect(), 0.0001f);
-        assertEquals(arena.solids().size(), model.terrainBoxes().size(), "one box per solid");
+        assertEquals(
+            arena.blocks().size(),
+            model.terrainBoxes().size(),
+            "one box per authored block: the map draws the arena, not the bullet view");
 
         Box ground = model.terrainBoxes().stream()
             .filter(b -> b.width() == 1f && b.y() == 0f)
