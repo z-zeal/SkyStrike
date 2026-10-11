@@ -1031,13 +1031,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             }
         } else {
             lines.add(String.format(
-                    "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d solids",
+                    "camera: %.0f, %.0f  view %.0f u  |  arena %.0f x %.0f, %d blocks",
                     camera.x(),
                     camera.y(),
                     camera.viewportHeight(),
                     arena.width(),
                     arena.height(),
-                    arena.solids().size()));
+                    arena.blocks().size()));
         }
         lines.add(minimap == null
             ? "minimap: off (cl_minimap)"

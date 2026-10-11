@@ -15,17 +15,23 @@ import java.util.List;
  * count. The five-argument forms are the sight convenience, kept so existing callers keep their
  * meaning.
  *
- * <p>Point/box questions ({@link #solidAt}, {@link #overlapsSolid}, {@link #surfaceBelow},
- * {@link #solidsOverlapping}) still read the bullet-blocking compatibility view. Movement is not
- * a {@link Blocking} purpose — {@link MovementRule} owns that column — and the shared sweeper
- * migrates to it with the one-way platform work rather than half a column at a time.
+ * <p>Movement questions are separate, because the movement column answers a different question:
+ * a kind's {@link MovementRule} says which faces stop a body, not whether a line is blocked.
+ * {@link #overlapsMovementBlocker} and {@link #surfaceBelow} therefore read
+ * {@link ArenaMap#movementBlockers(MovementRule)} — the same set the shared sweeper sweeps — so
+ * there is exactly one answer to "can a body be here" in the tree.
+ *
+ * <p>{@link #solidAt}, {@link #overlapsSolid} and {@link #solidsOverlapping} remain the legacy
+ * bullet-blocking compatibility questions: they are the point/box form of {@link ArenaMap#solids()}
+ * and exist for the geometry tests that pin the legacy rect set. No runtime consumer may use them
+ * to decide movement, sight, bullets or blasting; ask the matching column instead.
  */
 public final class MapQueries {
 
     private MapQueries() {
     }
 
-    /** True when a point is inside any bullet-blocking solid. */
+    /** True when a point is inside any bullet-blocking solid (legacy compatibility view). */
     public static boolean solidAt(ArenaMap map, float x, float y) {
         for (Rect rect : map.solids()) {
             if (rect.contains(x, y)) {
@@ -35,9 +41,28 @@ public final class MapQueries {
         return false;
     }
 
-    /** True when a box overlaps any bullet-blocking solid. */
+    /** True when a box overlaps any bullet-blocking solid (legacy compatibility view). */
     public static boolean overlapsSolid(ArenaMap map, Rect box) {
         for (Rect rect : map.solids()) {
+            if (Geometry.aabbOverlaps(rect, box)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a body occupying {@code box} would overlap a block that stops movement.
+     *
+     * <p>This is the movement column's box question: it reads every block whose
+     * {@link MovementRule} is {@link MovementRule#SOLID}, so intact glass and a closed door stop a
+     * body even though no bullet or sight line notices them, and a one-way platform never does —
+     * a platform catches a falling body at its top face alone, and a box overlap cannot say
+     * whether the body was above that face. Callers that need the landing test ask the sweeper,
+     * not this.
+     */
+    public static boolean overlapsMovementBlocker(ArenaMap map, Rect box) {
+        for (Rect rect : map.movementBlockers(MovementRule.SOLID)) {
             if (Geometry.aabbOverlaps(rect, box)) {
                 return true;
             }
@@ -106,24 +131,33 @@ public final class MapQueries {
     }
 
     /**
-     * Height of the highest surface at or below {@code y} directly under {@code x}, or the arena
-     * floor when nothing is beneath. Used for spawn placement and ground snapping.
+     * Height of the highest standable surface at or below {@code y} directly under {@code x}, or
+     * the arena floor when nothing is beneath. Used for spawn placement, ground snapping and
+     * placing a device.
+     *
+     * <p>Answered from the movement column: every movement rule presents a top a body can stand
+     * on — a {@link MovementRule#SOLID} block's top face and a {@link MovementRule#ONE_WAY_TOP}
+     * platform's landing surface — so a pane of glass supports a body here even though it is in no
+     * bullet, sight or blast view. The sweep's "was the feet above the slab" question is a
+     * different one, and only the sweeper answers it.
      */
     public static float surfaceBelow(ArenaMap map, float x, float y) {
         float best = 0f;
-        for (Rect rect : map.solids()) {
-            if (x < rect.left() || x > rect.right()) {
-                continue;
-            }
-            float top = rect.top();
-            if (top <= y && top > best) {
-                best = top;
+        for (MovementRule rule : MovementRule.values()) {
+            for (Rect rect : map.movementBlockers(rule)) {
+                if (x < rect.left() || x > rect.right()) {
+                    continue;
+                }
+                float top = rect.top();
+                if (top <= y && top > best) {
+                    best = top;
+                }
             }
         }
         return best;
     }
 
-    /** Every bullet-blocking solid overlapping the given box, in map order. */
+    /** Every bullet-blocking solid overlapping the given box, in map order (legacy view). */
     public static List<Rect> solidsOverlapping(ArenaMap map, Rect box) {
         return map.solids().stream().filter(rect -> Geometry.aabbOverlaps(rect, box)).toList();
     }

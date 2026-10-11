@@ -452,6 +452,32 @@ run here either; each change carries its own unexecuted acceptance note.
   2: `PlayerMotion`'s movement column and one-way platform tops (it still sweeps the bullet
   compatibility view), the kind-aware `TerrainRenderer`, and the static check that no consumer
   tests a kind by name.
+- **Map building system, milestone 2 complete — movement column, kind-aware rendering and the
+  consumer gates.** Implemented: `PlayerMotion` sweeps the movement column of the shared rule table
+  (`ArenaMap.movementBlockers(MovementRule)`, `BlockRules.movement`), so `MovementRule.SOLID` rects
+  block on every face while a `ONE_WAY_TOP` slab only answers a falling body whose feet were at or
+  above its top on the previous step, is never a ceiling, never a horizontal collider and never
+  ejects a body already inside it. Crouch+jump on a platform starts the drop-through window
+  (`PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS`), which suspends one-way tops until the feet leave
+  the slab; it is *transient* motion state on `Player`, so the snapshot layout and protocol 13 are
+  untouched and `NetworkRegistrationTest` pins that it does not reach the wire. The same column now
+  drives `DroneMotion` and the camera's release point (a device follows a body), while
+  `ThrowablePhysics` asks `Blocking.BULLETS` explicitly (a thrown object follows a round);
+  `MapQueries` gained `overlapsMovementBlocker` and answers `surfaceBelow` from the movement
+  column, and its `solidAt`/`overlapsSolid`/`solidsOverlapping` are documented legacy bullet-view
+  questions with no runtime consumer left. `TerrainRenderer` stopped drawing the rect list: it draws
+  every authored block through `BlockRules.renderStyle`, one fill pass and one outline pass, each
+  switching over all five `BlockRenderStyle` values (translucent glass pane with a sheen, closed
+  door panel with its seam, platform slab with only its landing edge highlighted, and the two fills),
+  so no block kind is named in core; the minimap's static geometry reads the same block list. New
+  tests: `PlatformMotionTest` (the four one-way rules, stability on a slab, no horizontal collision,
+  and crouch+jump still jumping on the wall-only arena), the movement cases in `MapQueryPurposeTest`
+  (movement column, `surfaceBelow` per kind), the snapshot-layout case in `NetworkRegistrationTest`,
+  and `MinimapModelTest`'s box count now counting authored blocks. `tools/scratch/static_check.py`
+  gained the milestone's two gates, both read from the shared enums: no main source outside
+  `shared/map` may name a block kind or test one in a `switch`, and every declared treatment must be
+  drawn. No packet changed, the shipped arena stays wall-only and no runtime behaviour of a new kind
+  can be observed yet; `docs/MAP_BUILDER_ACCEPTANCE.md` remains wholly unexecuted.
 
 ---
 
@@ -472,13 +498,22 @@ rule-query increment ran that same set (`static_check.py` clean over 405 Java fi
 `static_api_check.py` clean over 502 indexed project types, `static_audio_check.py`,
 `synth_sfx.py --check` and `phase3_ballistics.py` clean, and the weapon-table generator left no
 tracked diff); it did not execute the shared `MapQueryPurposeTest`/`VisionMathTest` additions or the
-new `server/src/test` `RaycastBulletSystemTest`, and it observed no runtime map query. **Every
+new `server/src/test` `RaycastBulletSystemTest`, and it observed no runtime map query. The
+movement/rendering increment (milestone 2 complete) ran that same set again — `static_check.py`
+clean over 406 Java files with the two new consumer gates, `static_api_check.py` clean over 503
+indexed project types from 402 files, `static_audio_check.py`, `synth_sfx.py --check` and
+`phase3_ballistics.py` clean, and the weapon-table generator left no tracked diff — and it verified
+that the new gates fire by temporarily introducing a kind-naming consumer and by deleting a
+treatment from the renderer, then reverting both. It did not execute `PlatformMotionTest`, the
+`MapQueryPurposeTest`/`NetworkRegistrationTest`/`MinimapModelTest` additions, or any one-way
+movement step, and it did not compile or run the terrain renderer. **Every
 runtime
 checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`,
 `VISION_AUDIO_DRONE_ACCEPTANCE.md`, the mechanics §11 feel checklist and this pass's
 `PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md`,
 `CROSSHAIR_POINTER_ACCEPTANCE.md` and `MAP_BUILDER_ACCEPTANCE.md` — is still unexecuted. The map
-checklist's format/model source and its rule-aware line-query source are now present, but all
-desktop validation and its later-milestone items remain pending — the shipped arena is wall-only,
-so none of the new kind behaviour can be exercised until a map carrying glass, platforms, doors or
-breakables ships; no checkbox in any of them may be ticked from source reading alone.**
+checklist's format/model, rule-aware line-query, movement-column and rendering sources are now
+present, but all desktop validation and its later-milestone items remain pending — the shipped arena
+is wall-only, so no one-way platform, pane, door or breakable can be exercised until a map carrying
+one ships, and `MAP_BUILDER_ACCEPTANCE.md` gained a Rendering section that is likewise unticked; no
+checkbox in any of them may be ticked from source reading alone.**

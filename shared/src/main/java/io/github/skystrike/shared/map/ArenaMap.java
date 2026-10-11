@@ -14,9 +14,11 @@ import java.util.Set;
  *
  * <p>A map owns {@link MapBlock blocks}; their shared {@link BlockRules} rows decide what each
  * consumer sees. {@link #blockers(Blocking)} exposes those rows as one cached rectangle list per
- * query purpose, and {@link #solids()} remains a compatibility view for existing bullet-blocking
- * callers while those callers migrate to their specific rule columns. The shipped arena contains
- * only wall blocks today, so every view is geometrically identical to the old rect-only map.
+ * query purpose, {@link #movementBlockers(MovementRule)} does the same for the movement column
+ * (which decides which faces stop a body, not whether a line is blocked), and {@link #solids()}
+ * remains a compatibility view for existing bullet-blocking callers while those callers migrate to
+ * their specific rule columns. The shipped arena contains only wall blocks today, so every view is
+ * geometrically identical to the old rect-only map.
  *
  * <p>Use {@link Builder#mirrored(MapBlock)} or {@link Builder#centred(MapBlock)} to preserve the
  * fairness invariant that every authored block has a reflection about {@link #mirrorAxisX()}.
@@ -26,6 +28,7 @@ public final class ArenaMap {
     private final float mirrorAxisX;
     private final List<MapBlock> blocks;
     private final Map<Blocking, List<Rect>> blockers;
+    private final Map<MovementRule, List<Rect>> movementViews;
     private final List<SpawnPoint> spawns;
     private final byte[] mapHash;
 
@@ -50,6 +53,21 @@ public final class ArenaMap {
             views.put(purpose, List.copyOf(rects));
         }
         this.blockers = views;
+
+        // The movement column gets the same treatment, one view per rule: a line query can ask
+        // "does this kind block this purpose", but only the movement rule says which faces of the
+        // block stop a body, so the sweeper cannot read a Blocking view for it.
+        EnumMap<MovementRule, List<Rect>> movement = new EnumMap<>(MovementRule.class);
+        for (MovementRule rule : MovementRule.values()) {
+            List<Rect> rects = new ArrayList<>();
+            for (MapBlock block : this.blocks) {
+                if (BlockRules.movement(block.kind()) == rule) {
+                    rects.add(block.rect());
+                }
+            }
+            movement.put(rule, List.copyOf(rects));
+        }
+        this.movementViews = movement;
 
         this.mapHash = MapHash.of(this);
     }
@@ -89,6 +107,21 @@ public final class ArenaMap {
      */
     public List<Rect> solids() {
         return blockers(Blocking.BULLETS);
+    }
+
+    /**
+     * Every authored block whose shared {@link BlockRules} row carries {@code rule}, as rectangles
+     * in authored order. Immutable.
+     *
+     * <p>The movement column is not a {@link Blocking} purpose: it says which <b>faces</b> may
+     * stop a body, not whether a kind answers a line query. The shared sweeper therefore sweeps
+     * {@link MovementRule#SOLID} for walls, floors and ceilings, and {@link MovementRule#ONE_WAY_TOP}
+     * for landings alone; a renderer or device that means "geometry that stops a body" reads this
+     * view rather than naming a kind.
+     */
+    public List<Rect> movementBlockers(MovementRule rule) {
+        Objects.requireNonNull(rule, "rule");
+        return movementViews.get(rule);
     }
 
     /** Spawn positions in authored order. Immutable. */

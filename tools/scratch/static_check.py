@@ -6,6 +6,15 @@ cheap substitute for `javac -Xlint` on the things that bite hardest when you can
 unresolvable project imports, unbalanced delimiters, unused imports, module-boundary
 violations, and references to project classes that do not exist.
 
+Two of them are the map building plan's own milestone gates, checked against the shared model
+rather than against a hand-kept list:
+
+  * no consumer (anywhere outside the map model package, in a main source set) may name a
+    block kind or test one in a switch — movement, sight, bullets, SDF and rendering read the
+    `BlockRules` column that answers their question;
+  * the core terrain renderer must draw every `BlockRenderStyle` the table can hand it, so a
+    treatment added to the shared enum cannot be silently invisible.
+
 Run: python3 tools/scratch/static_check.py
 Exit code 0 = no findings.
 """
@@ -220,6 +229,110 @@ for f in FILES:
                 break
         if not ok and not any(d.startswith(fqn + ".") for d in declared):
             add(f, f"reference to unknown project type: {fqn}")
+
+MAP_MODEL_PACKAGE = "shared/src/main/java/io/github/skystrike/shared/map/"
+BLOCK_KIND_SOURCE = MAP_MODEL_PACKAGE + "BlockKind.java"
+BLOCK_RENDER_STYLE_SOURCE = MAP_MODEL_PACKAGE + "BlockRenderStyle.java"
+TERRAIN_RENDERER_SOURCE = "core/src/main/java/io/github/skystrike/world/TerrainRenderer.java"
+
+
+def enum_constants(relative_path: str) -> list[str]:
+    """The constant names declared by the enum in `relative_path`, in order."""
+    text = (ROOT / relative_path).read_text(encoding="utf-8")
+    body = text.split("{", 1)[1]
+    return re.findall(r"^ {4}([A-Z][A-Z0-9_]*)\s*[,;]?\s*$", body, re.M)
+
+
+def switch_selectors_and_bodies(code: str) -> list[tuple[str, str]]:
+    """Every `switch (selector) { body }` in comment-free `code`, as (selector, body) pairs."""
+    found: list[tuple[str, str]] = []
+    for match in re.finditer(r"\bswitch\s*\(", code):
+        open_paren = code.index("(", match.start())
+        close_paren = matching_delimiter(code, open_paren, "(", ")")
+        if close_paren < 0:
+            continue
+        open_brace = code.find("{", close_paren)
+        if open_brace < 0:
+            continue
+        close_brace = matching_delimiter(code, open_brace, "{", "}")
+        if close_brace < 0:
+            continue
+        found.append((code[open_paren + 1:close_paren - 1], code[open_brace + 1:close_brace - 1]))
+    return found
+
+
+def matching_delimiter(code: str, start: int, open_ch: str, close_ch: str) -> int:
+    """Index just past the delimiter closing the one at `start`, or -1 when it never closes."""
+    depth = 0
+    for i in range(start, len(code)):
+        if code[i] == open_ch:
+            depth += 1
+        elif code[i] == close_ch:
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return -1
+
+
+def check_no_consumer_names_a_block_kind() -> None:
+    """Map plan §9 gate: no consumer tests a kind by name, anywhere but the model package.
+
+    The model package is where a kind may be named — the enum itself, the rule table, the format
+    parser and the shared queries. Everywhere else the kind's behaviour has to come from a
+    `BlockRules` column, because a consumer that names a kind stops following the table the day the
+    kind changes. Test sources are exempt deliberately: authoring a mixed-kind map is how the
+    table's rows get proved one by one. The authoring surfaces that arrive with milestone 5 (the
+    in-game editor palette and MapTool) need kind *identity*, not kind behaviour; they are added to
+    this exemption list one path at a time when they land, as a reviewable decision.
+    """
+    kinds = set(enum_constants(BLOCK_KIND_SOURCE))
+    if not kinds:
+        # A parse that finds nothing would make this gate pass vacuously, which is worse than
+        # not having it: fail loudly instead.
+        add(ROOT / BLOCK_KIND_SOURCE, "no block kinds parsed: the kind-name gate would be blind")
+        return
+    for f in FILES:
+        relative = f.relative_to(ROOT).as_posix()
+        if "/src/test/" in relative or relative.startswith(MAP_MODEL_PACKAGE):
+            continue
+        raw = f.read_text(encoding="utf-8")
+        if re.search(r"\bBlockKind\b", raw):
+            add(f, "names BlockKind: a consumer must ask BlockRules for its column, not a kind")
+        for selector, body in switch_selectors_and_bodies(strip_comments_and_strings(raw)):
+            if not re.search(r"\bkind\b", selector):
+                continue
+            # `case GLASS, DOOR ->` lists two labels, so take the whole label list, not one name.
+            for labels in re.findall(r"\bcase\s+([^:>]*?)\s*(?:->|:)", body):
+                for constant in re.findall(r"\b([A-Z][A-Z0-9_]*)\b", labels):
+                    if constant in kinds:
+                        add(f, f"tests the block kind {constant} by name in a switch")
+
+
+def check_renderer_covers_every_treatment() -> None:
+    """Map plan §9 gate: the core renderer draws every treatment the shared table declares.
+
+    The list comes from the shared enum, not from this file, so adding a `BlockRenderStyle` fails
+    here until some part of the renderer draws it.
+    """
+    styles = enum_constants(BLOCK_RENDER_STYLE_SOURCE)
+    if not styles:
+        add(
+            ROOT / BLOCK_RENDER_STYLE_SOURCE,
+            "no render styles parsed: the treatment gate would be blind",
+        )
+        return
+    path = ROOT / TERRAIN_RENDERER_SOURCE
+    if not path.exists():
+        add(path, "the terrain renderer is missing")
+        return
+    raw = path.read_text(encoding="utf-8")
+    for style in styles:
+        if not re.search(rf"\b{style}\b", raw):
+            add(path, f"no drawing code for BlockRenderStyle.{style}")
+
+
+check_no_consumer_names_a_block_kind()
+check_renderer_covers_every_treatment()
 
 print(f"checked {len(FILES)} java files, {len(declared)} declared types")
 if findings:

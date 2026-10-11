@@ -3,6 +3,7 @@ package io.github.skystrike.shared.utility;
 import io.github.skystrike.shared.config.UtilityConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
@@ -292,7 +293,12 @@ public final class ThrowablePhysics {
      *
      * <p>Written out rather than calling {@code MapQueries.solidsOverlapping}, which builds a
      * {@link Rect} and a stream per call — this runs up to sixteen times per throwable per tick.
-     * {@code PlayerMotion} sweeps the solid list by hand for the same reason.
+     * {@code PlayerMotion} sweeps the movement list by hand for the same reason.
+     *
+     * <p>The column is {@link Blocking#BULLETS}, on purpose and explicitly: a thrown object is a
+     * projectile, so it passes through intact glass and through a one-way platform exactly as a
+     * round does, and stops on walls, intact breakables and closed doors. A device that is meant to
+     * behave like a body (the drone) asks the movement column instead.
      */
     public static Rect solidAt(ArenaMap map, float x, float y) {
         if (map == null) {
@@ -303,7 +309,7 @@ public final class ThrowablePhysics {
         float right = x + r;
         float bottom = y - r;
         float top = y + r;
-        for (Rect solid : map.solids()) {
+        for (Rect solid : map.blockers(Blocking.BULLETS)) {
             if (left < solid.right() && right > solid.left()
                 && bottom < solid.top() && top > solid.bottom()) {
                 return solid;

@@ -1,6 +1,7 @@
 package io.github.skystrike.shared.hud;
 
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
@@ -224,8 +225,12 @@ public final class MinimapModel {
         // Never zero: a degenerate arena would divide every marker into infinity.
         this.arenaWidth = Math.max(1f, arena.width());
         this.arenaHeight = Math.max(1f, arena.height());
-        List<Box> boxes = new ArrayList<>(arena.solids().size());
-        for (Rect solid : arena.solids()) {
+        // Every block, because this is a picture of the arena and not of what stops a round: a
+        // window or a one-way slab is part of the ground the player sees, and the terrain pass
+        // draws it too. The bullet-blocking compatibility view would quietly drop both.
+        List<Box> boxes = new ArrayList<>(arena.blocks().size());
+        for (MapBlock block : arena.blocks()) {
+            Rect solid = block.rect();
             boxes.add(new Box(
                 solid.left() / arenaWidth,
                 solid.bottom() / arenaHeight,

@@ -3,14 +3,23 @@
 **Status: unexecuted. Every box below is unchecked.** Milestone 1 landed the shared block model,
 rule table and strict version-1 text parser/writer, with the legacy arena loaded through its
 canonical embedded text, a version-2 SDF map-hash guard, and shared tests written for migration,
-round trips and SDF identity. Milestone 2 has started with the rule-aware line queries: a shared
-`Blocking` purpose on `MapQueries`, one cached per-purpose rectangle view on `ArenaMap`, the sight
-column in `VisionMath`, the bullet column in the raycaster and the muzzle guard, and the blast
-column (pinned to sight) in the frag, claymore-cone and fire-spread consumers, with tests written
-for the mixed-kind cases. None of that changes the shipped wall-only arena's gameplay. It does
-**not** yet ship an `assets/maps` file, editor, material damage, glass, platform, door or breakable
-runtime behaviour, and the movement sweeper still reads the compatibility rect view; those checks
-remain unattempted.
+round trips and SDF identity. Milestone 2 then made every consumer read the shared table: the
+rule-aware line queries (a shared `Blocking` purpose on `MapQueries`, one cached per-purpose
+rectangle view on `ArenaMap`, the sight column in `VisionMath`, the bullet column in the raycaster
+and the muzzle guard, and the blast column — pinned to sight — in the frag, claymore-cone and
+fire-spread consumers); the movement column with one-way platform tops and the crouch+jump
+drop-through window in `PlayerMotion`, plus the explicit columns in `DroneMotion`,
+`ThrowablePhysics` and the camera's release check; and kind-aware rendering, where `TerrainRenderer`
+draws every `BlockRenderStyle` and the minimap reads the same block list. Two static gates now
+enforce the milestone's contract, and tests were written for the one-way rules, the movement
+questions and the wire layout.
+None of that changes the shipped wall-only arena's gameplay: it contains no platform, no glass, no
+door and no breakable, so its collision, sight, bullets, bake and picture are the same rectangles
+as before. The work does **not** yet ship an `assets/maps` file, an editor or `MapTool`, material
+damage, or any glass, door or breakable *runtime* behaviour, and no dynamic state exists to draw
+(doors are drawn closed and breakables undamaged because that is all the game knows). All of those
+checks remain unattempted, and the movement box below can only be exercised once a map carrying a
+platform ships.
 Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
@@ -60,6 +69,15 @@ automated tests for that milestone are green in CI. The CI-side tests are listed
 - [ ] Bullets that pass through a window cannot hit a player standing behind a wall behind it.
 - [ ] A destroyed breakable stops blocking movement, sight and bullets in the same tick its debris
   appears.
+
+## Rendering
+
+- [ ] Each kind is visibly its own thing on a mixed map: a wall and an intact breakable are fills, a
+  window reads as a translucent pane with a sheen, a platform's landing edge is highlighted rather
+  than boxed, and a door is drawn as a panel (closed, until door state ships).
+- [ ] The picture matches the collision: the drawn rectangle is the rectangle that stops a body,
+  and a block that only stops sight or only stops rounds never looks like a wall.
+- [ ] The minimap shows the same geometry the terrain pass draws, including glass and platforms.
 
 ## Doors
 
@@ -112,15 +130,22 @@ automated tests for that milestone are green in CI. The CI-side tests are listed
 No Java, Gradle task, unit test, server, desktop client or checklist item was run in the authoring
 sandbox. The source-only checks run after this increment were:
 
-- `python3 tools/scratch/static_check.py` — clean (405 Java files scanned, including the
-  module-boundary rules).
-- `python3 tools/scratch/static_api_check.py` — clean (502 project types indexed).
+- `python3 tools/scratch/static_check.py` — clean (406 Java files scanned, including the
+  module-boundary rules and the two new map gates: no main source outside `shared/map` names a
+  block kind, and every declared `BlockRenderStyle` is drawn by `TerrainRenderer`).
+- `python3 tools/scratch/static_api_check.py` — clean (503 project types indexed from 402 files).
 - `python3 tools/scratch/static_audio_check.py` — clean.
 - `python3 tools/scratch/synth_sfx.py --check` — clean (13 generated sounds agree).
 - `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
 - `python3 tools/weapons/generate_weapon_tables.py` — regenerated no tracked diff.
 
-Those checks do not compile or execute the shared and server tests this increment added
-(`MapQueryPurposeTest`, the `VisionMath` sight-column test and `RaycastBulletSystemTest`) and do not
-validate runtime map loading or any kind's runtime behaviour; every manual box above remains
-unchecked.
+The two new gates were confirmed to fire rather than merely to pass: a temporary consumer that
+named `BlockKind`, and one that switched over a block kind with bare `case` labels, were both
+reported, and deleting a treatment from `TerrainRenderer` was reported as undrawn. Those edits were
+reverted before the checks above were re-run clean.
+
+These checks do not compile or execute the shared and server tests written for milestones 1 and 2
+(`MapQueryPurposeTest`, `VisionMathTest`, `RaycastBulletSystemTest`, `PlatformMotionTest`,
+`NetworkRegistrationTest`, `MinimapModelTest`) and do not validate runtime map loading, the
+rendered treatments, one-way platform behaviour or any other kind's runtime behaviour; every manual
+box above remains unchecked.

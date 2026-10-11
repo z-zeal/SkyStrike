@@ -40,6 +40,20 @@ public final class Player {
     public float coyoteTimer;
     public long lastProcessedInputSequence;
 
+    /**
+     * Seconds left of the crouch+jump drop-through window (map plan §4, D6). While it is positive
+     * the shared sweeper ignores one-way platform tops for this body, so a body that dropped
+     * through a slab cannot re-land on the piece it is leaving.
+     *
+     * <p><b>Deliberately transient.</b> It is motion state the shared step re-derives from the
+     * input and the map, and the authoritative position rides every snapshot anyway, so it is not
+     * part of the {@code Player} wire layout: {@code serializeTransient} is off in the Kryo
+     * configuration both endpoints use, and
+     * {@code NetworkRegistrationTest} pins that this field does not reach the wire. Putting it on
+     * the wire would be a snapshot-layout change and would need a protocol bump.
+     */
+    public transient float dropThroughTimer;
+
     // --- Combat state (Phase 3) ---------------------------------------------------------------
 
     /** False between death and respawn: no input, no fire, not a valid target. */
@@ -124,6 +138,7 @@ public final class Player {
         this.jetpacking = other.jetpacking;
         this.ads = other.ads;
         this.coyoteTimer = other.coyoteTimer;
+        this.dropThroughTimer = other.dropThroughTimer;
         this.lastProcessedInputSequence = other.lastProcessedInputSequence;
         this.alive = other.alive;
         this.respawnTimer = other.respawnTimer;

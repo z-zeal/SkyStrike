@@ -1,21 +1,25 @@
 # Map building system — plan
 
-**Status: milestone 1 has landed and milestone 2 is under way.** The shared
+**Status: milestone 2 has landed and milestone 3 is next.** The shared
 `BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text
 parser/writer, standard-arena migration and SDF map-hash guard landed in PR #47.
 `ArenaMap.standard()` loads the embedded canonical text through that parser; every version-2 SDF
 names its semantic map, and shared tests cover the rule rows, migration geometry, strict failures,
-canonical save → load → save and the SDF hash contract. Milestone 2's first increment has landed
-too: line queries take a shared `Blocking` purpose, `ArenaMap` derives one cached rectangle view
+canonical save → load → save and the SDF hash contract. Milestone 2's first increment landed in
+PR #48: line queries take a shared `Blocking` purpose, `ArenaMap` derives one cached rectangle view
 per purpose from the rule table, and the sight, bullet and blast consumers ask their own column
-instead of the compatibility rect list. The `assets/maps` move, the movement column (one-way
-platform tops), kind-aware rendering and every later milestone remain unfinished; no Java was
-compiled or executed, and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
+instead of the compatibility rect list. The rest of milestone 2 followed: `PlayerMotion` sweeps the
+movement column with one-way platform tops and the crouch+jump drop-through window, `TerrainRenderer`
+draws every `BlockRenderStyle` the table declares, and `tools/scratch/static_check.py` now carries
+the two consumer gates (no kind named outside `shared/map`, every treatment drawn). The
+`assets/maps` move, door ids and state, material damage, breakables, glass and every later
+milestone remain unfinished; no Java was compiled or executed, and no checklist in
+`docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
 
 ## 1. What exists today
 
-The current runtime still uses the old rect view, but authored geometry now has a shared model
-and a strict persistence path.
+Every consumer now reads the shared rule table, so authored geometry has one meaning across
+movement, sight, bullets, the bake and the picture, and a strict persistence path behind it.
 
 - **`shared/map/Rect`** — an immutable axis-aligned rectangle (`x`, `y`, `width`, `height`, y up),
   with `mirror(axis)`, `translated`, `contains` and `overlaps`. It is geometry only; a block's
@@ -24,24 +28,38 @@ and a strict persistence path.
   the one rule table for movement, sight, bullets, SDF inclusion and renderer treatment. The table
   describes intact/closed blocks; dynamic state is still later work.
 - **`shared/map/ArenaMap`** — immutable `blocks()`, rule-derived `blockers(Blocking)` (one cached
-  rectangle view per query purpose) and a backwards-compatible `List<Rect> solids()` that is
-  exactly `blockers(Blocking.BULLETS)`. `spawns()`, `width()`, `height()`, `mirrorAxisX()` and
+  rectangle view per query purpose), `movementBlockers(MovementRule)` (the same treatment for the
+  movement column, which is not a line-query purpose) and a backwards-compatible `List<Rect>
+  solids()` that is exactly `blockers(Blocking.BULLETS)`. `spawns()`, `width()`, `height()`, `mirrorAxisX()` and
   `bounds()` remain. Its public builder enforces `mirrored(block)`/`centred(block)` symmetry and
   rejects duplicate blocks. `ArenaMap.standard()` now parses `StandardArenaMap`'s canonical
   version-1 text; `ArenaMapTest` still pins its legacy geometry.
 - **`shared/map/ArenaMapFormat`** — a dependency-free, strict line parser/writer. It rejects a
   malformed header, unknown verbs/kinds/materials, non-positive or out-of-bounds blocks,
   duplicate blocks and wrong symmetry verbs rather than exposing a partial map.
-- **`shared/map/MapQueries`** — the stateless questions: `solidAt`, `overlapsSolid`,
-  purpose-aware `lineBlocked`/`firstBlocker` (their five-argument forms are the sight
-  convenience), `surfaceBelow`, `solidsOverlapping`. Line queries answer from the shared rule
-  table through `ArenaMap.blockers(Blocking)`; the point/box questions still read the
-  bullet-blocking compatibility view until the movement column migrates.
+- **`shared/map/MapQueries`** — the stateless questions. Line queries (`lineBlocked`,
+  `firstBlocker`, their five-argument forms are the sight convenience) answer a `Blocking` purpose
+  from the shared rule table through `ArenaMap.blockers(Blocking)`. Movement questions
+  (`overlapsMovementBlocker`, `surfaceBelow`) answer the movement column through
+  `ArenaMap.movementBlockers(MovementRule)`, which is why intact glass stops a body here even
+  though no line query notices it. `solidAt`, `overlapsSolid` and `solidsOverlapping` remain
+  documented as the legacy bullet-view point/box questions — the tests that pin the old rect set
+  use them, and no runtime consumer does.
 - **`shared/physics/PlayerMotion`** — the shared swept-AABB movement with its own ground skin,
   ceiling clearance for uncrouching, and `noclip`. Server authority and client prediction run this
-  same function; the server has no separate collision code. It still sweeps the bullet-blocking
-  compatibility view: the movement column and one-way platform tops are the next milestone-2
-  increment, because half a movement column would be worse than none.
+  same function; the server has no separate collision code. It sweeps the **movement column**:
+  `MovementRule.SOLID` rects block on every face, and a `MovementRule.ONE_WAY_TOP` slab answers only
+  a falling body whose feet were at or above its top on the previous step. Crouch+jump on a
+  platform starts the shared drop-through window (`PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS`,
+  carried as transient motion state on `Player`, so the snapshot layout and protocol 13 are
+  untouched); the window ends as soon as the feet leave the slab, and while it runs the platform
+  cannot catch the body again. The shipped arena is wall-only, so none of this changes what it
+  plays like.
+- **`core/world/TerrainRenderer`** — the picture of the same map: one loop over `blocks()` per draw
+  pass, with the treatment chosen from the shared `BlockRenderStyle` column. No block kind is named
+  in core; the palette per treatment lives there, so no LibGDX type reaches shared. A `BREAKABLE`
+  is drawn intact because durability does not exist yet, a door is drawn closed because door state
+  does not exist yet, and a platform is a slab whose top edge alone is highlighted.
 - **`server/combat/RaycastBulletSystem`** — the swept round path: nearest entry across terrain and
   player hitboxes, with the terrain case recorded as the `Rect` that was hit. Terrain is the
   `BULLETS` column of the shared table, and `blockedByTerrain` takes the purpose explicitly so the
@@ -87,11 +105,13 @@ behaviour while new call sites can ask by rule.
 
 **D2 — One rule table, four readers.** Every kind declares, in one shared table, what it does to
 each consumer: movement, sight, bullets, the SDF bake, and rendering. The table is the plan's
-heart (§3), and every consumer reads it rather than testing kinds by name. **Implemented so far:**
-the shared rows and tests, `SdfBaker`'s SDF column, and milestone 2's line-query threading —
+heart (§3), and every consumer reads it rather than testing kinds by name. **Implemented:** the
+shared rows and tests, `SdfBaker`'s SDF column, milestone 2's line-query threading —
 `ArenaMap.blockers(Blocking)`, purpose-aware `MapQueries` line queries, `VisionMath`, the bullet
-raycaster and muzzle guard, and the blast consumers. The sweeper's movement column and the
-renderer remain milestone 2 work.
+raycaster and muzzle guard, and the blast consumers — `PlayerMotion`'s movement column with the
+one-way drop-through window, and `TerrainRenderer`'s `BlockRenderStyle` treatments. Two gates in
+`tools/scratch/static_check.py` keep it that way: no main source outside `shared/map` may name a
+block kind (or test one in a `switch`), and the renderer must mention every declared treatment.
 
 **D3 — Doors are server-owned dynamic blockers.** A door has an id, an `access` rule and a state
 (`CLOSED`/`OPENING`/`OPEN`/`SHUTTING`) with the opening tick. Collision, sight and bullets consult
@@ -119,6 +139,7 @@ from below, never a ceiling, and never a movement block for a falling body; no b
 sight blocking, and so no SDF presence and no shadow. Drop-through is crouch+jump (`S` and jump in
 this game's bindings — plain `S` is the crouch/dodge and must stay one), which starts a short timer
 during which the body ignores one-way tops; the timer ends when the body has cleared the slab.
+**Implemented** in `PlayerMotion` and pinned by `shared/src/test/.../physics/PlatformMotionTest`.
 
 **D7 — Materials decide everything survivable.** One shared `MaterialTable`: durability,
 bullet-damage retention, whether explosions/melee can hurt it, the render tint/line colour, impact
@@ -178,19 +199,31 @@ Consequences the table forces, spelled out because they are the places a plan us
   explosion occlusion follows **sight**, because a blast is an area of effect, and glass that
   passes sight also passes the blast. **Landed:** the purpose API, `ArenaMap`'s per-purpose views,
   the raycaster parameter, `VisionMath`, and every frag, claymore-cone and fire-spread occlusion
-  call (they ask `BLAST`). The sweeper's movement set is the one reader still on the compatibility
-  view.
+  call (they ask `BLAST`). The sweeper followed in the next increment, on its own column:
+  `ArenaMap.movementBlockers(MovementRule)`, asked by `PlayerMotion`, the two extra sweeps in
+  `shared/gadget/DroneMotion` and `shared/utility/ThrowablePhysics` (a device follows the movement
+  column as a body does; a thrown object follows `BULLETS` as a round does), and
+  `MapQueries.overlapsMovementBlocker`/`surfaceBelow`. No main source outside `shared/map` reads
+  the compatibility view any more, and the static check enforces it.
 - **One-way platforms cannot be expressed by the current sweeper.** `PlayerMotion.integrateAndCollide`
   tests every rect for both axes; platform support is an added rule — tops are considered only when
   `vy <= 0` and the body's feet were above the slab on the previous step, and skipped while the
   drop-through timer runs. This is *shared* code, so prediction and authority change together.
+  **Landed**, with one extra condition the sweeper needed: a body *inside* a slab is neither caught
+  by its top face nor pushed up out of it, and the drop-through window treats contact with the top
+  as inside, because that is the position the drop starts from.
 - **Doors need the occluder array before they can occlude.** Until the visibility and light shaders
   take a dynamic occluder array (bounded, e.g. 16 rects, the smoke-circle pattern), a closed door
   must be non-occluding, and the plan's first shippable door therefore opens and closes *movement
   and bullets* only. That is stated here rather than discovered in the acceptance pass.
-- **Rendering stays a function of the map.** `TerrainRenderer` reads `map.solids()` today and draws
-  filled rects plus an outline; it grows one draw pass per kind (glass tint, door panel with a
-  swing angle, platform top line, breakable cracks) and still owns no state of its own.
+- **Rendering stays a function of the map.** `TerrainRenderer` reads `map.blocks()` and draws one
+  treatment per row of the table: a filled slab with an outline for `SOLID_FILL` and
+  `BREAKABLE_FILL`, a translucent pane with a sheen for `GLASS_PANE`, the closed panel with its
+  seam for `DOOR_PANEL`, and a slab whose top edge alone is highlighted for `PLATFORM_SLAB`. It
+  still owns no state of its own, which is why the two treatments whose appearance depends on state
+  the game does not have yet — door swing and breakable cracks — are drawn in their current,
+  honest form instead of being faked. The minimap's static geometry reads the same block list, so
+  the two pictures cannot disagree.
 
 ## 4. Doors, breakables, glass and platforms in detail
 
@@ -217,7 +250,9 @@ half-shattered collider.
 **Platforms.** Only the top surface collides, only for a body that is falling and was above it on
 the previous step, and never while the drop-through timer is running. The timer starts on
 crouch+jump, and ends when the body's box no longer overlaps the slab (so a body cannot re-land on
-it while inside it).
+it while inside it). **Implemented** in `PlayerMotion`; §3 records the two conditions the sweeper
+needed on top of the rule — contact with the top counts as "inside the slab" for the window's end
+test, and a body inside a slab is never pushed up out of it.
 
 ## 5. The map format and save/load
 
@@ -320,7 +355,18 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   query with it, passes intact glass and a one-way platform and stops on a wall and a closed door.
   In `server/src/test`, `RaycastBulletSystemTest` proves a round passes intact glass and a platform,
   stops on a wall, an intact breakable and a closed door, and cannot reach a body standing behind
-  the wall behind a window. The one-way sweeper tests are still to come with their increment.
+  the wall behind a window.
+- **Movement column and one-way rules (implemented, the rest of this milestone):**
+  `PlatformMotionTest` authors one thin slab in open air and proves the four properties of §7 —
+  a rising body is never stopped or landed on, a falling body lands on the top face and stays
+  there, crouch+jump drops a body through without ever re-landing on it while the feet are inside
+  it, and a body already inside a slab is neither ejected nor supported. It also pins that a
+  platform is not a horizontal collider and that crouch+jump on the wall-only shipped arena is
+  still a plain jump. `MapQueryPurposeTest` proves the movement questions read the movement column
+  (glass and a closed door stop a body, a platform never does; every rule presents a standable top
+  for `surfaceBelow`), and `NetworkRegistrationTest` proves the drop-through window stays off the
+  snapshot layout. The two milestone gates are checked by `tools/scratch/static_check.py`: no kind
+  named outside `shared/map`, and every declared treatment drawn.
 
 ## 8. Wire contract (protocol 13 → 14)
 
@@ -344,7 +390,7 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
 
 ## 9. Milestones
 
-1. **Model and format (no behaviour change; in progress).** **Landed:**
+1. **Model and format (no behaviour change; landed).** **Landed:**
    `BlockKind`/`Material`/`MapBlock`, the shared rule table, strict version-1 text format and
    parser/writer, `ArenaMap` re-expressed through the embedded canonical loader, migration plus
    round-trip tests, and the version-2 SDF map-hash header/cache guard. `SdfBaker` now reads the
@@ -352,16 +398,20 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    geometry and SDF texels are unchanged. **Still deferred in this milestone:** the physical
    `assets/maps/arena.map` move. Gate: `shared`'s tests must prove the loaded arena is today's
    arena when a human/CI can execute them.
-2. **Rule-aware consumers (in progress).** **Landed:** `ArenaMap.blockers(Blocking)` derives one
-   cached rectangle view per purpose from the rule table; `MapQueries` line queries take a purpose
-   while their five-argument forms stay the `SIGHT` convenience; `VisionMath` and the sight
-   consumers ask the `SIGHT` column; `RaycastBulletSystem` and `BulletSystem.spawn`'s muzzle guard
-   ask the `BULLETS` column, with the purpose threaded through `blockedByTerrain`; the frag,
-   claymore-cone and fire-spread consumers ask `BLAST`, which the table pins to sight. **Still
-   deferred in this milestone:** `PlayerMotion` learning platform tops through the movement column
-   (it still reads the bullet compatibility view), `TerrainRenderer` drawing per kind (with glass,
-   platforms and doors as flats), and the static check that no consumer tests a kind by name.
-   Gate: the CI tests for one-way rules and the kind table, plus that static check.
+2. **Rule-aware consumers (landed).** `ArenaMap.blockers(Blocking)` derives one cached rectangle
+   view per purpose from the rule table; `MapQueries` line queries take a purpose while their
+   five-argument forms stay the `SIGHT` convenience; `VisionMath` and the sight consumers ask the
+   `SIGHT` column; `RaycastBulletSystem` and `BulletSystem.spawn`'s muzzle guard ask the `BULLETS`
+   column, with the purpose threaded through `blockedByTerrain`; the frag, claymore-cone and
+   fire-spread consumers ask `BLAST`, which the table pins to sight. `PlayerMotion` learns one-way
+   platform tops through the movement column, with the crouch+jump drop-through window and the
+   transient `Player` state that keeps protocol 13 untouched; `DroneMotion`, `ThrowablePhysics` and
+   the camera's release check each moved to their explicit column; and `TerrainRenderer` draws every
+   `BlockRenderStyle`, with the minimap reading the same block list. `tools/scratch/static_check.py`
+   carries the two gates: no consumer names a block kind, and every declared treatment is drawn.
+   The CI tests for the one-way rules and the kind table are written (`PlatformMotionTest`,
+   `BlockRulesTest`, the movement cases in `MapQueryPurposeTest`). Gate: those tests must pass in
+   CI, which no sandbox can check — no Java was compiled or run here.
 3. **Breakables and glass.** Durability, damage sources, destruction, effects, SDF re-bake and
    hash update. Gate: destruction tests and the re-bake path's determinism (baking twice gives the
    same field).
