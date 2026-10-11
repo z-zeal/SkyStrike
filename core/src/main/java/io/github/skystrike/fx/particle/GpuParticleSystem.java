@@ -50,7 +50,11 @@ public final class GpuParticleSystem implements Disposable {
     private final FxClock clock;
     private final FxBudget budget;
     private final LightPool lightPool;
-    private final SdfField sdf;
+    /**
+     * The field particles collide against, shared with the CPU tier. Replaced, never mutated, when
+     * a re-bake lands, so both tiers move to the new geometry together.
+     */
+    private SdfField sdf;
     private final ParticleRenderer renderer;
     private final Random random = new Random();
     private final float[] spawnScratch = new float[2];
@@ -80,6 +84,15 @@ public final class GpuParticleSystem implements Disposable {
         this.alphaBuffer = new ParticleBuffer(budget.gpuParticleCap());
         this.additiveBuffer = new ParticleBuffer(budget.gpuParticleCap());
         this.cpuParticles = new CpuParticleSystem(budget.cpuParticleCap(), sdf);
+    }
+
+    /**
+     * Adopts a re-baked field: this system and its CPU tier then collide against the map as it
+     * stands. Called on the render thread by the frame that patches the texture.
+     */
+    public void setSdfField(SdfField next) {
+        this.sdf = next;
+        this.cpuParticles.setSdfField(next);
     }
 
     public FxClock clock() {

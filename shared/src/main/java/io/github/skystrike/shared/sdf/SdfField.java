@@ -106,6 +106,53 @@ public final class SdfField {
     }
 
     /**
+     * The bounding box of the texels in which this field and {@code other} differ, or
+     * {@link SdfDiff#NONE} when the two are byte-identical.
+     *
+     * <p>This is the whole of "patch the changed texel region": a re-bake recomputes the field,
+     * this says which part of it the GPU has to see, and a renderer that holds the previous field
+     * uploads only the answer. A field of a different shape or texel scale is wholly different —
+     * texel {@code (x, y)} of one is not the same piece of the world as texel {@code (x, y)} of
+     * the other — so the whole of {@code other} is reported, and a caller that cannot replace the
+     * grid must say so rather than applying a patch that means nothing.
+     */
+    public SdfDiff diff(SdfField other) {
+        Objects.requireNonNull(other, "other");
+        if (width != other.width || height != other.height || texelScale != other.texelScale) {
+            return new SdfDiff(0, 0, other.width, other.height);
+        }
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int maxX = -1;
+        int maxY = -1;
+        for (int y = 0; y < height; y++) {
+            int rowOffset = y * width;
+            for (int x = 0; x < width; x++) {
+                int index = rowOffset + x;
+                if (data[index] == other.data[index]) {
+                    continue;
+                }
+                if (x < minX) {
+                    minX = x;
+                }
+                if (x > maxX) {
+                    maxX = x;
+                }
+                if (y < minY) {
+                    minY = y;
+                }
+                if (y > maxY) {
+                    maxY = y;
+                }
+            }
+        }
+        if (maxX < 0) {
+            return SdfDiff.NONE;
+        }
+        return new SdfDiff(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    /**
      * Decodes the signed distance in world units at texel coordinates {@code (tx, ty)}.
      * Clamps coordinates outside the field bounds to solid boundary (-127).
      */

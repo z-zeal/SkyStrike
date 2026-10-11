@@ -18,12 +18,14 @@ import io.github.skystrike.fx.post.BlindnessPass;
 import io.github.skystrike.fx.post.CompositePass;
 import io.github.skystrike.fx.sdf.SdfCache;
 import io.github.skystrike.fx.sdf.SdfDebugView;
+import io.github.skystrike.fx.sdf.SdfRebakeWorker;
 import io.github.skystrike.fx.sdf.SdfTexture;
 import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
+import io.github.skystrike.shared.sdf.SdfField;
 import io.github.skystrike.shared.vision.Observer;
 import io.github.skystrike.shared.vision.ObserverSet;
 import io.github.skystrike.shared.vision.SmokeVolume;
@@ -48,6 +50,8 @@ public final class FxPipeline implements Disposable {
 
     private final ShaderLibrary shaders;
     private final SdfTexture sdfTexture;
+    /** M3 D4: re-bakes run beside the frame; the first frame that finds one finished patches it. */
+    private final SdfRebakeWorker sdfRebakes = new SdfRebakeWorker();
     private final RenderTarget sceneFbo;
     private final VisibilitySystem visibilitySystem;
     private final LightPool lightPool;
@@ -284,13 +288,39 @@ public final class FxPipeline implements Disposable {
     }
 
     /**
-     * One frame of FX update: drains the one event queue, schedules the visuals for each event,
-     * lets the audio layer react to the same events, then advances the effect clock, fires due
-     * phases, animates the attached lights and steps the CPU tier. Call before the scene pass.
+     * One frame of FX update: applies a finished SDF re-bake, drains the one event queue,
+     * schedules the visuals for each event, lets the audio layer react to the same events, then
+     * advances the effect clock, fires due phases, animates the attached lights and steps the CPU
+     * tier. Call before the scene pass.
      */
     public void updateFx(float deltaSeconds) {
+        applyRebakedSdf();
         effectQueue.drain(this::dispatchEffect);
         particles.update(deltaSeconds);
+    }
+
+    /**
+     * Asks for the SDF to be re-baked for a map that changed — a breakable destroyed, a pane
+     * shattered (build plan D4). The bake runs on the worker, off the frame; the next
+     * {@link #updateFx} that finds it finished patches the texture and hands the particle systems
+     * the new field.
+     *
+     * <p>Nothing calls this in this milestone: the client's authoritative set arrives with the
+     * protocol-14 block events, and the packet is the next milestone's work. The path itself is
+     * pinned by the shared bake-determinism tests.
+     */
+    public void rebakeSdf(ArenaMap liveMap) {
+        sdfRebakes.request(liveMap, sdfTexture.texelScale());
+    }
+
+    /** Applies the newest finished re-bake, if one is waiting. Render thread, once per frame. */
+    private void applyRebakedSdf() {
+        SdfField rebaked = sdfRebakes.poll();
+        if (rebaked == null) {
+            return;
+        }
+        sdfTexture.patch(rebaked);
+        particles.setSdfField(rebaked);
     }
 
     /**
@@ -408,6 +438,7 @@ public final class FxPipeline implements Disposable {
         effectQueue.clear();
         effectListener = null;
         clearPlayerLights();
+        sdfRebakes.dispose();
         particles.dispose();
         blindnessPass.dispose();
         sceneFbo.dispose();
