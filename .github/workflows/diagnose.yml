@@ -2,7 +2,7 @@
 #
 # This branch was authored in a sandbox that cannot read Actions logs — the host the log zip is
 # served from is not reachable — so CI was red with no way to see why. This job re-runs the same
-# Gradle tasks as ci.yml and posts the output as a PR comment, which the API does serve.
+# Gradle tasks as ci.yml and posts each task's output as a PR comment, which the API does serve.
 #
 # Delete this file before the branch is merged.
 name: diagnose
@@ -30,30 +30,49 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Reproduce the build
-        run: |
-          chmod +x gradlew
-          : > /tmp/build.log
-          echo "=== git log -1 ===" >> /tmp/build.log
-          git log --oneline -1 >> /tmp/build.log
-          for tasks in \
-            "shared:test" \
-            "server:test" \
-            "shared:compileJava server:compileJava core:compileJava"; do
-            echo "=== ./gradlew $tasks ===" >> /tmp/build.log
-            ./gradlew $tasks --no-daemon --console=plain >> /tmp/build.log 2>&1 || true
-          done
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Check module dependencies
+        continue-on-error: true
+        run: ./gradlew checkModuleDependencies --no-daemon --console=plain > /tmp/1-modules.log 2>&1
+
+      - name: shared:compileJava
+        continue-on-error: true
+        run: ./gradlew shared:compileJava --no-daemon --console=plain > /tmp/2-shared-main.log 2>&1
+
+      - name: server:compileJava core:compileJava
+        continue-on-error: true
+        run: ./gradlew server:compileJava core:compileJava --no-daemon --console=plain > /tmp/3-server-core-main.log 2>&1
+
+      - name: shared:test
+        continue-on-error: true
+        run: ./gradlew shared:test --no-daemon --console=plain > /tmp/4-shared-test.log 2>&1
+
+      - name: server:test
+        continue-on-error: true
+        run: ./gradlew server:test --no-daemon --console=plain > /tmp/5-server-test.log 2>&1
 
       - name: Post the output to the pull request
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          {
-            echo "### Gradle output (from the temporary diagnostic workflow)"
-            echo '```'
-            tail -c 55000 /tmp/build.log
-            echo '```'
-          } > /tmp/body.md
           pr=$(gh pr list --head "$GITHUB_REF_NAME" --json number --jq '.[0].number')
-          gh pr comment "$pr" --body-file /tmp/body.md
+          for log in /tmp/[1-5]-*.log; do
+            {
+              echo "### \`$(basename "$log" .log | cut -d- -f2-)\` — $(head -c 2000 "$log" | grep -o 'BUILD [A-Z]*' | tail -1)"
+              echo '```'
+              if [ "$(wc -c < "$log")" -gt 45000 ]; then
+                head -c 20000 "$log"
+                echo
+                echo "… [middle omitted] …"
+                echo
+                tail -c 20000 "$log"
+              else
+                cat "$log"
+              fi
+              echo '```'
+            } > /tmp/body.md
+            gh pr comment "$pr" --body-file /tmp/body.md
+          done

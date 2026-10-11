@@ -2,6 +2,7 @@ package io.github.skystrike.server.gadget;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.gadget.SurveillanceView;
