@@ -3,6 +3,8 @@ package io.github.skystrike.shared.vision;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Geometry;
@@ -17,6 +19,12 @@ import java.util.List;
  * <p>Both the server (for anti-cheat state culling and combat checks) and the client (for
  * gameplay queries and visibility caching) evaluate these exact formulas. The GPU shader in
  * {@code assets/shaders/light/visibility_cone.frag} mirrors this math identically.
+ *
+ * <p>Terrain occlusion is a rule-table question, not a kind-by-kind one: this class asks
+ * {@link MapQueries#lineBlocked(ArenaMap, float, float, float, float, Blocking)} with
+ * {@link Blocking#SIGHT}, so a kind that passes sight (glass, a one-way platform) passes this
+ * math and the cone shader with it. Blast occlusion deliberately asks the same column; see
+ * {@code ExplosionMath}.
  */
 public final class VisionMath {
 
@@ -27,17 +35,27 @@ public final class VisionMath {
      * Checks if a direct unobstructed line of sight exists between two world points through the
      * arena geometry.
      *
-     * @return {@code true} if no solid rectangle intersects the segment from {@code (x0, y0)} to {@code (x1, y1)}
+     * <p>The answer is the shared table's {@link Blocking#SIGHT} column: a wall, an intact
+     * breakable or a closed door blocks; intact glass and a one-way platform do not.
+     *
+     * @return {@code true} if no sight-blocking rectangle intersects the segment from
+     *         {@code (x0, y0)} to {@code (x1, y1)}
      */
     public static boolean hasLineOfSight(float x0, float y0, float x1, float y1, ArenaMap map) {
         if (map == null) {
             return true;
         }
-        return hasLineOfSight(x0, y0, x1, y1, map.solids());
+        return MapQueries.lineBlocked(map, x0, y0, x1, y1, Blocking.SIGHT);
     }
 
     /**
-     * Checks if a direct unobstructed line of sight exists between two world points through a list of solids.
+     * Checks if a direct unobstructed line exists between two world points through a caller-owned
+     * list of rectangles.
+     *
+     * <p>Raw geometry: this overload knows no shared rule row and cannot decide whether a
+     * rectangle blocks sight, so it is for callers that already hold the set they mean (for
+     * example an explicitly supplied occluder list). Map queries must use the {@link ArenaMap}
+     * overload above, which asks the shared table.
      */
     public static boolean hasLineOfSight(float x0, float y0, float x1, float y1, List<Rect> solids) {
         if (solids == null || solids.isEmpty()) {
