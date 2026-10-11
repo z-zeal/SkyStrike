@@ -69,5 +69,71 @@ subprojects {
 
 eclipse.project.name = 'SkyStrike' + '-parent'
 
-tasks.register('checkModuleDependencies') { doLast { def forbidden=[server:['com.badlogic.gdx','io.github.skystrike.core'],core:['io.github.skystrike.server']]; forbidden.each { module, needles -> fileTree("$rootDir/$module/src").matching { include '**/*.java' }.files.each { f -> needles.each { n -> if(f.text.contains(n)) throw new GradleException("$module must not import $n: $f") } } } } }
+tasks.register('checkModuleDependencies') {
+  doLast {
+    // Resolve imports to the module that owns the referenced Java type. Core's packages live
+    // beside shared under io.github.skystrike (audio, fx, ui, ...), not under a .core package.
+    def checkedModules = ['shared', 'server', 'core']
+    def ownerByType = [:]
+    def ownerByPackage = [:].withDefault { [] }
+    checkedModules.each { module ->
+      fileTree("$rootDir/$module/src").matching { include '**/*.java' }.files.each { f ->
+        def packageMatcher = f.getText('UTF-8') =~ /(?m)^package\s+([\w.]+);/
+        if (packageMatcher.find()) {
+          def packageName = packageMatcher.group(1)
+          def typeName = f.name.replaceFirst(/\.java$/, '')
+          ownerByType["$packageName.$typeName"] = module
+          if (!ownerByPackage[packageName].contains(module)) {
+            ownerByPackage[packageName] << module
+          }
+        }
+      }
+    }
+
+    def forbidden = [shared: ['core', 'server'], server: ['core'], core: ['server']]
+    forbidden.each { module, deniedModules ->
+      fileTree("$rootDir/$module/src").matching { include '**/*.java' }.files.each { f ->
+        def source = f.getText('UTF-8')
+        if (module in ['shared', 'server'] && source.contains('com.badlogic.gdx')) {
+          throw new GradleException("$module must not reference LibGDX: $f")
+        }
+
+        def imports = source =~ /(?m)^\s*import\s+(static\s+)?([\w.*]+);/
+        while (imports.find()) {
+          def target = imports.group(2)
+          if (imports.group(1) != null) {
+            target = target.substring(0, target.lastIndexOf('.'))
+          }
+          def referencedType = null
+          def owner = null
+          def candidate = target
+          while (candidate.contains('.')) {
+            if (ownerByType.containsKey(candidate)) {
+              referencedType = candidate
+              owner = ownerByType[candidate]
+              break
+            }
+            def dot = candidate.lastIndexOf('.')
+            if (dot <= 0) {
+              break
+            }
+            candidate = candidate.substring(0, dot)
+          }
+          if (referencedType == null && target.endsWith('.*')) {
+            def packageName = target.substring(0, target.length() - 2)
+            def packageOwners = ownerByPackage[packageName]
+            owner = packageOwners.find { deniedModules.contains(it) }
+            if (owner != null) {
+              referencedType = packageName + '.*'
+            }
+          }
+          if (deniedModules.contains(owner)) {
+            throw new GradleException(
+              "$module must not reference $owner type/package $referencedType: $f")
+          }
+        }
+      }
+    }
+  }
+}
 subprojects { tasks.matching { it.name == 'compileJava' }.configureEach { dependsOn rootProject.tasks.named('checkModuleDependencies') } }
