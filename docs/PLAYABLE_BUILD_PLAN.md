@@ -11,21 +11,45 @@
 
 ## 0. WHERE THE CODE ACTUALLY IS
 
-Facts established by reading the tree, not assumptions:
+> **Rebaselined against `a293f80`** (merge of PR #43, current head of `main`) by reading the source
+> tree. Milestones M1–M14 all have source in `main` now; the table below replaces the kickoff
+> snapshot, which is kept at the end of this section as **historical**.
 
 | Area | Reality today |
 | --- | --- |
-| Debug switch | `shared/config/DebugFlags` is `public static final boolean ENABLED = false` — a compile-time constant with no other flags and **no reader anywhere** |
-| Chat dialog | **Does not exist.** `ChatClient`, `MessageBuffer`, `FontManager`, `TextWrapper`, `MessageFormatter` exist; nothing opens, focuses or draws an input bar. `GameScreen` echoes the last 4 lines into the debug text and says so in a comment |
-| Console | Only the *capability* half exists: `shared/command/{Permission, ConsoleAccess}`, `server/command/{PermissionResolver, CapabilityBroadcaster}`, `core/command/ClientCapabilities`. There is **no** `CommandSpec`, registry, parser, cvar, request/response packet or handler |
-| Debug info | Hardcoded `List<String>` in `GameScreen.statusLines()`, drawn by `render/StatusOverlay` with a stock `BitmapFont`, always on, not toggleable. `F1` toggles the SDF view only |
-| HUD | None. `core/ui/` contains `text/` and nothing else |
-| Menus | None. `Main.create()` constructs `GameScreen` directly from system properties |
-| Lighting | `CompositePass` already has `u_lightTexture` + `u_hasLight` uniforms and is called with `null`. There is **no** light pass, no `Light`, no pool |
-| Particles / FX events | None. No `fx/particle/`, no `shared/effect/`, no `PacketEffectSpawn`. Grenades/smoke/molotov are only `ThrownUtility` dots and `UtilityZone` circles, so a detonation is literally invisible |
-| Loadout editing | `LoadoutController` F2/F3/F4 "stopgap until the Phase 7 menu owns it" |
-| Map | `shared/map/ArenaMap.standard()`, mirror-symmetric about x=1500, enforced by a builder that throws on asymmetry; `ArenaMapTest` asserts it |
-| Build | **No JDK in this sandbox.** `tools/scratch/static_check.py` + `static_api_check.py` are the local approximation; GitHub Actions CI (`shared:test`, `server:test`, `*:compileJava`, `checkModuleDependencies`) is the only authority |
+| Debug switch | `shared/config/DebugFlags` is a runtime master switch resolved in `shared` (`-Dskystrike.debug`, `SKYSTRIKE_DEBUG`, `--dev`) over `shared/debug/DebugState`; every read falls back to the safe default when the master is off |
+| Chat dialog | Exists in `core/ui/console/` (`ConsoleDialog`, `ConsoleInputField`, `ConsoleFocus`, `ChatTargetButton`, `ConsoleCompletionPopup`, `ConsoleHintLine`, `ConsoleTheme`) with `core/chat/{ChatClient,ChatMuteList}`; one key opens it, `Tab` toggles ALL/TEAM |
+| Console | Both halves exist: capability gating (`shared/command/{Permission,ConsoleAccess}`, `server/command/{PermissionResolver,CapabilityBroadcaster}`) and the command core (`shared/command/{CommandSpec,ArgTypes,CommandParser,CommandRegistry,CommandContext,CommandResult,Cvar,CvarRegistry}`, `server/command/{ServerCommandService,ServerCommandModule}`, client `command/{ClientCommandService,ClientCommandModule}`) |
+| Debug info | `core/ui/hud/DebugPanel` (the absorbed `StatusOverlay`), toggled by `DebugFlags.overlay`; `F1` opens the readout, `DebugKeyController` and the cvar set drive the rest |
+| HUD | `core/ui/hud/` holds `HudStage`, `HealthFuelBars`, `LoadoutBar`, `GadgetPanel`, `Crosshair`, `Minimap`, `KillFeedWidget`, `DamageNumberWidget`, `DamageVignette`, `SurveillanceBanner`, `LoadoutPicker`, `DebugPanel` — the M4/M11/M13 increments all landed |
+| Menus | `screens/{MainMenuScreen,SettingsScreen,LoadoutScreen,PauseOverlay,GameSettingsDialog}` plus `Main`; the desktop local-test host is `core/LocalHost` behind the debug master switch |
+| Lighting | `core/fx/lighting/{Light,LightPass,LightPool,SmokeVolumes,VisibilitySystem}`; the player light ships on by default with `r_player_light*` cvars, and `CompositePass` consumes the light texture |
+| Particles / FX events | `core/fx/particle/*` (CPU and GPU tiers, `EmitterLibrary`), `core/fx/FxPipeline`, `shared/effect/*`, `s2c/PacketEffectSpawn` over the M7 effect channel, plus post effects under `core/fx/post/` |
+| Loadout editing | `screens/LoadoutScreen` + `core/ui/hud/LoadoutPicker` + `core/gameplay/LoadoutController` |
+| Audio | `core/audio/{AudioSystem,SoundCatalog,EffectAudio,GunAudio,TinnitusEffect,OcclusionTest}`, `shared/audio/{SpatialAudio,TinnitusMath}`; gunfire reports ride the server-authenticated `PacketGameState.gunfireEvents` list |
+| Map | `shared/map/ArenaMap.standard()`, mirror-symmetric about x=1500, enforced by a builder that throws on asymmetry; `ArenaMapTest` asserts it. The M8 rework landed |
+| Wire protocol | `NetConfig.PROTOCOL_VERSION = 13` (12 → 13 was the server-authenticated gunfire cue list in `PacketGameState`) |
+| Build | **No JDK in this sandbox.** `tools/scratch/{static_check,static_api_check}.py` are the local approximation and are clean at this commit; GitHub Actions CI (`shared:test`, `server:test`, `*:compileJava`, `checkModuleDependencies`) is the only authority |
+
+**What this table is not.** It says source exists, not that anything has been run. The manual
+acceptance checklists (M6–M14, `DEBUG_LOCAL_TEST.md`, `VISION_AUDIO_DRONE_ACCEPTANCE.md`, mechanics
+§11) are still unexecuted, and no checklist item may be ticked from source reading alone.
+
+**Historical — the kickoff snapshot this section replaced** (what the table said when the plan was
+written, before M1–M14 landed):
+
+| Area | Reality then |
+| --- | --- |
+| Debug switch | `DebugFlags.ENABLED = false`, compile-time, no reader |
+| Chat dialog | Did not exist; the debug text echoed the last four chat lines |
+| Console | Capability half only — no registry, parser, cvar or command packets |
+| Debug info | Hardcoded `List<String>` in `GameScreen.statusLines()`, always on |
+| HUD | None; `core/ui/` contained only `text/` |
+| Menus | None; `Main.create()` constructed `GameScreen` from system properties |
+| Lighting | `CompositePass` had `u_lightTexture` and was called with `null`; no light pass |
+| Particles / FX events | None; detonations were invisible |
+| Loadout editing | F2/F3/F4 stopgap in `LoadoutController` |
+| Build | No JDK in this sandbox; the same two static scripts |
 
 ### Decisions locked this session
 
@@ -59,6 +83,13 @@ M1 first is not negotiable: "all debug should also be registered as console comm
 registry must exist before the first toggle is written, or every toggle gets written twice.
 M8 is last because it is the only item whose only reviewer is a human walking the map — and
 walking it needs M2 (console), M3 (freecam, noclip) and M5 (menu) to be comfortable.
+
+> **Status (as of `a293f80`):** M1–M8 are implemented in source, and the later M9–M14 increments
+> (audio, drone/camera gadgets, fog-gated minimap, utility visibility, gadget panel + damage
+> numbers, vision bubble) landed on top of them. The milestone sections below are the *plans* for
+> that work — they are not ticked off here. Progress chronology is recorded in
+> `PHASE7_AUDIT.md` §6, and every milestone's runtime gate lives in its own
+> `docs/M*_ACCEPTANCE.md` checklist, unexecuted so far.
 
 ---
 

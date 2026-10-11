@@ -1,7 +1,12 @@
 # Vision, gunfire and drone feel — acceptance note
 
-Manual runtime checks for the three reported issues. These checks are documented, not executed in
-this source-only change.
+**Status: unexecuted.** Manual runtime checks for the three reported issues, written with the
+PR #42 source change and not executed in this (or any) source-only pass. Source reading confirms
+the code paths exist — the display-only midtone lift in `assets/shaders/post/composite.frag` and
+`CompositePass`, `PacketGameState.gunfireEvents` consumed by `GunAudio`, the FIRE voice rollover,
+the 500 u/s drone speed with the 16/s lerp in `GadgetConfig`, and `PROTOCOL_VERSION = 13` — but
+**none of the five checks below has been observed on a running build**, and none may be treated as
+passed until it has.
 
 - **Vision cone:** aim from the center toward the screen edge. The visible midtones should be easier
 to distinguish from the peripheral floor. Confirm that this is presentation-only: gameplay vision,

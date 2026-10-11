@@ -156,7 +156,11 @@ Setup: host a match, join with two clients. On client A, open the loadout picker
 - [ ] **Resize/fullscreen while viewing:** the zoom survives a resize and is released on exit.
 - [ ] **Freecam:** `cl_freecam` still detaches the camera; returning from freecam while piloting
   resumes following the drone.
-- [ ] **Protocol:** an old-protocol client is rejected at join (protocol is now 12).
+- [ ] **Protocol:** an old-protocol client is rejected at join. M10 raised the protocol to 12
+  (device entities appended at Kryo indices 33/34); it is now **13**, after the server-authenticated
+  gunfire cue list was appended to `PacketGameState`. Either way, a client whose
+  `PacketJoinRequest.protocolVersion` does not match `NetConfig.PROTOCOL_VERSION` must fail the
+  handshake.
 
 ## Known limitations (documented, not bugs)
 

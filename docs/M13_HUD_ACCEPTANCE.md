@@ -13,8 +13,10 @@ This increment closes the last two items of the Phase 7 HUD list in `PHASE7_AUDI
   age, their falloff ratio), `shared/hud/WorldProjection` (world to screen, the one projection rule)
   and `core/ui/hud/DamageNumberWidget` (the text).
 
-**No wire change.** `PROTOCOL_VERSION` is unchanged. Damage numbers read `PacketDamageEvent`, which
-was already delivered to both parties. The gadget panel reads the predicted `PlayerLoadout`, which
+**No wire change.** `PROTOCOL_VERSION` was 12 at this increment and is 13 today (the later
+server-authenticated gunfire cue list); M13 added nothing to the wire. Damage numbers read
+`PacketDamageEvent`, which was already delivered to both parties. The gadget panel reads the
+predicted `PlayerLoadout`, which
 already carries durability, active, broken and cooldown on each gadget slot.
 
 Setup: host a match and join with two clients on **opposite** teams. Equip a shield (`Q`), a drone

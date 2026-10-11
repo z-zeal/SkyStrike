@@ -4,12 +4,27 @@
 > Compares the repository against `IMPLEMENTATION_ROADMAP.md` Phase 7 and
 > `CONSOLE_CHAT_PLAN.md` §11 build order / §12 definition of done.
 >
-> This document is deliberately blunt. Phase 7 is **not** complete, and two earlier phases were
-> skipped entirely.
+> This document is deliberately blunt. Phase 7 is **not** complete *at the snapshot commit*, and
+> two earlier phases were skipped entirely.
+
+> **Read §§1–3 as chronology, not as current status.** They are the point-in-time findings at
+> `bc081e9` and are kept verbatim; each stale section carries a *Historical* pointer to **§6**,
+> which is the running record of what landed afterwards. All lists here say "absent" or "does not
+> exist" about things that exist today.
+>
+> **Current state of the tree at `a293f80`** (merge of PR #43) by source reading: Phases 5 and 6
+> are implemented, the HUD list in §3.1 is complete, the dialog in §3.2 has landed (including the
+> four-background contrast overlay §3.2 flagged as missing), chat/capabilities in §§3.3–3.4 have
+> landed, and the command core in §3.5 has landed for commands and cvars — the dedicated server
+> `ServerConsole` stdin front-end, soft-keyboard handling and the quick-chat wheel are still
+> absent. `PROTOCOL_VERSION` is **13**. None of this has been runtime-verified: see §7.
 
 ---
 
 ## 1. Headline findings
+
+> **Historical.** These four findings are true of `bc081e9` and false of the tree today; §6 records
+> what landed afterwards and the header block summarises where each now stands.
 
 1. **Phase 5 (Throwables) was never started.** `shared/utility/` does not exist. There is no
    throwable physics, no terrain-occluded explosion, no frag/impact/smoke/molotov/poison/flashbang/
@@ -108,12 +123,23 @@ needs, but nothing claims focus.
 Build-order Phase 0's own gate — *"the four-background contrast test mode"* (black / white / grey /
 noise) — is also missing, so the readability requirement is asserted but unverified.
 
+**Historical — read with §6.** Now wrong. `core/ui/console/` holds `ConsoleDialog`,
+`ConsoleInputField`, `ConsoleFocus`, `ChatTargetButton`, `ConsoleCompletionPopup`, `ConsoleHintLine`
+and `ConsoleTheme`, and `GameScreen` claims focus through the router. The four-background check
+exists as `core/ui/text/ContrastTestOverlay` (`ui_contrast_test`, F12): it tiles black / white /
+grey / noise and draws the dialog's own panel fill and luminance-clamped text. Whether it *looks*
+legible on all four is still a runtime check — the M11/M13 checklists own it.
+
 ### 3.3 Phase 7 — chat transport and server authority (build order Phase 2)
 
 Absent: `ChatMessage`, `PacketChatRequest`, `PacketChatMessage`, `server/chat/ChatService`,
 `ChatModeration`, `ChatHistory`, `core/chat/ChatClient`, `ChatMuteList`, `QuickChat`.
 `TextSanitizer` and `RateLimiter` exist but **nothing calls them** — they are currently dead code
 with tests.
+
+**Historical — read with §6.** Now wrong except for `QuickChat`, which is still absent.
+`ChatMessage`, both chat packets, `server/chat/*`, `ChatRequestHandler`, `core/chat/*` and the
+mute list all landed; `TextSanitizer` and `RateLimiter` are live callers in the relay path.
 
 ### 3.4 Phase 7 — capabilities (build order Phase 3)
 
@@ -122,6 +148,9 @@ Absent: `shared/command/Permission`, `ConsoleAccess`, `PacketCapabilities`,
 `ChatChannel.isVisibleTo(boolean)` takes the flag the server is supposed to push, but no packet
 carries it.
 
+**Historical — read with §6.** All of these landed; `PacketCapabilities` carries the flag on join
+and on change, and `CapabilityBroadcaster` re-pushes it mid-match.
+
 ### 3.5 Phase 7 — commands, completion, server commands, cvars, terminal, mobile
 
 Build order Phases 4–9 are absent in full: no `shared/command/` package at all, no
@@ -129,11 +158,24 @@ Build order Phases 4–9 are absent in full: no `shared/command/` package at all
 completion or history, no `ServerCommandService`, no `Cvar`/`CvarRegistry`, no `ServerConsole`
 stdin front-end, no soft-keyboard handling or quick-chat wheel.
 
+**Historical — read with §6.** Mostly wrong now. `shared/command/` exists with `CommandSpec`,
+`ArgTypes`, `CommandParser`, `CommandRegistry`, `CommandContext`, `CommandResult`, `Cvar` and
+`CvarRegistry`; `help`/`clear`, completion (`ConsoleCompletionPopup`) and input history are in;
+`server/command/{ServerCommandService,ServerCommandModule}` and the client-side modules are wired.
+Still genuinely absent: the `ServerConsole` stdin front-end (its absence is noted in
+`ServerCommandService`'s own javadoc), soft-keyboard handling and the quick-chat wheel, which are
+build-order Phase 9 and roadmap Phase 10 items.
+
 ### 3.6 Earlier phases skipped — Phase 5 and Phase 6
 
 See §1. These are listed here because Phase 7's own HUD scope includes a *"gadget panel with
 durability and cooldowns"*, which cannot be implemented against gadgets that do not exist, and
 because Phase 8's effect catalogue is largely keyed to throwables.
+
+**Historical — read with §6.** Both phases have since landed. The gadget panel exists
+(`shared/hud/GadgetPanelModel` + `core/ui/hud/GadgetPanel`), and the throwable-keyed effect
+presets have their events. Cooldowns were deliberately not added (M13 decision), so the panel's
+countdown is wired but dormant.
 
 ### 3.7 Phase 8 prerequisites that are also missing
 
@@ -155,9 +197,24 @@ these Phase-0/3/4 items did not:
 `FxPipeline.composite()` already passes `null` for the light texture, so the light slot is wired
 but unfilled — exactly as the roadmap's Phase 2.3 instructed.
 
+**Historical — read with §6.** `FxBudget`, `FxClock` (`core/fx/particle/FxClock`) and
+`FxEventQueue` have landed, and the light slot is now filled (`core/fx/lighting/{Light,LightPass,
+LightPool}`; the light lives on the HUD-visible `r_player_light*` cvars and the budget counters are
+surfaced by the `fx_debug`/`quality` cvars). Still absent from this table: `GlCaps`,
+`FxDebugOverlay`/`FxProfiler` as named types, `PostChain`, a `LightSystem` class (the role is split
+across `LightPass`/`LightPool`), and `VisibilityQuery` as a named parity type
+(`shared/vision/{Observer,ObserverSet}` plus `VisionMath` play that role). The effects-plan gates
+themselves have not been re-checked line by line against the source.
+
 ---
 
 ## 4. Is Phase 7 complete enough to move to Phase 8?
+
+> **Historical (answer at the snapshot: no).** At `bc081e9` nothing passed. As of `a293f80` most of
+> §12's bullets have source, but the roadmap's four "done when" clauses are all still unverified on
+> a running build, and one of them — "the ALL/TEAM button works on touch" — has no source at all,
+> since touch controls are a roadmap Phase 10 item. The honest answer remains "not verified", not
+> "passes".
 
 **No, not as "complete".** Measured against §12 of `CONSOLE_CHAT_PLAN.md`, zero of the eleven
 definition-of-done bullets pass today. Measured against the roadmap's Phase 7 "done when" line —
@@ -186,6 +243,12 @@ So the honest sequencing recommendation is:
 
 ## 5. Deferrals that need explicit confirmation
 
+> **Historical — read with §6.** D1–D4 have since been resolved by landing the work (D1: Phases 5
+> and 6 are implemented; D2: the HUD landed, M4/M11/M13; D3: the dialog landed; D4: the command
+> core, cvars and server commands landed — the `ServerConsole` terminal is the one piece still
+> open). D5 is partly resolved: `FxBudget`, `FxClock` and `FxEventQueue` landed, the profiler and
+> debug overlay did not. No new deferrals are recorded here.
+
 | # | Deferral | Why it needs a decision |
 | --- | --- | --- |
 | D1 | Phase 5 (throwables) and Phase 6 (gadgets) skipped | Half the Phase 8 effect catalogue and the Phase 7 gadget panel depend on them |
@@ -197,6 +260,10 @@ So the honest sequencing recommendation is:
 ---
 
 ## 6. Progress since this audit
+
+> **Chronological record.** Rows and paragraphs below were written as each increment landed and are
+> kept in order; later entries supersede earlier ones. Where the prose says "Phase 5 is under way"
+> or "still missing", read it against the newest row, not the top of the section.
 
 | Slice | State |
 | --- | --- |
@@ -210,7 +277,10 @@ So the honest sequencing recommendation is:
 | Phase 6 increment 3 (M10) — drone, throw camera, surveillance lock, gadget vision, rendering and HUD | Implemented (branch `arena/f6b096ea-skystrike`, PR #37): `shared/model/{DroneEntity,CameraEntity}` snapshot state; `shared/gadget/{SurveillanceView,GadgetPress,DroneMotion,CameraFlight}`; server `gadget/{DroneSystem,CameraSystem,SurveillanceService}` following the `ShieldSystem`/`FuelTankSystem` patterns; `ThrowablePhysics.stepInPlaceUntilContact` (the one integrator, bounce off) for the camera's stick-to-first-surface; the surveillance lock enforced server-side in `PlayerMotion` and the loadout tick; view cycling (key 6) and Escape exit routed through the focus stack; rounds hit devices; `EffectBroadcaster.cullFor` counts a recipient's live drone/stuck camera as extra observers via `VisionMath.canObserverSeeTarget`; client `gameplay/SurveillanceController` prediction, camera follow + 1.2× zoom, device cones in the visibility pass (dimmer for the drone, per-observer brightness in the shader), `render/GadgetRenderer` (drones, cameras, shield front/rear arc, rear fuel tank) and the surveillance HUD banner; `DroneEntity`/`CameraEntity` appended at Kryo indices 33/34, `PROTOCOL_VERSION` 11 → 12 |
 | Phase 7 HUD increment (M11) — the fog-gated minimap | Implemented (branch `arena/52f46dde-skystrike`): `shared/hud/MinimapModel` (which markers may exist, normalised y-up arena space, ghost hold/fade/expiry on the wall clock, memory emptied on respawn and pruned the moment a target is absent from the unculled snapshot); `shared/vision/{Observer,ObserverSet}` lifting the client's inline observer assembly into one shared rule so the GPU cone pass and the map's blip gate cannot disagree; `VisionMath.calculateVisibility`'s per-observer cone-half-angle overload, `VisionMath.isTargetLit` and `VisionConfig.LIT_VISIBILITY_THRESHOLD` (6.1%, just above the peripheral floor) as the presentation bar — `canObserverSeeTarget`'s 1% bar reports a body standing behind the viewer as seen, which would put a marker where the screen draws nothing; `Team.areAllies` adopted by `MinimapModel`, `DamageService` and `KillFeedService`; `core/ui/hud/{Minimap,HudTheme}` plus the debug-panel top inset; cvars `cl_minimap` and `cl_minimap_allies` (mechanics §4's "teammates visible on minimap", default on, registered ungated like `ui_loadout`); **no protocol change** — `broadcastSnapshot` was never culled, so the map is presentation over state every client already holds. Checklist: `docs/M11_HUD_ACCEPTANCE.md` |
 | Phase 7 HUD increment (M13) — the gadget panel and floating damage numbers | Implemented: `shared/hud/{GadgetPanelModel,DamageNumberModel,WorldProjection}` (the panel's words, durability and cooldown countdown from the predicted `PlayerLoadout`; the outgoing-hit filter, falloff ratio and life of each number; the one world-to-screen rule) with tests; `core/ui/hud/{GadgetPanel,DamageNumberWidget}`; `HudFrame` gains a nullable `worldView`, set only by `GameScreen`. **No wire change.** The damage numbers ride the `PacketDamageEvent` the client already receives. No gadget starts a cooldown, by M13 decision, so the countdown is wired but dormant. Checklist: `docs/M13_HUD_ACCEPTANCE.md` |
-| Phase 7 HUD — complete after M13 | All eight items of §3.1's list now have a home in `core/ui/hud/`. The §3.1 list is historical; the open Phase 7 work is the dialog (§3.2), chat-plan build-order Phases 4–9 (§3.5), |
+| Phase 7 HUD — complete after M13 | All eight items of §3.1's list now have a home in `core/ui/hud/`. The §3.1 list is historical; the open Phase 7 work from this row was the dialog (§3.2) and chat-plan build-order Phases 4–9 (§3.5), both of which have since landed except for the mobile tail noted above |
+| Phase 7 increment (M14) — the vision bubble | Implemented: every eye gets an all-round short-range circle in the same visibility pass as its cone — `Observer.bubble` with `VisionConfig.FULL_CIRCLE_HALF_ANGLE_DEGREES`, `BODY_BUBBLE_RADIUS = 140` and `GadgetConfig.DEVICE_BUBBLE_RADIUS = 70`; the shader's angular term and `VisionMath.calculateConeFactor` agree; the minimap blip gate asks the same `ObserverSet`; a device bubble gets its own light; `EffectBroadcaster` culls effects against the bubbles too. Gameplay (damage, stun, blasts, camera placement) still uses line of sight only, and the M6/M12 "outside the cone stays black" rule is superseded inside the bubble only. Checklist: `docs/M14_VISION_BUBBLE_ACCEPTANCE.md` |
+| Presentation and audio increment (PR #42) — midtones, gunfire cues, FIRE rollover, drone retune | Implemented: display-only midtone lift in `assets/shaders/post/composite.frag` + `CompositePass` (the raw visibility texture remains the gameplay/light mask); server-authenticated gunfire cues appended to `PacketGameState.gunfireEvents` and consumed by `GunAudio`, with the generic muzzle-flash audio path no longer doubling the report — **`PROTOCOL_VERSION` 12 → 13**; fresh FIRE attacks roll over the oldest explicitly marked equal-priority FIRE voice; drone free-flight retuned to 500 world units/s with a 16/s velocity lerp (`GadgetConfig`). Checklist: `docs/VISION_AUDIO_DRONE_ACCEPTANCE.md` |
+| Source-module boundary hardening (PR #43) | Merged: the module-dependency check was strengthened (both in `build.gradle`'s `checkModuleDependencies` and in `tools/scratch/static_check.py`) so `shared` may not reach `core`/`server`, `server` may not reach `core` or LibGDX, and `core` may not reach `server`. As of `a293f80` the independent scan finds zero such imports |
 
 Phase 5 is under way, so §3.6's "never started" now applies to Phase 6 only. What landed is the
 shared half: identity and wire encoding (2000 + ordinal, a third range in the existing `weaponId`
@@ -304,12 +374,18 @@ drift apart.
 `PROTOCOL_VERSION` moved 4 → 5 for chat/capabilities, 5 → 6 for the throwable/loadout contract,
 6 → 7 for live utility zones and replicated throwable status, 7 → 8 for the gadget
 payload, 8 → 9 for the appended Q/E input edges, 9 → 10 for the M1 command packets, 10 → 11
-for the M7 effect channel, and 11 → 12 for the M10 gadget device entities. §3.3 and §3.4
-above describe the state *before* this work; the rest of §3 still stands.
+for the M7 effect channel, 11 → 12 for the M10 gadget device entities, and 12 → 13 for the
+server-authenticated gunfire cue list appended to `PacketGameState`. §3.3 and §3.4 above describe
+the state *before* this work; the rest of §3 is likewise historical and now carries its own
+*Historical* pointer.
 
-Still outstanding for Phase 7 after M13: the HUD list in §3.1 is complete (the gadget panel and
-floating damage numbers landed in M13), so what remains is the dialog in full (§3.2), build-order
-Phases 4–9 (§3.5). Gadget cooldowns were considered and deliberately not added (M13 decision), so the panel's countdown stays dormant.
+Still outstanding for Phase 7 as of `a293f80`: the HUD list in §3.1 is complete, the dialog in
+§3.2 landed, and §3.5's command core landed. What genuinely remains is the mobile tail —
+the dedicated `ServerConsole` stdin front-end, soft-keyboard handling and the quick-chat wheel —
+plus the effects-plan gaps listed in §3.7 (no `GlCaps`, no named
+`FxDebugOverlay`/`FxProfiler`/`PostChain`/`VisibilityQuery`). Gadget cooldowns were considered and
+deliberately not added (M13 decision), so the panel's countdown stays dormant. **None of the
+acceptance checklists for any of this work have been executed** (see §7).
 
 ---
 
@@ -318,3 +394,11 @@ Phases 4–9 (§3.5). Gadget cooldowns were considered and deliberately not adde
 No Java was compiled or executed locally while producing this audit — there is no JDK in the
 authoring sandbox. Everything above is a source-tree and documentation comparison. Compilation and
 test status come only from GitHub Actions.
+
+The same limit applies to the rebaseline pass at `a293f80`: it re-read the source and ran the
+permitted Python checks (`tools/scratch/static_check.py`, `static_api_check.py`, both clean; the
+module-boundary rules find zero violations), and it did not run the game, the server, Gradle, the
+test suites or any acceptance checklist. **Every runtime checklist referenced by §6 — M6 through
+M14, `DEBUG_LOCAL_TEST.md`, `VISION_AUDIO_DRONE_ACCEPTANCE.md` and the mechanics §11 feel
+checklist — is still unexecuted, and no checkbox in any of them may be ticked from source reading
+alone.**

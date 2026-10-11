@@ -315,6 +315,12 @@ At zero health the player dies, drops out of the simulation and may no longer ac
 
 ## 11. FEEL CHECKLIST
 
+> **Status: unexecuted manual checklist.** These twelve lines are a runtime acceptance test, not a
+> source-review checklist. The roadmap's Phase 11 walks them on a runnable desktop build; **none has
+> been executed** (there is no JDK in the authoring sandbox) and none may be ticked from reading
+> code. Where a line has supporting tests in `shared`, those cover the maths and contracts only,
+> never the feel.
+
 The build is correct when all of the following are true:
 
 - Ground movement is crisp and immediate; air movement is floaty and committed.

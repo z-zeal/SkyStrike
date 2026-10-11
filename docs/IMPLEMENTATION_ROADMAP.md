@@ -8,16 +8,39 @@
 
 ## 0. WHERE THE PROJECT ACTUALLY IS TODAY
 
-A bare gdx-liftoff skeleton. Three Java files exist in total:
+> **Rebaselined against `a293f80`** (merge of PR #43, current head of `main`) by reading the source
+> tree. Earlier revisions of this section described the gdx-liftoff skeleton; that description is
+> kept below as **historical** so the superseded plan can still be read in order.
 
-| File | State |
+The skeleton is long gone. Every phase from 0 to 7 has landed source, and phases 8–11 are partly landed:
+
+| Area | Where it is today |
 | --- | --- |
-| `core/.../Main.java` | `Game` subclass, sets `FirstScreen` |
-| `core/.../FirstScreen.java` | Empty stub screen |
-| `server/.../ServerLauncher.java` | Empty `main` |
+| Modules | `shared` (135 main sources), `server` (46), `core` (101), `lwjgl3` (3), `android` (1). `tools/` is a helper tree, not a Gradle module |
+| Tests | 69 test files in `shared/src/test`, 31 in `server/src/test`, none in `core` (CI runs `shared:test` and `server:test`) |
+| Config | `shared/config/` is populated per system: `NetConfig`, `WorldConfig`, `PlayerConfig`, `CombatConfig`, `WeaponConfig`, `UtilityConfig`, `GadgetConfig`, `VisionConfig`, `DebugFlags` |
+| Phase 0–2 | Complete: tick loop, transport/router/handlers, `shared/physics/PlayerMotion` + client prediction, SDF bake/sampler, visibility pass, composite |
+| Phase 3–4 | Complete: `shared/combat/*`, `server/combat/*`, 89-gun registry generated from the sprite catalog, melee, loadout/slots |
+| Phase 5–6 | Implemented in source: throwables with occluded explosions, stun and zones; drone, throw camera, shield and fuel tank with surveillance locking, view cycling and rendering |
+| Phase 7 | Implemented in source: the HUD (`core/ui/hud/`), the one-key console/chat dialog (`core/ui/console/`, `core/chat/`), the shared command core (`shared/command/`) and capability gating; chat and privileged commands are server-authoritative. Not landed from the console plan's build order: the `ServerConsole` stdin front-end and the Phase 9 mobile polish (soft keyboard, quick-chat wheel) |
+| Phase 8 | Partial: light pass + pool (SDF-shadowed), GPU/CPU particles, the effect-event channel, blindness/aberration/post chain, `FxBudget`/stats. Decals, shockwave, heat haze, bloom, camera shake and mobile hardening are not in yet |
+| Phase 9 | Implemented in source: `AudioSystem`, `SoundCatalog`, `SpatialAudio`, `TinnitusEffect`, `EffectAudio`, `GunAudio`; gunfire reports read the server-authenticated cue list in `PacketGameState`, not a client-side guess |
+| Phase 10–11 | Partial: main menu, settings, loadout screen, pause, the debug toolkit and the desktop local host are in; `core/platform/`, touch controls, quick chat, scoreboard/round flow and mobile hardening are not |
+| Wire protocol | `NetConfig.PROTOCOL_VERSION = 13`; the join handshake rejects any other version |
 
-`shared/` has **no sources at all**. Dependencies (Ashley, Box2D, gdx-ai, Kryo, KryoNet, screenmanager, FreeType)
-are already declared in `core/build.gradle`; the server only depends on `shared`.
+**Verification status.** The table above is source-tree fact plus the permitted static checks in
+`tools/scratch/` (`static_check.py`, `static_api_check.py` — both clean at this commit). Nothing has
+been *run*: there is no JDK in the authoring sandbox, so the desktop client, the server, the tests
+and every manual checklist (M6–M14, `DEBUG_LOCAL_TEST.md`, `VISION_AUDIO_DRONE_ACCEPTANCE.md` and
+the mechanics §11 feel checklist) remain unexecuted. GitHub Actions is the only authority on
+compilation and tests; runtime behaviour must be verified by a human on a runnable build.
+
+**Historical — the skeleton this roadmap started from:** three Java files (`core/Main.java` a `Game`
+subclass setting `FirstScreen`, an empty `FirstScreen` stub, an empty `server/ServerLauncher.main`),
+no `shared` sources at all, and Ashley/Box2D/gdx-ai/Kryo/KryoNet/screenmanager/FreeType declared in
+`core/build.gradle`. Both open discrepancies from that revision were settled before Phase 1:
+`shared` now owns Kryo/KryoNet as `api` dependencies, and the physics is the hand-rolled AABB
+implementation in `shared/physics/` — no Box2D/Bullet/Ashley dependency is declared anywhere.
 
 ### The base package
 
@@ -32,15 +55,13 @@ lwjgl3/src/main/java/io/github/skystrike/lwjgl3/
 android/src/main/java/io/github/skystrike/android/
 ```
 
-### Two discrepancies to settle before Phase 1
+### Two discrepancies that were settled before Phase 1 (historical)
 
-1. **`shared` has no dependencies.** It needs Kryo for serialisation (`shared/build.gradle` is empty).
-   Move `kryo`/`kryonet` from `core` to `shared` as `api` so `server` gets them transitively.
-2. **Box2D vs. custom physics.** `core` pulls in Box2D, but `server` must be plain Java with no game-framework
-   dependency, and it is the authority for movement, bullets and rotation springs.
-   → **Decision: hand-rolled AABB physics in `shared/physics/`**, used verbatim by both sides.
-   Drop Box2D/Bullet from the dependency list; the arena is axis-aligned rectangles and the
-   jetpack/rotation feel in §2 of the mechanics plan is spring-driven, not solver-driven.
+1. **`shared` dependencies.** `shared` now declares Kryo/KryoNet as `api`, so `server` gets them
+   transitively, exactly as this list decided.
+2. **Box2D vs. custom physics.** Settled in favour of hand-rolled AABB physics in `shared/physics/`,
+   used verbatim by both sides. No Box2D/Bullet dependency survives in any build file; the arena is
+   axis-aligned rectangles and the jetpack/rotation feel is spring-driven, not solver-driven.
 
 ### Global rules that hold for every phase
 
