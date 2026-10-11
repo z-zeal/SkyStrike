@@ -111,7 +111,10 @@ public final class PlayerMotion {
         // 2. Crouch state and ceiling clearance check. The pre-sample flag is the fresh-press edge
         // the drop-through control reads below: input.crouch is a held level on the wire, so "the
         // body was not already crouched when this sample arrived" is what makes one press one drop
-        // without a new packet field.
+        // without a new packet field. The consequence is deliberate (map plan §4, D6 as amended):
+        // on a one-way top a fresh press always drops, so a crouch cannot be *started* while
+        // standing on a platform — crouch-walking onto one with the key already held still works,
+        // and a held key never re-drops.
         boolean crouchedBeforeSample = p.crouched;
         updateCrouchState(p, input != null && input.crouch && !locked, map);
 

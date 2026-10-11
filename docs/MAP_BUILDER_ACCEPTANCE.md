@@ -7,8 +7,9 @@ round trips and SDF identity. Milestone 2 then made every consumer read the shar
 rule-aware line queries (a shared `Blocking` purpose on `MapQueries`, one cached per-purpose
 rectangle view on `ArenaMap`, the sight column in `VisionMath`, the bullet column in the raycaster
 and the muzzle guard, and the blast column — pinned to sight — in the frag, claymore-cone and
-fire-spread consumers); the movement column with one-way platform tops and the crouch+jump
-drop-through window in `PlayerMotion`, plus the explicit columns in `DroneMotion`,
+fire-spread consumers); the movement column with one-way platform tops and the drop-through
+window in `PlayerMotion` (its trigger moved from the crouch+jump chord to a fresh S press after
+the first live run — plan §4, D6), plus the explicit columns in `DroneMotion`,
 `ThrowablePhysics` and the camera's release check; and kind-aware rendering, where `TerrainRenderer`
 draws every `BlockRenderStyle` and the minimap reads the same block list. Two static gates now
 enforce the milestone's contract, and tests were written for the one-way rules, the movement
@@ -58,8 +59,9 @@ automated tests for that milestone are green in CI. The CI-side tests are listed
 ## Movement and one-way platforms
 
 - [ ] Jumping up through a platform passes through it, and landing on it from above stands on it.
-- [ ] Crouch+jump on a platform drops the player through, and the fall does not re-land on the same
-  platform mid-drop.
+- [ ] Pressing S (crouch) on a platform drops the player through, and the fall does not re-land on
+  the same platform mid-drop; a crouch held from before the landing does not drop, and a jump
+  press while crouched on the slab does not launch the body up through it.
 - [ ] A player standing under a platform is not blocked from jumping; a player whose head is in the
   slab is not ejected.
 - [ ] Glass stops a running player while intact; a shattered window does not.
@@ -240,3 +242,43 @@ so that a running game *can* meet glass, a crate and a one-way platform before t
 manual boxes about shooting, shattering and dropping through them are now within reach, and the boxes
 about a saved map, a door or a client-side re-bake are not. No Java was compiled, no test was
 executed, and no server, client or game was run.
+
+The first live run's triage and the S-alone drop-through (this session) were then source-checked
+only; they are not map validation, and every box above remains unchecked. The run itself — the
+user's desktop build, jetpack ascent to the fixture platform, shooting the pane from several
+angles, walking through the pane and the crate on a plain non-debug body — is the authoritative
+observation this triage worked from. What the source reading established: the drop-through
+trigger is now a fresh S press (see the amended box above; its test is
+`PlatformMotionTest.crouchPressAloneDropsThroughAndDoesNotReland`, unexecuted), and the three
+pass-through/no-shatter findings cannot be produced by the current source — every hop from the
+rule table through `ArenaMap`'s derived views, `MapDamageState.liveMap()`, `PlayerMotion`'s
+sweep, the muzzle guard, `RaycastBulletSystem`/`BulletSystem`'s nearest-first walk and the
+shatter was read and is correct, while the fixture platform, from the same three map lines, held
+the body in that same run. The leading remaining explanation is two processes on different maps,
+which the local-test path can produce silently (`Main.startLocalTest` joins whatever already
+owns the default ports when the embedded host fails to bind); both sides now print
+`ArenaMap.describe()` — census, mirror axis, hash — at startup so the next run settles it in one
+glance against the pinned hash `bef76535…6693` and the census `62 blocks [WALL 56, GLASS 2,
+BREAKABLE 2, PLATFORM 2]`. The exact checks run after these changes were:
+
+- `python3 tools/scratch/static_check.py` — clean (419 Java files scanned, 419 declared types; no
+  findings, including the module boundaries and the two consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (520 project types indexed from 415 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1
+  loop, 14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — completed with no tracked generated-table
+  diff.
+- `python3 tools/scratch/arena_sdf_check.py` — clean: the committed asset is still the bake of
+  the committed map (header hash `bef76535…6693`, every texel equal); neither `TEXT` nor the
+  asset changed this session.
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the session's edits; `static_api_check.py` cannot see calls made through
+fields or variables, so the session's cross-module calls (`ArenaMap.describe`,
+`ArenaMap.mapHashHex`, the S-alone drop branch's use of the transient `dropThroughTimer`) were
+also read by hand. Nothing was compiled, nothing was executed, nothing was observed: the new
+`describeAnnouncesTheCensusMirrorAxisAndHash` test, the two rewritten and three added
+`PlatformMotionTest` cases, and every earlier suite remain unexecuted, and the re-run of the
+fixture range with the startup identity lines visible is outstanding human work.

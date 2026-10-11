@@ -1,6 +1,7 @@
 # Map building system — plan
 
-**Status: milestone 3's source has landed and milestone 4 is next.** The shared
+**Status: milestone 3's source has landed, its first live run has happened, and milestone 4 is
+next.** The shared
 `BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text
 parser/writer, standard-arena migration and SDF map-hash guard landed in PR #47.
 `ArenaMap.standard()` loads the embedded canonical text through that parser; every version-2 SDF
@@ -9,7 +10,8 @@ canonical save → load → save and the SDF hash contract. Milestone 2's first 
 PR #48: line queries take a shared `Blocking` purpose, `ArenaMap` derives one cached rectangle view
 per purpose from the rule table, and the sight, bullet and blast consumers ask their own column
 instead of the compatibility rect list. The rest of milestone 2 followed: `PlayerMotion` sweeps the
-movement column with one-way platform tops and the crouch+jump drop-through window, `TerrainRenderer`
+movement column with one-way platform tops and the drop-through window (started by the S press
+alone since the first live run; before that it was the crouch+jump chord), `TerrainRenderer`
 draws every `BlockRenderStyle` the table declares, and `tools/scratch/static_check.py` now carries
 the two consumer gates (no kind named outside `shared/map`, every treatment drawn). Milestone 3 has
 now landed in source: the shared `MaterialTable` and its damage rules, the per-block authored
@@ -22,8 +24,24 @@ the milestone can be exercised in a running game anyway, one mirrored **fixture 
 into the shipped arena and the SDF asset re-baked with it (§1, §9): the glass, the crate and the
 one-way platform can all be met, shot and broken today, while what a destroyed block *looks* like
 still waits on milestone 4. The `assets/maps` move, door ids and state and every later milestone
-remain unfinished; no Java was compiled or executed, and no checklist in
+remain unfinished; no Java was compiled or executed by the authoring sandbox, and no checklist in
 `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
+
+**The first live run (the user's desktop build) happened after the fixture range landed and
+produced four findings, resolved this session.** The drop-through trigger moved from the
+crouch+jump chord to a fresh crouch press (`S` alone) — D6 as amended, implemented in
+`PlayerMotion` with the fresh-press gate and the inert jump on a slab. The other three — a pane
+that ignored bullets, and a body that passed through the pane and the crate on a plain,
+non-debug body — were traced through every consumer (rule table, both derived views, the live
+map, the sweeper, the muzzle guard, the round walk, the shatter) and cannot be produced by the
+current source; the fixture platform, from the same three map lines, worked in that same run.
+The one explanation left standing is two processes on different maps, which the local-test path
+can produce silently: when the embedded host fails to bind because an older server process still
+owns the default ports, the client logs an error and joins that server anyway
+(`Main.startLocalTest`). Both sides therefore now announce the map they actually parsed at
+startup (`ArenaMap.describe()`: census, mirror axis, hash), the re-run is pending a human, and
+the known milestone-4 gaps still apply — a shattered pane keeps rendering and keeps colliding in
+the client's authored copy until the block event tells it otherwise.
 
 ## 1. What exists today
 
@@ -80,13 +98,15 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   ceiling clearance for uncrouching, and `noclip`. Server authority and client prediction run this
   same function; the server has no separate collision code. It sweeps the **movement column**:
   `MovementRule.SOLID` rects block on every face, and a `MovementRule.ONE_WAY_TOP` slab answers only
-  a falling body whose feet were at or above its top on the previous step. Crouch+jump on a
-  platform starts the shared drop-through window (`PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS`,
+  a falling body whose feet were at or above its top on the previous step. A fresh crouch press on
+  a platform — `S` alone, no jump; the body not already crouched when the sample arrived — starts
+  the shared drop-through window (`PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS`,
   carried as transient motion state on `Player`, so the snapshot layout and protocol 13 are
   untouched); the window ends as soon as the feet leave the slab, and while it runs the platform
-  cannot catch the body again. The shipped arena's own one-way top is the sky platform of its
-  fixture range (below), and a body on ordinary ground is never standing on it, so crouch+jump on
-  the floor plays exactly as it always did.
+  cannot catch the body again. A jump press while crouched on a one-way top is deliberately
+  inert, and one riding the drop's own sample is consumed by it. The shipped arena's own one-way
+  top is the sky platform of its fixture range (below), and a body on ordinary ground is never
+  standing on it, so crouch and jump on the floor play exactly as they always did.
 - **`core/world/TerrainRenderer`** — the picture of the same map: one loop over `blocks()` per draw
   pass, with the treatment chosen from the shared `BlockRenderStyle` column and the fill and outline
   colours from the block's `MaterialTable` row, so no block kind and no surface material is named in
@@ -205,10 +225,16 @@ pass does not have.)
 
 **D6 — One-way platforms are thin and see-through.** Collision from above only (landing), never
 from below, never a ceiling, and never a movement block for a falling body; no bullet blocking, no
-sight blocking, and so no SDF presence and no shadow. Drop-through is crouch+jump (`S` and jump in
-this game's bindings — plain `S` is the crouch/dodge and must stay one), which starts a short timer
-during which the body ignores one-way tops; the timer ends when the body has cleared the slab.
-**Implemented** in `PlayerMotion` and pinned by `shared/src/test/.../physics/PlatformMotionTest`.
+sight blocking, and so no SDF presence and no shadow. Drop-through is a fresh crouch press (`S`
+alone) while standing on the slab, which starts a short timer during which the body ignores
+one-way tops; the timer ends when the body has cleared the slab. **Amended after the first live
+run asked for `S` alone** — the chord this decision originally shipped was crouch+jump, and plain
+`S` was reserved as the crouch/dodge; the user's request overrides that, and the consequences are
+pinned in `PlayerMotion`'s javadoc: on a one-way top a fresh `S` press always drops (so a crouch
+cannot be *started* while standing on a platform — crouch-walking onto one with the key already
+held still works), and a jump press while crouched on a slab is inert so the body can never be
+launched back up through it. **Implemented** in `PlayerMotion` and pinned by
+`shared/src/test/.../physics/PlatformMotionTest`.
 
 **D7 — Materials decide everything survivable.** One shared `MaterialTable`: durability,
 bullet-damage retention, whether explosions/melee can hurt it, the render tint/line colour, impact
@@ -356,9 +382,10 @@ reaches the device: the damage walk is bounded by whatever spends the round, so 
 window is hit through intact glass.
 
 **Platforms.** Only the top surface collides, only for a body that is falling and was above it on
-the previous step, and never while the drop-through timer is running. The timer starts on
-crouch+jump, and ends when the body's box no longer overlaps the slab (so a body cannot re-land on
-it while inside it). **Implemented** in `PlayerMotion`; §3 records the two conditions the sweeper
+the previous step, and never while the drop-through timer is running. The timer starts on a fresh
+crouch press (`S` alone) while standing on the slab, and ends when the body's box no longer
+overlaps the slab (so a body cannot re-land on it while inside it). **Implemented** in
+`PlayerMotion`; §3 records the two conditions the sweeper
 needed on top of the rule — contact with the top counts as "inside the slab" for the window's end
 test, and a body inside a slab is never pushed up out of it.
 
@@ -457,8 +484,8 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   insensitive comparison against `ArenaMap.standard()`), so the format conversion cannot move
   geometry.
 - **One-way rules:** a body rising through a platform is never blocked; a body falling onto it
-  lands; crouch+jump drops it through and it does not re-land while overlapping; a body already
-  inside a platform is not ejected.
+  lands; a fresh crouch press (`S` alone) drops it through and it does not re-land while
+  overlapping; a body already inside a platform is not ejected.
 - **Door rules:** closed blocks movement/bullets/sight, open does not, a blocked swing stops, and
   the state machine's transitions are driven only through the server-side API.
 - **Breakable rules:** damage accumulates from the material's sources only; at zero the block
@@ -480,10 +507,15 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
 - **Movement column and one-way rules (implemented, the rest of this milestone):**
   `PlatformMotionTest` authors one thin slab in open air and proves the four properties of §7 —
   a rising body is never stopped or landed on, a falling body lands on the top face and stays
-  there, crouch+jump drops a body through without ever re-landing on it while the feet are inside
-  it, and a body already inside a slab is neither ejected nor supported. It also pins that a
-  platform is not a horizontal collider and that crouch+jump on the floor of the shipped arena
-  (whose only one-way top is 1200 units overhead) is still a plain jump. `MapQueryPurposeTest` proves the movement questions read the movement column
+  there, a fresh crouch press (`S` alone) drops a body through without ever re-landing on it while
+  the feet are inside it, and a body already inside a slab is neither ejected nor supported. It
+  also pins the fresh-press gate the first live run's amendment added — a crouch held from before
+  the landing never drops (crouch-walking on a platform works) while a release-then-repress does —
+  and that a jump press while crouched on a slab is inert and one riding the drop's sample is
+  consumed by the drop. And it pins that a platform is not a horizontal collider and that crouch
+  and jump on the floor of the shipped arena (whose only one-way top is 1200 units overhead) still
+  behave as they always did. `MapQueryPurposeTest` proves the movement questions read the movement
+  column
   (glass and a closed door stop a body, a platform never does; every rule presents a standable top
   for `surfaceBelow`), and `NetworkRegistrationTest` proves the drop-through window stays off the
   snapshot layout. The two milestone gates are checked by `tools/scratch/static_check.py`: no kind
@@ -551,7 +583,8 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    `SIGHT` column; `RaycastBulletSystem` and `BulletSystem.spawn`'s muzzle guard ask the `BULLETS`
    column, with the purpose threaded through `blockedByTerrain`; the frag, claymore-cone and
    fire-spread consumers ask `BLAST`, which the table pins to sight. `PlayerMotion` learns one-way
-   platform tops through the movement column, with the crouch+jump drop-through window and the
+   platform tops through the movement column, with the drop-through window (its trigger then the
+   crouch+jump chord; moved to the S-alone press after the first live run — D6, §1, §4) and the
    transient `Player` state that keeps protocol 13 untouched; `DroneMotion`, `ThrowablePhysics` and
    the camera's release check each moved to their explicit column; and `TerrainRenderer` draws every
    `BlockRenderStyle`, with the minimap reading the same block list. `tools/scratch/static_check.py`
