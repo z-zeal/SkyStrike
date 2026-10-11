@@ -48,6 +48,33 @@ import java.util.List;
  */
 public final class UtilitySystem {
 
+    /** Why an authoritative utility throw was accepted or refused. */
+    public enum ThrowResult {
+        ACCEPTED(""),
+        INVALID_REQUEST("invalid utility throw request"),
+        PLAYER_DEAD("player is dead"),
+        ACTIVE_LIMIT("active throwable limit reached"),
+        RELEASE_OUTSIDE_ARENA("release point is outside the arena"),
+        RELEASE_BLOCKED("release point is inside terrain"),
+        RELEASE_PATH_BLOCKED("the eye-to-release path is blocked by terrain"),
+        PLACEMENT_BLOCKED("placement point is inside terrain");
+
+        private final String reason;
+
+        ThrowResult(String reason) {
+            this.reason = reason;
+        }
+
+        public boolean accepted() {
+            return this == ACCEPTED;
+        }
+
+        /** Human-readable reason for a refusal, or the empty string for success. */
+        public String reason() {
+            return reason;
+        }
+    }
+
     /**
      * Direction fire-zone effect events carry: straight up. Flames rise regardless of which
      * surface the molotov splashed on, so the client recipe reads the angle as "up", not as a
@@ -83,16 +110,18 @@ public final class UtilitySystem {
     }
 
     /**
-     * Attempts to put an equipped utility into the world.
-     *
-     * <p>Returns false without consuming inventory when the utility cap is full or the release
-     * point is inside terrain. The caller is deliberately responsible for consuming carried
-     * count only after this succeeds.
+     * Attempts to put an equipped utility into the world and reports the exact refusal gate.
+     * The caller is deliberately responsible for consuming carried count only after acceptance.
      */
-    public boolean throwUtility(Player owner, UtilityId utilityId) {
-        if (owner == null || utilityId == null || !owner.alive
-            || active.size() >= UtilityConfig.MAX_ACTIVE_THROWABLES) {
-            return false;
+    public ThrowResult tryThrowUtility(Player owner, UtilityId utilityId) {
+        if (owner == null || utilityId == null) {
+            return ThrowResult.INVALID_REQUEST;
+        }
+        if (!owner.alive) {
+            return ThrowResult.PLAYER_DEAD;
+        }
+        if (active.size() >= UtilityConfig.MAX_ACTIVE_THROWABLES) {
+            return ThrowResult.ACTIVE_LIMIT;
         }
         UtilityDefinition definition = UtilityRegistry.of(utilityId);
         if (definition.detonation().isPlaced()) {
@@ -101,10 +130,14 @@ public final class UtilitySystem {
 
         float x = ThrowablePhysics.muzzleX(owner.eyeX(), owner.aimAngle);
         float y = ThrowablePhysics.muzzleY(owner.eyeY(), owner.aimAngle);
-        if (!insideArena(x, y)
-            || ThrowablePhysics.solidAt(arena, x, y) != null
-            || !VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, arena)) {
-            return false;
+        if (!insideArena(x, y)) {
+            return ThrowResult.RELEASE_OUTSIDE_ARENA;
+        }
+        if (ThrowablePhysics.solidAt(arena, x, y) != null) {
+            return ThrowResult.RELEASE_BLOCKED;
+        }
+        if (!VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, arena)) {
+            return ThrowResult.RELEASE_PATH_BLOCKED;
         }
 
         ThrownUtility thrown = new ThrownUtility(
@@ -119,7 +152,12 @@ public final class UtilitySystem {
             definition.fuseSeconds());
         thrown.aimAngle = owner.aimAngle;
         active.add(thrown);
-        return true;
+        return ThrowResult.ACCEPTED;
+    }
+
+    /** Compatibility boolean for callers that only need the success/failure result. */
+    public boolean throwUtility(Player owner, UtilityId utilityId) {
+        return tryThrowUtility(owner, utilityId).accepted();
     }
 
     /** Steps all live throwables and lingering zones once. Tick-thread only. */
@@ -276,7 +314,7 @@ public final class UtilitySystem {
         return Angles.toDegrees((float) Math.atan2(normalX, -normalY));
     }
 
-    private boolean place(Player owner, UtilityDefinition definition) {
+    private ThrowResult place(Player owner, UtilityDefinition definition) {
         // A placed device sits on the highest surface directly in front of the user's feet. It
         // cannot hover at eye height and does not borrow grenade flight physics.
         float direction = (float) Math.cos(Math.toRadians(owner.aimAngle));
@@ -287,7 +325,7 @@ public final class UtilitySystem {
         float support = MapQueries.surfaceBelow(arena, x, owner.y + owner.currentHeight());
         float y = support + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
         if (ThrowablePhysics.solidAt(arena, x, y) != null) {
-            return false;
+            return ThrowResult.PLACEMENT_BLOCKED;
         }
 
         ThrownUtility placed = new ThrownUtility(
@@ -296,7 +334,7 @@ public final class UtilitySystem {
         placed.resting = true;
         placed.contactNormalY = 1f;
         active.add(placed);
-        return true;
+        return ThrowResult.ACCEPTED;
     }
 
     private boolean isClaymoreTriggered(ThrownUtility claymore, Collection<Player> players) {

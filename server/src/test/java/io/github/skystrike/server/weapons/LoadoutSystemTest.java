@@ -300,10 +300,15 @@ class LoadoutSystemTest {
     @DisplayName("depleted utility slots cannot be selected, even by packet")
     void emptySlotsAreRejected() {
         player.loadout.utilityACount = 0;
+        String[] notice = {null};
+        system.setRefusalListener((refusedSession, reason) -> notice[0] = reason);
+
         pressSlot(1, PlayerLoadout.SLOT_UTILITY_A, 100L);
         tick();
         assertEquals(PlayerLoadout.SLOT_PRIMARY, player.loadout.activeSlot,
             "slot 4 is depleted: the press is ignored");
+        assertEquals("slot 4 refused: slot is empty", session.lastLoadoutRefusalReason());
+        assertEquals(session.lastLoadoutRefusalReason(), notice[0]);
     }
 
     @Test
@@ -328,6 +333,8 @@ class LoadoutSystemTest {
         tick();
         assertEquals(1, player.loadout.utilityACount);
         assertEquals(1, utilitySystem.count());
+        assertTrue(session.lastLoadoutRefusalReason().contains("cooldown"),
+            session.lastLoadoutRefusalReason());
     }
 
     @Test

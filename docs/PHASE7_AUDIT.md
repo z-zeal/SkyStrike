@@ -486,6 +486,21 @@ run here either; each change carries its own unexecuted acceptance note.
   player renderer draws a small utility-colored hand marker. No wire or protocol change. The server
   throw refusal gates still need diagnostic surfacing, addressed in the following increment; no
   runtime throw or rendering behaviour was observed in this source-only pass.
+- **Server-side loadout and utility refusal diagnostics.** Implemented: authoritative slot taps and
+  utility trigger edges now retain the latest refusal reason per session, log it to the server
+  console, and send a rate-limited warning to the affected client's existing command-response
+  console. Typed utility results distinguish invalid/dead requests, the active-throwable cap,
+  out-of-arena or blocked release points, a blocked eye-to-release path and blocked placed-device
+  positions; the loadout path also reports empty/invalid slots, stun/surveillance/shield locks,
+  missing utility state and cooldown remaining. `/loadout` dumps the caller's live
+  `PlayerLoadout.toString()`, latest input sequence/edge and processed sequence, active slot, life
+  state and latest refusal. It uses the already-registered `PacketCommandResponse`; no packet layout,
+  `NetworkRegistration` entry or protocol version changed. Server tests were added for typed cap
+  refusal, empty-slot notification, cooldown refusal and the live dump, but were not executed.
+  This gives the next human desktop run evidence for a server rejection; it does not establish that
+  the user's actual throw was accepted or identify which gate their runtime will hit. The confirmed
+  gun-in-hand rendering fallback is separate and fixed above. Milestone-2 map work was already
+  complete and was not duplicated.
 
 ---
 
@@ -534,3 +549,13 @@ project types indexed from 402 files), `python3 tools/scratch/static_audio_check
 `python3 tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table diff).
 No Java, test suite, server, game, desktop build or CI was run or observed; no map acceptance item
 was executed.
+
+The server-side loadout and utility refusal diagnostics increment was then source-checked with
+exactly the permitted Python checks: `python3 tools/scratch/static_check.py` (clean: 406 Java files,
+no findings), `python3 tools/scratch/static_api_check.py` (clean: 505 project types indexed from 402
+files), `python3 tools/scratch/static_audio_check.py` (clean: catalogue paths, formats and durations
+agree), `python3 tools/scratch/synth_sfx.py --check` (clean: 13 generated sounds agree),
+`python3 tools/scratch/phase3_ballistics.py` (analytical report completed), and
+`python3 tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table diff).
+The new server tests were not executed; no Java compilation, server/game run, desktop build, CI check
+or human acceptance was performed. Every `MAP_BUILDER_ACCEPTANCE.md` checkbox remains unchecked.

@@ -234,6 +234,21 @@ class ServerCommandServiceTest {
     }
 
     @Test
+    @DisplayName("loadout prints the caller's live state, input acknowledgement and latest refusal")
+    void loadoutCommandDumpsLiveSession() {
+        PlayerSession session = players.byPlayerId(1);
+        session.recordLoadoutRefusal("utility throw refused: release point is inside terrain", 1_000L);
+
+        CommandResult dump = run(1, "Nova", "loadout");
+        assertTrue(dump.ok(), dump.lines().toString());
+        String joined = String.join("\n", dump.lines());
+        assertTrue(joined.contains("PlayerLoadout[slot="), joined);
+        assertTrue(joined.contains("utilityA=FRAG x2"), joined);
+        assertTrue(joined.contains("processed="), joined);
+        assertTrue(joined.contains("last refusal: utility throw refused: release point is inside terrain"), joined);
+    }
+
+    @Test
     @DisplayName("with the master switch off, the debug toolkit commands are not registered at all")
     void debugGatedCommandsAreInvisibleWithMasterSwitchOff() {
         System.clearProperty("skystrike.debug");

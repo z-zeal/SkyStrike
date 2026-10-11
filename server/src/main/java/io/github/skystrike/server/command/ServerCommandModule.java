@@ -114,6 +114,7 @@ public final class ServerCommandModule {
     private static Map<String, CommandHandler> handlers(Deps deps) {
         Map<String, CommandHandler> handlers = new HashMap<>();
         handlers.put("players", (ctx, args) -> playersCommand(deps));
+        handlers.put("loadout", (ctx, args) -> loadoutCommand(deps, ctx));
         handlers.put("say", (ctx, args) -> sayCommand(deps, ctx, args));
         handlers.put("respawn", (ctx, args) -> respawnCommand(deps, ctx, args));
         handlers.put("kill", (ctx, args) -> killCommand(deps, ctx, args));
@@ -224,6 +225,30 @@ public final class ServerCommandModule {
                 p.health,
                 p.alive ? "alive" : "dead"));
         }
+        return CommandResult.info(lines);
+    }
+
+    private static CommandResult loadoutCommand(Deps deps, CommandContext ctx) {
+        PlayerSession session = deps.players().byPlayerId(ctx.callerId());
+        if (session == null) {
+            return CommandResult.error("No live player session is associated with this command.");
+        }
+
+        Player player = session.player();
+        io.github.skystrike.shared.physics.PlayerInput input = session.latestInput();
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        lines.add("Live loadout for " + session.name() + " (#" + session.playerId() + "):");
+        lines.add("  " + player.loadout);
+        lines.add(String.format(java.util.Locale.ROOT,
+            "  input seq=%d processed=%d fire=%s slotPress=%d active=%d alive=%s",
+            input.sequence,
+            player.lastProcessedInputSequence,
+            input.fire,
+            input.slotPress,
+            player.loadout == null ? -1 : player.loadout.activeSlot,
+            player.alive));
+        String refusal = session.lastLoadoutRefusalReason();
+        lines.add("  last refusal: " + (refusal == null ? "none" : refusal));
         return CommandResult.info(lines);
     }
 

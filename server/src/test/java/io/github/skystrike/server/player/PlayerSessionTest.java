@@ -44,6 +44,16 @@ class PlayerSessionTest {
     }
 
     @Test
+    @DisplayName("loadout refusal notices are throttled while the latest reason is retained")
+    void loadoutRefusalNoticeIsRateLimited() {
+        assertTrue(session.recordLoadoutRefusal("first refusal", 1_000L));
+        assertFalse(session.recordLoadoutRefusal("newer refusal", 1_500L));
+        assertEquals("newer refusal", session.lastLoadoutRefusalReason());
+        assertTrue(session.recordLoadoutRefusal("later refusal", 1_750L));
+        assertEquals("later refusal", session.lastLoadoutRefusalReason());
+    }
+
+    @Test
     @DisplayName("a press is latched and consumed exactly once")
     void pressIsLatchedOnce() {
         session.setInput(input(1, true));
