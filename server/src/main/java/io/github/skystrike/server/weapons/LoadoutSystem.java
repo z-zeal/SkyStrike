@@ -56,6 +56,12 @@ import java.util.Collection;
  */
 public final class LoadoutSystem {
 
+    /** Sends a rate-limited refusal notice to the affected client. */
+    @FunctionalInterface
+    public interface RefusalListener {
+        void onRefusal(PlayerSession session, String reason);
+    }
+
     private final FireController fireController;
     private final MeleeSystem meleeSystem;
     private final BulletSystem bulletSystem;
@@ -65,6 +71,7 @@ public final class LoadoutSystem {
     private final DroneSystem droneSystem;
     private final CameraSystem cameraSystem;
     private final FireController.Volley volley = new FireController.Volley();
+    private RefusalListener refusalListener;
 
     /** Legacy construction for gun/melee-only tests; active utilities require the four-arg form. */
     public LoadoutSystem(FireController fireController, MeleeSystem meleeSystem, BulletSystem bulletSystem) {
@@ -116,6 +123,11 @@ public final class LoadoutSystem {
         this.cameraSystem = cameraSystem;
     }
 
+    /** Installs or removes the client-facing refusal notice sink. */
+    public void setRefusalListener(RefusalListener refusalListener) {
+        this.refusalListener = refusalListener;
+    }
+
     /**
      * Steps one session's loadout by one tick.
      *
@@ -150,11 +162,21 @@ public final class LoadoutSystem {
 
         // 2. A latched slot press applies the same tap rule the client's prediction ran — unless
         //    the body is locked to a device, where slot selection is locked out.
-        if (loadout != null && slotPress != PacketPlayerInput.NO_SLOT_PRESS
-            && !player.isSurveillanceLocked()) {
-            loadout.tapSlot(slotPress);
+        if (loadout != null && slotPress != PacketPlayerInput.NO_SLOT_PRESS) {
+            if (player.isSurveillanceLocked()) {
+                refuse(session, "slot " + slotPress + " refused: surveillance lock");
+            } else if (!PlayerLoadout.isValidSlot(slotPress)) {
+                refuse(session, "slot " + slotPress + " refused: invalid slot");
+            } else if (!loadout.isFilled(slotPress)) {
+                refuse(session, "slot " + slotPress + " refused: slot is empty");
+            } else {
+                loadout.tapSlot(slotPress);
+            }
         }
         if (!player.alive || loadout == null) {
+            if (firePressed && isUtilitySlotSelected(loadout)) {
+                refuse(session, "utility throw refused: player is dead");
+            }
             return;
         }
 
@@ -164,6 +186,9 @@ public final class LoadoutSystem {
             surveillance.applyViewAction(player, viewAction);
         }
         if (player.isSlowed()) {
+            if (firePressed && isUtilitySlotSelected(loadout)) {
+                refuse(session, "utility throw refused: player is stunned");
+            }
             mirror(player, loadout, gun);
             return;
         }
@@ -177,6 +202,9 @@ public final class LoadoutSystem {
         // 5. The surveillance lock: while looking through a drone or camera the body cannot
         //    fire, melee or throw — its input is the device's. Gadget keys already ran above.
         if (player.isSurveillanceLocked()) {
+            if (firePressed && isUtilitySlotSelected(loadout)) {
+                refuse(session, "utility throw refused: surveillance device lock");
+            }
             syncGunForSlot(session, loadout, gun);
             mirror(player, loadout, gun);
             return;
@@ -184,7 +212,13 @@ public final class LoadoutSystem {
 
         // 6. An equipped shield forces the handgun when possible. With no handgun every weapon
         // action is blocked below; it is safer than silently granting melee or primary fire.
+        boolean utilitySelectedBeforeShield = isUtilitySlotSelected(loadout);
+        boolean utilitySlotRequested = slotPress == PlayerLoadout.SLOT_UTILITY_A
+            || slotPress == PlayerLoadout.SLOT_UTILITY_B;
         boolean shieldEquipped = shieldSystem.enforceHandgunOnly(player);
+        if (shieldEquipped && utilitySelectedBeforeShield && (firePressed || utilitySlotRequested)) {
+            refuse(session, "utility throw refused: shield requires the handgun");
+        }
         if (shieldEquipped && shieldSystem.blocksWeaponAction(player)) {
             syncGunForSlot(session, loadout, gun);
             mirror(player, loadout, gun);
@@ -200,6 +234,10 @@ public final class LoadoutSystem {
             // Consuming the final throwable cycles to a real slot during this tick. Synchronise
             // immediately so the snapshot does not show that new gun with stale recoil/spread.
             syncGunForSlot(session, loadout, gun);
+        } else if (isUtilitySlotSelected(loadout)) {
+            if (firePressed) {
+                refuse(session, "utility throw refused: active utility slot is empty");
+            }
         } else if (loadout.meleeActive()) {
             tickMelee(player, session, loadout, targets, damage, dt);
         } else {
@@ -208,6 +246,22 @@ public final class LoadoutSystem {
 
         // 4. Mirror the authoritative result onto the networked player record.
         mirror(player, loadout, gun);
+    }
+
+    private void refuse(PlayerSession session, String reason) {
+        if (!session.recordLoadoutRefusal(reason, System.currentTimeMillis())) {
+            return;
+        }
+        System.out.printf("[loadout] player=%d refused: %s%n", session.playerId(), reason);
+        if (refusalListener != null) {
+            refusalListener.onRefusal(session, reason);
+        }
+    }
+
+    private static boolean isUtilitySlotSelected(PlayerLoadout loadout) {
+        return loadout != null
+            && (loadout.activeSlot == PlayerLoadout.SLOT_UTILITY_A
+                || loadout.activeSlot == PlayerLoadout.SLOT_UTILITY_B);
     }
 
     /**
@@ -269,17 +323,31 @@ public final class LoadoutSystem {
         PlayerLoadout loadout,
         boolean firePressed
     ) {
-        if (!firePressed || utilitySystem == null) {
+        if (!firePressed) {
+            return;
+        }
+        if (utilitySystem == null) {
+            refuse(session, "utility throw refused: utility system unavailable");
             return;
         }
         UtilityId utility = loadout.activeUtilityId();
-        if (utility == null || !session.utilityReady(utility)) {
+        if (utility == null) {
+            refuse(session, "utility throw refused: active slot has no carried utility");
             return;
         }
-        if (utilitySystem.throwUtility(player, utility)) {
-            loadout.consumeActiveUtility();
-            session.startUtilityCooldown(utility, UtilityRegistry.of(utility).cooldownSeconds());
+        if (!session.utilityReady(utility)) {
+            refuse(session, String.format(java.util.Locale.ROOT,
+                "utility throw refused: %s cooldown %.2fs remaining",
+                utility.displayName(), session.utilityCooldownRemaining(utility)));
+            return;
         }
+        UtilitySystem.ThrowResult result = utilitySystem.tryThrowUtility(player, utility);
+        if (!result.accepted()) {
+            refuse(session, "utility throw refused: " + result.reason());
+            return;
+        }
+        loadout.consumeActiveUtility();
+        session.startUtilityCooldown(utility, UtilityRegistry.of(utility).cooldownSeconds());
     }
 
     private static void mirror(Player player, PlayerLoadout loadout, GunInstance gun) {

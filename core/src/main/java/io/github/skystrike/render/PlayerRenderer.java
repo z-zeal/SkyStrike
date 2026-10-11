@@ -9,6 +9,7 @@ import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import java.util.List;
 
@@ -41,6 +42,13 @@ public final class PlayerRenderer implements Disposable {
     private static final Color COLOR_VISOR = new Color(0.10f, 0.90f, 0.95f, 1f);
     private static final Color COLOR_HEALTH_BG = new Color(0.15f, 0.15f, 0.15f, 0.8f);
     private static final Color COLOR_HEALTH_FG = new Color(0.20f, 0.85f, 0.30f, 1f);
+    private static final Color COLOR_UTILITY_EXPLOSIVE = new Color(0.93f, 0.76f, 0.23f, 1f);
+    private static final Color COLOR_UTILITY_SMOKE = new Color(0.67f, 0.71f, 0.74f, 1f);
+    private static final Color COLOR_UTILITY_STUN = new Color(0.52f, 0.83f, 1.00f, 1f);
+    private static final Color COLOR_UTILITY_FIRE = new Color(1.00f, 0.36f, 0.10f, 1f);
+    private static final Color COLOR_UTILITY_TOXIC = new Color(0.45f, 0.90f, 0.30f, 1f);
+    private static final Color COLOR_UTILITY_FLASH = new Color(1.00f, 0.98f, 0.85f, 1f);
+    private static final Color COLOR_UTILITY_CLAYMORE = new Color(0.55f, 0.72f, 0.40f, 1f);
 
     private final ShapeRenderer shapes = new ShapeRenderer();
     private final SpriteBatch batch = new SpriteBatch();
@@ -74,6 +82,16 @@ public final class PlayerRenderer implements Disposable {
         if (localPlayer != null && localPlayer.alive) {
             drawPlayerFilled(localPlayer);
         }
+        if (remotePlayers != null) {
+            for (Player p : remotePlayers) {
+                if (p.alive) {
+                    drawHeldUtility(p);
+                }
+            }
+        }
+        if (localPlayer != null && localPlayer.alive) {
+            drawHeldUtility(localPlayer);
+        }
         shapes.end();
 
         // 2. Draw the held weapon sprites over the bodies.
@@ -95,12 +113,15 @@ public final class PlayerRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive && !weaponSprites.hasTexture(p.weaponId)) {
+                if (p.alive && !UtilityId.isUtilityWireId(p.weaponId)
+                    && !weaponSprites.hasTexture(p.weaponId)) {
                     drawPlayerLines(p);
                 }
             }
         }
-        if (localPlayer != null && localPlayer.alive && !weaponSprites.hasTexture(localPlayer.weaponId)) {
+        if (localPlayer != null && localPlayer.alive
+            && !UtilityId.isUtilityWireId(localPlayer.weaponId)
+            && !weaponSprites.hasTexture(localPlayer.weaponId)) {
             drawPlayerLines(localPlayer);
         }
         shapes.end();
@@ -113,6 +134,9 @@ public final class PlayerRenderer implements Disposable {
      * their 512px frame, so without that multiplier a pocket pistol would draw rifle-sized.
      */
     private void drawHeldWeapon(Player p) {
+        if (UtilityId.isUtilityWireId(p.weaponId)) {
+            return;
+        }
         Texture texture = weaponSprites.texture(p.weaponId);
         if (texture == null) {
             return; // the line pass draws the fallback barrel
@@ -143,6 +167,31 @@ public final class PlayerRenderer implements Disposable {
                 texture.getHeight(),
                 false,
                 !p.isFacingRight());
+    }
+
+    /** Draws a colour-coded marker at the hand instead of falling back to the default gun sprite. */
+    private void drawHeldUtility(Player p) {
+        UtilityId utility = UtilityId.fromWireId(p.weaponId);
+        if (utility == null) {
+            return;
+        }
+        float angle = Angles.toRadians(p.renderedGunAngle());
+        float handX = p.eyeX() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.cos(angle);
+        float handY = p.eyeY() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.sin(angle);
+        shapes.setColor(utilityColor(utility));
+        shapes.circle(handX, handY, 3.5f, 8);
+    }
+
+    private static Color utilityColor(UtilityId utility) {
+        return switch (utility) {
+            case FRAG, IMPACT -> COLOR_UTILITY_EXPLOSIVE;
+            case SMOKE -> COLOR_UTILITY_SMOKE;
+            case STUN -> COLOR_UTILITY_STUN;
+            case MOLOTOV -> COLOR_UTILITY_FIRE;
+            case POISON_SMOKE -> COLOR_UTILITY_TOXIC;
+            case FLASHBANG -> COLOR_UTILITY_FLASH;
+            case CLAYMORE -> COLOR_UTILITY_CLAYMORE;
+        };
     }
 
     private void drawPlayerFilled(Player p) {

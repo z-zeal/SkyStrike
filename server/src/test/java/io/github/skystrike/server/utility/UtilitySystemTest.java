@@ -51,6 +51,21 @@ class UtilitySystemTest {
     }
 
     @Test
+    @DisplayName("the active throwable cap reports its exact refusal reason")
+    void activeThrowableCapHasTypedRefusal() {
+        Player owner = new Player(1, "Nova", 0, 760f, 1000f);
+        owner.aimAngle = 0f;
+
+        for (int i = 0; i < UtilityConfig.MAX_ACTIVE_THROWABLES; i++) {
+            assertEquals(UtilitySystem.ThrowResult.ACCEPTED,
+                utilities.tryThrowUtility(owner, UtilityId.FRAG));
+        }
+        assertEquals(UtilityConfig.MAX_ACTIVE_THROWABLES, utilities.count());
+        assertEquals(UtilitySystem.ThrowResult.ACTIVE_LIMIT,
+            utilities.tryThrowUtility(owner, UtilityId.FRAG));
+    }
+
+    @Test
     @DisplayName("a frag delegates one occluded blast through DamageService and applies impulse")
     void fragDamagesAndPushesOnlyVisibleTargets() {
         Player owner = player(1, 760f, 975f);

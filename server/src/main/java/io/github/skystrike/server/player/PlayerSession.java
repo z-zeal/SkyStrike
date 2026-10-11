@@ -28,6 +28,9 @@ import io.github.skystrike.shared.weapons.WeaponId;
  */
 public final class PlayerSession {
 
+    /** Minimum spacing between player-visible refusal notices; every refusal is still recorded. */
+    private static final long LOADOUT_REFUSAL_NOTICE_INTERVAL_MILLIS = 750L;
+
     private final Connection connection;
     private final int playerId;
     private final String name;
@@ -62,6 +65,10 @@ public final class PlayerSession {
     private volatile int viewActionPending = PacketPlayerInput.NO_VIEW_ACTION;
     private volatile long viewActionSeqPending = -1L;
     private volatile long lastViewActionSeqApplied = -1L;
+
+    /** Most recent authoritative loadout refusal, retained for the /loadout diagnostic command. */
+    private volatile String lastLoadoutRefusalReason;
+    private long lastLoadoutRefusalNoticeMillis = Long.MIN_VALUE;
 
     /** The slot the gun state was last aligned with, so a change forces a fresh weapon. */
     private int lastMirroredSlot;
@@ -134,6 +141,25 @@ public final class PlayerSession {
 
     public PlayerInput latestInput() {
         return latestInput;
+    }
+
+    /** Records every refusal and returns whether its console/log notice should be emitted now. */
+    public boolean recordLoadoutRefusal(String reason, long nowMillis) {
+        if (reason == null || reason.isBlank()) {
+            return false;
+        }
+        lastLoadoutRefusalReason = reason;
+        if (lastLoadoutRefusalNoticeMillis != Long.MIN_VALUE
+            && nowMillis - lastLoadoutRefusalNoticeMillis < LOADOUT_REFUSAL_NOTICE_INTERVAL_MILLIS) {
+            return false;
+        }
+        lastLoadoutRefusalNoticeMillis = nowMillis;
+        return true;
+    }
+
+    /** Latest server-side reason, or {@code null} if no loadout action has been refused. */
+    public String lastLoadoutRefusalReason() {
+        return lastLoadoutRefusalReason;
     }
 
     public void setInput(PacketPlayerInput packet) {

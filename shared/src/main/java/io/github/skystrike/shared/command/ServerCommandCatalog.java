@@ -40,6 +40,11 @@ public final class ServerCommandCatalog {
                 .description("list the joined players")
                 .side(CommandSide.SERVER)
                 .build(),
+            CommandSpec.builder("loadout")
+                .description("dump your live server loadout and latest refusal reason")
+                .permission(Permission.PLAYER)
+                .side(CommandSide.SERVER)
+                .build(),
             CommandSpec.builder("say")
                 .description("broadcast a server announcement to everyone")
                 .permission(Permission.MODERATOR)

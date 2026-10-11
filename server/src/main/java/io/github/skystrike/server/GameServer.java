@@ -37,6 +37,7 @@ import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
 import io.github.skystrike.server.weapons.LoadoutSystem;
 import io.github.skystrike.server.weapons.RecoilService;
+import io.github.skystrike.shared.command.CommandResult;
 import io.github.skystrike.shared.command.Permission;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.NetConfig;
@@ -60,6 +61,7 @@ import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
+import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.physics.PlayerInput;
 import io.github.skystrike.shared.physics.PlayerMotion;
@@ -170,6 +172,9 @@ public final class GameServer {
             this.surveillanceService,
             this.droneSystem,
             this.cameraSystem);
+        this.loadoutSystem.setRefusalListener((session, reason) -> sendToPlayer(
+            session.playerId(),
+            PacketCommandResponse.of(CommandResult.warning("Loadout refused: " + reason))));
 
         // Chat identity and team scoping come from the authoritative registry, never the packet.
         this.chatService = new ChatService(new RegistryRoster(this.players));
