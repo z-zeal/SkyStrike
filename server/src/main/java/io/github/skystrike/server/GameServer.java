@@ -381,8 +381,8 @@ public final class GameServer {
             System.out.printf(
                     "[server] SkyStrike listening on tcp/%d udp/%d%n", config.tcpPort(), config.udpPort());
             System.out.printf(
-                    "[server] arena %dx%d, %d solids, %d spawns%n",
-                    (int) arena.width(), (int) arena.height(), arena.solids().size(), arena.spawns().size());
+                    "[server] arena %dx%d, %d blocks, %d spawns%n",
+                    (int) arena.width(), (int) arena.height(), arena.blocks().size(), arena.spawns().size());
             System.out.printf(
                     "[server] tick %d Hz, snapshot %d Hz, max players %d, protocol %d%n",
                     config.tickRateHz(),

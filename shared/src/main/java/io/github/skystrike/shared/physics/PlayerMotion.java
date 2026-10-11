@@ -3,18 +3,34 @@ package io.github.skystrike.shared.physics;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockRules;
 import io.github.skystrike.shared.map.MapQueries;
+import io.github.skystrike.shared.map.MovementRule;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.Player;
+import java.util.List;
 
 /**
  * Pure simulation function for player motion, collision and rotation dynamics.
  *
  * <p>Shared verbatim by the authoritative server and client-side prediction.
+ *
+ * <p>Collision reads the movement column of the shared {@link BlockRules} table through
+ * {@link ArenaMap#movementBlockers(MovementRule)}: {@link MovementRule#SOLID} rects block on every
+ * face, and a {@link MovementRule#ONE_WAY_TOP} slab only ever answers a falling body's landing from
+ * above (map plan §3, §4). No kind is named here.
  */
 public final class PlayerMotion {
+
+    /**
+     * Float slack for "flush against a face" tests. A body snapped onto a slab top must still land
+     * on it on the following step, when the same top is met again from exactly that height; without
+     * slack, float rounding a hair below the top would read as "inside the slab" and the body would
+     * sink through. It is two orders of magnitude below the ground skin and the thinnest geometry.
+     */
+    private static final float TOUCH_EPSILON = 0.01f;
 
     private PlayerMotion() {
     }
@@ -120,9 +136,19 @@ public final class PlayerMotion {
         p.fuel = Math.min(Math.max(0f, p.fuel), fuelCapacity);
 
         if (input != null && input.jump && !locked && (p.grounded || p.coyoteTimer > 0f)) {
-            p.vy = PlayerConfig.JUMP_SPEED;
-            p.grounded = false;
-            p.coyoteTimer = 0f;
+            if (input.crouch && standsOnOneWayTop(p, map)) {
+                // Crouch+jump on a one-way platform drops through it (map plan §4, D6): the press
+                // starts the suspension window instead of a jump. The coyote clock is cleared with
+                // the grounded flag so the same held press cannot launch the body back up through
+                // the slab it is leaving.
+                p.dropThroughTimer = PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS;
+                p.grounded = false;
+                p.coyoteTimer = 0f;
+            } else {
+                p.vy = PlayerConfig.JUMP_SPEED;
+                p.grounded = false;
+                p.coyoteTimer = 0f;
+            }
         }
 
         if (input != null && input.jetpack && !locked && p.fuel > 0f) {
@@ -170,13 +196,15 @@ public final class PlayerMotion {
         if (wantsCrouch) {
             p.crouched = true;
         } else if (p.crouched) {
-            // Uncrouch requested: check if standing height fits under geometry
+            // Uncrouch requested: check if standing height fits under geometry that stops a body.
+            // A one-way slab overhead is not such geometry — a body rises through it — while
+            // intact glass and a closed door are.
             Rect standingHitbox = new Rect(
                 p.x - PlayerConfig.WIDTH / 2f,
                 p.y,
                 PlayerConfig.WIDTH,
                 PlayerConfig.STAND_HEIGHT);
-            if (MapQueries.overlapsSolid(map, standingHitbox)) {
+            if (MapQueries.overlapsMovementBlocker(map, standingHitbox)) {
                 p.crouched = true; // Ceiling blockage prevents standing
             } else {
                 p.crouched = false;
@@ -195,9 +223,81 @@ public final class PlayerMotion {
         p.grounded = false;
     }
 
+    /**
+     * True when the body is standing on a one-way top: a slab whose top face is at the body's feet
+     * within the ground skin, and which the body overlaps horizontally.
+     *
+     * <p>This is the "is there a platform under me right now" test that decides whether a
+     * crouch+jump is a drop-through or an ordinary jump. It only ever matches geometry the sweeper
+     * could be supporting the body with, so on a wall-only arena it is always false and
+     * crouch+jump keeps its plain-jump meaning.
+     */
+    private static boolean standsOnOneWayTop(Player p, ArenaMap map) {
+        float left = p.x - PlayerConfig.WIDTH / 2f;
+        float right = left + PlayerConfig.WIDTH;
+        for (Rect slab : map.movementBlockers(MovementRule.ONE_WAY_TOP)) {
+            if (left >= slab.right() || right <= slab.left()) {
+                continue;
+            }
+            float top = slab.top();
+            if (top <= p.y + PlayerConfig.GROUND_SKIN && top >= p.y - PlayerConfig.GROUND_SKIN) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Ages the crouch+jump drop-through window (map plan §4, D6).
+     *
+     * <p>The window suspends one-way tops, so it ends the moment it is no longer needed: when the
+     * body's feet have left the slab — below it, because the drop completed, or above it, because
+     * the body rose out. The countdown is the safety cap for a body that somehow stays inside one.
+     */
+    private static void tickDropThrough(Player p, float dt, List<Rect> oneWayTops) {
+        if (p.dropThroughTimer <= 0f) {
+            return;
+        }
+        if (!feetInsideOneWaySlab(p, oneWayTops)) {
+            p.dropThroughTimer = 0f;
+            return;
+        }
+        p.dropThroughTimer = Math.max(0f, p.dropThroughTimer - dt);
+    }
+
+    /**
+     * True when the body's feet are inside a one-way slab's vertical band while it overlaps the
+     * slab horizontally.
+     *
+     * <p>Contact counts as inside. A body standing on a platform has its feet exactly on the top
+     * face, which is the very position a drop starts from, so a strict interior test would clear
+     * the window before the body moved and let it land again immediately.
+     */
+    private static boolean feetInsideOneWaySlab(Player p, List<Rect> oneWayTops) {
+        float left = p.x - PlayerConfig.WIDTH / 2f;
+        float right = left + PlayerConfig.WIDTH;
+        for (Rect slab : oneWayTops) {
+            if (left >= slab.right() || right <= slab.left()) {
+                continue;
+            }
+            if (p.y <= slab.top() + TOUCH_EPSILON && p.y >= slab.bottom() - TOUCH_EPSILON) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void integrateAndCollide(Player p, float dt, ArenaMap map) {
         float width = PlayerConfig.WIDTH;
         float height = p.currentHeight();
+
+        // The movement column of the one shared rule table, asked once per step rather than once
+        // per rect per axis. SOLID rects are the world's walls, floors and ceilings; one-way tops
+        // may only ever answer the falling-body landing below.
+        List<Rect> movementSolids = map.movementBlockers(MovementRule.SOLID);
+        List<Rect> oneWayTops = map.movementBlockers(MovementRule.ONE_WAY_TOP);
+        tickDropThrough(p, dt, oneWayTops);
+        boolean oneWayActive = p.dropThroughTimer <= 0f;
 
         // --- Move along X ---
         float dx = p.vx * dt;
@@ -207,7 +307,7 @@ public final class PlayerMotion {
         if (dx > 0f) {
             float minDx = dx;
             boolean hit = false;
-            for (Rect s : map.solids()) {
+            for (Rect s : movementSolids) {
                 if (y0 < s.top() && y0 + height > s.bottom()) {
                     if (s.left() >= x0 + width && s.left() <= x0 + width + minDx) {
                         minDx = s.left() - (x0 + width);
@@ -222,7 +322,7 @@ public final class PlayerMotion {
         } else if (dx < 0f) {
             float maxDx = dx;
             boolean hit = false;
-            for (Rect s : map.solids()) {
+            for (Rect s : movementSolids) {
                 if (y0 < s.top() && y0 + height > s.bottom()) {
                     if (s.right() <= x0 && s.right() >= x0 + maxDx) {
                         maxDx = s.right() - x0;
@@ -248,9 +348,10 @@ public final class PlayerMotion {
         boolean hitGround = false;
 
         if (dy > 0f) {
+            // A one-way top is never a ceiling: only the SOLID movement row stops a rise.
             float minDy = dy;
             boolean hitCeiling = false;
-            for (Rect s : map.solids()) {
+            for (Rect s : movementSolids) {
                 if (x0 < s.right() && x0 + width > s.left()) {
                     if (s.bottom() >= y0 + height && s.bottom() <= y0 + height + minDy) {
                         minDy = s.bottom() - (y0 + height);
@@ -264,9 +365,26 @@ public final class PlayerMotion {
             }
         } else if (dy < 0f) {
             float maxDy = dy;
-            for (Rect s : map.solids()) {
+            for (Rect s : movementSolids) {
                 if (x0 < s.right() && x0 + width > s.left()) {
                     if (s.top() <= y0 && s.top() >= y0 + maxDy) {
+                        maxDy = s.top() - y0;
+                        hitGround = true;
+                    }
+                }
+            }
+            if (oneWayActive) {
+                for (Rect s : oneWayTops) {
+                    if (x0 >= s.right() || x0 + width <= s.left()) {
+                        continue;
+                    }
+                    // Only a top the body was at or above on the previous step: a body already
+                    // inside the slab is not caught by it, and a body below it is not pulled up.
+                    // The drop-through window above suppresses even that.
+                    if (s.top() > y0 + TOUCH_EPSILON) {
+                        continue;
+                    }
+                    if (s.top() >= y0 + maxDy) {
                         maxDy = s.top() - y0;
                         hitGround = true;
                     }
@@ -284,12 +402,27 @@ public final class PlayerMotion {
         // Ground detection with skin when vy <= 0
         if (!hitGround && p.vy <= 0f) {
             float groundSurface = -1f;
-            for (Rect s : map.solids()) {
+            for (Rect s : movementSolids) {
                 if (x0 < s.right() && x0 + width > s.left()) {
                     if (s.top() <= p.y + PlayerConfig.GROUND_SKIN && s.top() >= p.y - PlayerConfig.GROUND_SKIN) {
                         if (s.top() > groundSurface) {
                             groundSurface = s.top();
                         }
+                    }
+                }
+            }
+            if (oneWayActive) {
+                for (Rect s : oneWayTops) {
+                    if (x0 >= s.right() || x0 + width <= s.left()) {
+                        continue;
+                    }
+                    // Only a top at or below the feet may support. A SOLID row keeps its eject-out
+                    // behaviour, which is how a body embedded in a wall is freed; a one-way slab
+                    // never pushes a body up, so a body already inside one is not ejected.
+                    if (s.top() <= p.y + TOUCH_EPSILON
+                            && s.top() >= p.y - PlayerConfig.GROUND_SKIN
+                            && s.top() > groundSurface) {
+                        groundSurface = s.top();
                     }
                 }
             }

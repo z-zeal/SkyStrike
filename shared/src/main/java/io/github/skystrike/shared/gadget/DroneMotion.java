@@ -3,6 +3,8 @@ package io.github.skystrike.shared.gadget;
 import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockRules;
+import io.github.skystrike.shared.map.MovementRule;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Geometry;
 import io.github.skystrike.shared.math.Lerp;
@@ -25,6 +27,12 @@ import io.github.skystrike.shared.model.DroneEntity;
  * drone covers 8.3 units per 60 Hz tick, inside the 14-unit thinnest arena geometry, so it cannot
  * tunnel at the authoritative tick rate. A final depenetration pass pushes the drone out of any
  * solid it still overlaps — which is also what makes a deploy point inside a low ceiling survivable.
+ *
+ * <p>What stops the drone is the movement column of the shared {@link BlockRules} table, not the
+ * bullet column: a drone is a moving body, so intact glass and a closed door stop it exactly as
+ * they stop a player, and it flies through a one-way platform exactly as a body rises through one.
+ * A projectile keeps the bullet column; a device does not get to ignore a window its owner cannot
+ * walk through.
  */
 public final class DroneMotion {
 
@@ -93,7 +101,7 @@ public final class DroneMotion {
     private static float moveAxisX(float x, float y, float dx, float radius, ArenaMap map) {
         if (dx > 0f) {
             float allowed = dx;
-            for (Rect solid : map.solids()) {
+            for (Rect solid : map.movementBlockers(MovementRule.SOLID)) {
                 if (!yOverlaps(solid, y, radius)) {
                     continue;
                 }
@@ -106,7 +114,7 @@ public final class DroneMotion {
         }
         if (dx < 0f) {
             float allowed = dx;
-            for (Rect solid : map.solids()) {
+            for (Rect solid : map.movementBlockers(MovementRule.SOLID)) {
                 if (!yOverlaps(solid, y, radius)) {
                     continue;
                 }
@@ -124,7 +132,7 @@ public final class DroneMotion {
     private static float moveAxisY(float x, float y, float dy, float radius, ArenaMap map) {
         if (dy > 0f) {
             float allowed = dy;
-            for (Rect solid : map.solids()) {
+            for (Rect solid : map.movementBlockers(MovementRule.SOLID)) {
                 if (!xOverlaps(solid, x, radius)) {
                     continue;
                 }
@@ -137,7 +145,7 @@ public final class DroneMotion {
         }
         if (dy < 0f) {
             float allowed = dy;
-            for (Rect solid : map.solids()) {
+            for (Rect solid : map.movementBlockers(MovementRule.SOLID)) {
                 if (!xOverlaps(solid, x, radius)) {
                     continue;
                 }
@@ -169,7 +177,7 @@ public final class DroneMotion {
         float radius = GadgetConfig.DRONE_RADIUS;
         Rect box = new Rect(drone.x - radius, drone.y - radius, radius * 2f, radius * 2f);
         Rect blocker = null;
-        for (Rect solid : map.solids()) {
+        for (Rect solid : map.movementBlockers(MovementRule.SOLID)) {
             if (Geometry.aabbOverlaps(solid, box)) {
                 blocker = solid;
                 break;

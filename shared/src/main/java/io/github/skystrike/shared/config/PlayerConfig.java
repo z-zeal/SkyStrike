@@ -25,6 +25,16 @@ public final class PlayerConfig {
     public static final float AIR_DAMPING = 1.0f;
     public static final float GROUND_SKIN = 2.0f;
 
+    // --- One-way platforms (map plan §4, D6) ---------------------------------------------------
+    /**
+     * Seconds a crouch+jump drop-through suspends one-way platform tops. The window normally ends
+     * much earlier — the moment the body's feet are no longer in a slab — so this is the safety
+     * cap for a body that somehow stays inside one. Half a second is several times the fall time
+     * of the thinnest authored slab at any tick rate, and short enough that a body can never carry
+     * the suspension into a second manoeuvre.
+     */
+    public static final float PLATFORM_DROP_THROUGH_SECONDS = 0.35f;
+
     // --- Jump and Jetpack (mechanics §2.2) ----------------------------------------------------
     public static final float JUMP_SPEED = 420f;
     public static final float MAX_FUEL = 100f;

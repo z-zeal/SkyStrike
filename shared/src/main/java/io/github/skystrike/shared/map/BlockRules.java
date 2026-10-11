@@ -42,6 +42,16 @@ public final class BlockRules {
         return forKind(kind).bakesIntoSdf();
     }
 
+    /**
+     * Convenience for movement consumers, which read a face rule rather than a
+     * {@link Blocking} purpose: the shared sweeper must know whether a face stops a body at all
+     * ({@link MovementRule#SOLID}) or only answers a landing from above
+     * ({@link MovementRule#ONE_WAY_TOP}), which no line query can express.
+     */
+    public static MovementRule movement(BlockKind kind) {
+        return forKind(kind).movement();
+    }
+
     /** Convenience for renderers, which choose their treatment from the shared row. */
     public static BlockRenderStyle renderStyle(BlockKind kind) {
         return forKind(kind).renderStyle();

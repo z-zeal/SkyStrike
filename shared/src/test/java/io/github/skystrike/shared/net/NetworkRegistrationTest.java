@@ -584,6 +584,27 @@ class NetworkRegistrationTest {
     }
 
     @Test
+    @DisplayName("the one-way drop-through window is motion state and never enters the snapshot layout")
+    void dropThroughWindowIsNotSerialized() {
+        // The window is re-derived by the shared step on both sides, so it must stay off the wire:
+        // a serialized field on Player would silently change the snapshot layout and need a
+        // protocol bump with it. The Kryo configuration here is the one both endpoints build.
+        Player player = new Player(5, "Dropper", 0, 500f, 500f);
+        player.grounded = false;
+        player.coyoteTimer = 0.05f;
+        player.dropThroughTimer = 0.25f;
+
+        PacketGameState state = roundTrip(new PacketGameState(7L, 1_000L, 1, List.of(player)));
+
+        Player decoded = state.players.get(0);
+        assertEquals(0.05f, decoded.coyoteTimer, 1e-6f,
+            "the rest of the per-step motion state still travels with the snapshot");
+        assertFalse(decoded.grounded);
+        assertEquals(0f, decoded.dropThroughTimer, 0f,
+            "a transient field must not reach the wire");
+    }
+
+    @Test
     @DisplayName("a packet written by one endpoint reads back as the same type on the other")
     void typesSurviveTheWireBetweenTwoEndpoints() {
         Kryo sender = newRegisteredKryo();

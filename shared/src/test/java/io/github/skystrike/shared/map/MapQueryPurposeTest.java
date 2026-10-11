@@ -156,6 +156,63 @@ class MapQueryPurposeTest {
     }
 
     @Test
+    @DisplayName("movement questions read the movement column, which no line query can answer")
+    void movementQuestionsReadTheMovementColumn() {
+        // Intact glass and a closed door stop a body though no line query notices the glass, and a
+        // one-way platform never does: it is a landing from above, which a box overlap cannot say.
+        assertTrue(
+            MapQueries.overlapsMovementBlocker(MIXED, new Rect(390f, 330f, 40f, 40f)),
+            "intact glass stops a body");
+        assertTrue(
+            MapQueries.overlapsMovementBlocker(MIXED, new Rect(1480f, 530f, 40f, 40f)),
+            "a closed door stops a body");
+        assertFalse(
+            MapQueries.overlapsMovementBlocker(MIXED, new Rect(690f, 459f, 60f, 40f)),
+            "a one-way platform is not a body blocker");
+        assertFalse(
+            MapQueries.overlapsMovementBlocker(MIXED, new Rect(200f, 900f, 40f, 40f)),
+            "open air stops nothing");
+
+        // The views hold exactly the rows the table gives them: wall, glass, breakable and door are
+        // SOLID movement (7 rects), the platform is the only ONE_WAY_TOP (2 rects).
+        assertEquals(7, MIXED.movementBlockers(MovementRule.SOLID).size());
+        assertEquals(2, MIXED.movementBlockers(MovementRule.ONE_WAY_TOP).size());
+        assertTrue(MIXED.movementBlockers(MovementRule.ONE_WAY_TOP)
+            .contains(new Rect(700f, 450f, 40f, 18f)));
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> MIXED.movementBlockers(MovementRule.SOLID).add(new Rect(0f, 0f, 1f, 1f)));
+        assertThrows(NullPointerException.class, () -> MIXED.movementBlockers(null));
+    }
+
+    @Test
+    @DisplayName("every movement rule presents a standable top, so surfaceBelow is not a bullet sweep")
+    void surfaceBelowAnswersFromEveryMovementRule() {
+        for (BlockKind kind : BlockKind.values()) {
+            // One isolated centred block of just this kind, as in lineQueriesFollowTheSharedRuleTable.
+            ArenaMap single = ArenaMap.builder(1500f)
+                .centred(new MapBlock(kind, Material.STONE, new Rect(1490f, 400f, 20f, 90f)))
+                .build();
+
+            boolean stopsBody = BlockRules.movement(kind) == MovementRule.SOLID;
+            assertEquals(
+                stopsBody,
+                MapQueries.overlapsMovementBlocker(single, new Rect(1480f, 430f, 40f, 40f)),
+                kind + ": only a SOLID movement row stops a body");
+            assertEquals(
+                490f,
+                MapQueries.surfaceBelow(single, 1500f, 600f),
+                0f,
+                kind + ": its top face supports a body");
+        }
+
+        // A platform's top supports a body standing on it, and a probe below the slab does not
+        // reach up through it.
+        assertEquals(468f, MapQueries.surfaceBelow(MIXED, 700f, 600f), 0f);
+        assertEquals(0f, MapQueries.surfaceBelow(MIXED, 700f, 300f), 0f);
+    }
+
+    @Test
     @DisplayName("the per-purpose views are immutable and the bullet view is solids()")
     void purposeViewsAreTheRuleTablesOwnColumns() {
         List<Rect> sight = MIXED.blockers(Blocking.SIGHT);

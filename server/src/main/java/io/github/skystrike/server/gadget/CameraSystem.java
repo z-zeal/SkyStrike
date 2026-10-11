@@ -290,8 +290,13 @@ public final class CameraSystem {
     }
 
     /**
-     * A throw needs a clear release point: inside the arena, outside terrain, and with the
-     * eye-to-release segment unobstructed — the same rule a grenade throw answers to.
+     * A throw needs a clear release point: inside the arena, outside geometry that stops a body,
+     * and with the eye-to-release segment unobstructed — the same rule a grenade throw answers to.
+     *
+     * <p>The device is blocked by the movement column, as {@code DroneMotion} is: it may not be
+     * released inside a wall, a closed door or a pane of glass, and a one-way platform is not
+     * something it can be stuck inside. Sight is still asked separately, because the release point
+     * must also be visible.
      */
     private boolean throwPointClear(Player owner) {
         float x = CameraFlight.launchX(owner.eyeX(), owner.aimAngle);
@@ -301,7 +306,7 @@ public final class CameraSystem {
             return false;
         }
         Rect release = new Rect(x - radius, y - radius, radius * 2f, radius * 2f);
-        if (MapQueries.overlapsSolid(arena, release)) {
+        if (MapQueries.overlapsMovementBlocker(arena, release)) {
             return false;
         }
         return VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, arena);

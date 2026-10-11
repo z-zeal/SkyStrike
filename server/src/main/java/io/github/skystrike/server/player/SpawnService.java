@@ -39,6 +39,9 @@ public final class SpawnService {
         player.crouched = false;
         player.jetpacking = false;
         player.coyoteTimer = PlayerConfig.COYOTE_TIME;
+        // A spawn stands the body on the ground: no crouch+jump drop-through is in progress, and a
+        // window left over from the previous life must not suspend one-way tops for this one.
+        player.dropThroughTimer = 0f;
         // Face toward arena center on spawn
         player.aimAngle = spawnIdx == 0 ? 0f : 180f;
     }
