@@ -21,13 +21,20 @@ import java.util.Set;
  * spawn 0 240 180
  * mirrored wall stone 120 200 120 18
  * centred wall stone 0 0 3000 100
+ * mirrored breakable wood 700 450 40 20 durability=2.5
  * </pre>
  *
  * <p>Blank lines and {@code #} comments are ignored. All other lines are strict: malformed
  * headers, unknown verbs/kinds/materials, non-positive sizes, out-of-bounds geometry, duplicate
  * blocks and a rectangle on the wrong side of its symmetry verb fail the entire load with a
- * {@link MapFormatException}. Door ids and other per-kind attributes wait until their shared model
- * exists, rather than accepting data that a save would silently discard.
+ * {@link MapFormatException}.
+ *
+ * <p>A block line may carry trailing {@code key=value} attributes, and version 1 has exactly one:
+ * {@code durability=<multiplier>}, accepted only on a block whose shared rule row accumulates
+ * durability ({@link DamageRule#DURABILITY}) — the per-block half of the plan's "durability is the
+ * material's pool times the block's multiplier". Everything else is still refused rather than
+ * accepted and dropped: door ids and other per-kind attributes wait until their shared model can
+ * preserve them, and an unknown key or a multiplier on a permanent block is a load error.
  */
 public final class ArenaMapFormat {
 
@@ -101,8 +108,8 @@ public final class ArenaMapFormat {
                 }
                 case "mirrored", "centred" -> {
                     requireBuilder(builder, lineNumber);
-                    requireCount(tokens, 7, lineNumber,
-                        verb + " <kind> <material> <x> <y> <width> <height>");
+                    requireAtLeast(tokens, 7, lineNumber,
+                        verb + " <kind> <material> <x> <y> <width> <height> [<attribute>=<value>]");
                     MapBlock block = parseBlock(tokens, lineNumber);
                     try {
                         if (verb.equals("mirrored")) {
@@ -211,7 +218,51 @@ public final class ArenaMapFormat {
         }
         Rect rect = new Rect(x, y, width, height);
         validateRectInBounds(rect, lineNumber);
-        return new MapBlock(kind, material, rect);
+        float multiplier = parseAttributes(tokens, 7, lineNumber, kind);
+        return new MapBlock(kind, material, rect, multiplier);
+    }
+
+    /**
+     * Reads the optional trailing {@code key=value} attributes of a block line.
+     *
+     * <p>Version 1 knows one key. {@code durability} scales the material's durability pool, and it
+     * is accepted only where the shared rule table says there is a pool to scale — a permanent
+     * block carrying one is a contradiction, so it fails the load instead of being ignored. The
+     * attribute is lower-case-insensitive like the rest of the grammar's vocabulary.
+     */
+    private static float parseAttributes(String[] tokens, int first, int lineNumber, BlockKind kind) {
+        float multiplier = MapBlock.DEFAULT_DURABILITY_MULTIPLIER;
+        boolean sawDurability = false;
+        for (int index = first; index < tokens.length; index++) {
+            String attribute = tokens[index];
+            int separator = attribute.indexOf('=');
+            if (separator <= 0 || separator == attribute.length() - 1) {
+                throw failure(lineNumber, "unknown block attribute '" + attribute + "'");
+            }
+            String key = attribute.substring(0, separator).toLowerCase(Locale.ROOT);
+            String value = attribute.substring(separator + 1);
+            switch (key) {
+                case "durability" -> {
+                    if (sawDurability) {
+                        throw failure(lineNumber, "duplicate durability attribute");
+                    }
+                    sawDurability = true;
+                    if (BlockRules.damage(kind) != DamageRule.DURABILITY) {
+                        throw failure(lineNumber,
+                            "durability is only meaningful for a kind that accumulates damage: "
+                                + kind.name().toLowerCase(Locale.ROOT));
+                    }
+                    float parsed = parseFloat(value, lineNumber, "durability multiplier");
+                    if (parsed <= 0f) {
+                        throw failure(lineNumber,
+                            "durability multiplier must be positive: " + parsed);
+                    }
+                    multiplier = parsed;
+                }
+                default -> throw failure(lineNumber, "unknown block attribute '" + key + "'");
+            }
+        }
+        return multiplier;
     }
 
     private static BlockKind parseKind(String token, int lineNumber) {
@@ -300,6 +351,13 @@ public final class ArenaMapFormat {
         }
     }
 
+    /** Like {@link #requireCount}, for a line that may carry trailing attributes. */
+    private static void requireAtLeast(String[] tokens, int minimum, int lineNumber, String syntax) {
+        if (tokens.length < minimum) {
+            throw failure(lineNumber, "expected '" + syntax + "'");
+        }
+    }
+
     private static String withoutComment(String line) {
         int commentStart = line.indexOf('#');
         return commentStart >= 0 ? line.substring(0, commentStart) : line;
@@ -327,8 +385,11 @@ public final class ArenaMapFormat {
             .append(' ')
             .append(number(rect.width()))
             .append(' ')
-            .append(number(rect.height()))
-            .append('\n');
+            .append(number(rect.height()));
+        if (block.hasAuthoredDurabilityMultiplier()) {
+            output.append(" durability=").append(number(block.durabilityMultiplier()));
+        }
+        output.append('\n');
     }
 
     private static String number(float value) {

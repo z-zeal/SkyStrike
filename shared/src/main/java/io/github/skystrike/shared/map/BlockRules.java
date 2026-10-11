@@ -13,7 +13,9 @@ import java.util.Objects;
  * disagreeing when another kind is added.
  *
  * <p>Rows describe intact blocks and a closed door. Later dynamic state will decide whether that
- * row is active; it must not duplicate the row's per-consumer semantics.
+ * row is active; it must not duplicate the row's per-consumer semantics. The destruction column is
+ * the exception the milestone-3 state reads directly: it says whether a kind has a durability pool
+ * at all, which is exactly the question a damage-dealing system asks before it measures anything.
  */
 public final class BlockRules {
 
@@ -57,19 +59,28 @@ public final class BlockRules {
         return forKind(kind).renderStyle();
     }
 
+    /**
+     * Convenience for the destruction path: whether a kind can be damaged and destroyed at all,
+     * and if so whether it spends a durability pool or breaks on the first damaging hit.
+     */
+    public static DamageRule damage(BlockKind kind) {
+        return forKind(kind).damage();
+    }
+
     private static Map<BlockKind, Rule> buildRules() {
         Map<BlockKind, Rule> rules = new EnumMap<>(BlockKind.class);
 
-        // kind       movement      sight  bullets SDF    rendering
-        put(rules, BlockKind.WALL, MovementRule.SOLID, true, true, true, BlockRenderStyle.SOLID_FILL);
+        // kind       movement      sight  bullets SDF    rendering                                     damage
+        put(rules, BlockKind.WALL, MovementRule.SOLID, true, true, true, BlockRenderStyle.SOLID_FILL,
+            DamageRule.INDESTRUCTIBLE);
         put(rules, BlockKind.BREAKABLE, MovementRule.SOLID, true, true, true,
-            BlockRenderStyle.BREAKABLE_FILL);
+            BlockRenderStyle.BREAKABLE_FILL, DamageRule.DURABILITY);
         put(rules, BlockKind.GLASS, MovementRule.SOLID, false, false, false,
-            BlockRenderStyle.GLASS_PANE);
+            BlockRenderStyle.GLASS_PANE, DamageRule.SHATTER);
         put(rules, BlockKind.DOOR, MovementRule.SOLID, true, true, false,
-            BlockRenderStyle.DOOR_PANEL);
+            BlockRenderStyle.DOOR_PANEL, DamageRule.INDESTRUCTIBLE);
         put(rules, BlockKind.PLATFORM, MovementRule.ONE_WAY_TOP, false, false, false,
-            BlockRenderStyle.PLATFORM_SLAB);
+            BlockRenderStyle.PLATFORM_SLAB, DamageRule.INDESTRUCTIBLE);
 
         if (rules.size() != BlockKind.values().length) {
             throw new IllegalStateException("every BlockKind must have exactly one rule row");
@@ -84,25 +95,34 @@ public final class BlockRules {
             boolean blocksSight,
             boolean blocksBullets,
             boolean bakesIntoSdf,
-            BlockRenderStyle renderStyle) {
+            BlockRenderStyle renderStyle,
+            DamageRule damage) {
         Rule previous = rules.put(kind, new Rule(
-            movement, blocksSight, blocksBullets, bakesIntoSdf, renderStyle));
+            movement, blocksSight, blocksBullets, bakesIntoSdf, renderStyle, damage));
         if (previous != null) {
             throw new IllegalStateException("duplicate block rule for kind: " + kind);
         }
     }
 
-    /** One immutable row of the table. */
+    /**
+     * One immutable row of the table.
+     *
+     * <p>{@code damage} is not a blocking column: it answers what a hit does to the block rather
+     * than what the block does to a line, which is why it is read by the destruction state and not
+     * through {@link Rule#blocks(Blocking)}.
+     */
     public record Rule(
             MovementRule movement,
             boolean blocksSight,
             boolean blocksBullets,
             boolean bakesIntoSdf,
-            BlockRenderStyle renderStyle) {
+            BlockRenderStyle renderStyle,
+            DamageRule damage) {
 
         public Rule {
             Objects.requireNonNull(movement, "movement");
             Objects.requireNonNull(renderStyle, "renderStyle");
+            Objects.requireNonNull(damage, "damage");
         }
 
         /**

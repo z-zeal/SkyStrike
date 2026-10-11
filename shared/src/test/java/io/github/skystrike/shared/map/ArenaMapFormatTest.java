@@ -108,6 +108,119 @@ class ArenaMapFormatTest {
     }
 
     @Test
+    void durabilityAttributeRoundTripsAndReachesThePool() {
+        String text = source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=2.5",
+            "centred breakable stone 1400 600 200 18");
+
+        ArenaMap map = ArenaMapFormat.parse(text);
+
+        MapBlock reinforced = map.blocks().get(0);
+        MapBlock plain = map.blocks().get(2);
+        assertEquals(2.5f, reinforced.durabilityMultiplier());
+        assertEquals(120f * 2.5f, MaterialTable.durabilityPool(reinforced));
+        assertEquals(1f, plain.durabilityMultiplier(), "an omitted attribute is the default");
+        assertEquals(420f, MaterialTable.durabilityPool(plain));
+
+        String saved = ArenaMapFormat.write(map);
+        assertTrue(saved.contains("mirrored breakable wood 700.0 450.0 40.0 20.0 durability=2.5"),
+            saved);
+        assertFalse(saved.contains("centred breakable stone 1400.0 600.0 200.0 18.0 durability"),
+            "the canonical writer does not spell out a default multiplier: " + saved);
+
+        ArenaMap reloaded = ArenaMapFormat.parse(saved);
+        assertEquals(map.blocks(), reloaded.blocks());
+        assertEquals(saved, ArenaMapFormat.write(reloaded));
+    }
+
+    @Test
+    void durabilityAttributesAreStrict() {
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 polish=2"),
+            "unknown block attribute 'polish'");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored wall stone 700 450 40 20 durability=2"),
+            "durability is only meaningful for a kind that accumulates damage: wall");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored glass glass 700 450 40 20 durability=2"),
+            "durability is only meaningful for a kind that accumulates damage: glass");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=0"),
+            "durability multiplier must be positive");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=-2"),
+            "durability multiplier must be positive");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=nan"),
+            "durability multiplier must be finite");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=2 durability=3"),
+            "duplicate durability attribute");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability"),
+            "unknown block attribute 'durability'");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability="),
+            "unknown block attribute 'durability='");
+    }
+
+    /**
+     * The shipped arena's identity, pinned as a literal.
+     *
+     * <p>{@code assets/data/arena.sdf} names exactly this hash in its header, so if this assertion
+     * ever fails the asset has to be re-baked with {@code SdfBakeTool} in the same change — a stale
+     * field is refused by the client rather than drawn. It is also the guard that the per-block
+     * durability multiplier stayed out of the encoding for maps that never authored one.
+     */
+    @Test
+    void standardArenaHashPinsTheBakedSdfIdentity() {
+        assertEquals(
+            "767b90fd0a4963152dcdd07151944fb99f9b9e4a7eb75ed23f60d267cf4c2b1c",
+            MapHash.hex(ArenaMap.standard().mapHash()));
+    }
+
+    @Test
+    void durabilityMultiplierParticipatesInTheHashOnlyWhenAuthored() {
+        ArenaMap plain = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20"));
+        ArenaMap spelledOut = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=1"));
+        ArenaMap reinforced = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=2"));
+
+        assertArrayEquals(plain.mapHash(), spelledOut.mapHash(),
+            "a default multiplier is not authored content");
+        assertFalse(java.util.Arrays.equals(plain.mapHash(), reinforced.mapHash()),
+            "a reinforced block is different authored content");
+    }
+
+    @Test
     void malformedMapsFailWholeLoadWithUsefulMessages() {
         assertFormatError(source(
             "skystrike-map 1",
