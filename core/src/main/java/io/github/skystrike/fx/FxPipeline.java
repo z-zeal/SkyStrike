@@ -36,8 +36,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Orchestrates multi-pass rendering for scene geometry, visibility cones, additive player lights,
- * fog composite and debug overlays.
+ * Orchestrates multi-pass rendering for scene geometry, visibility cones, player lights, fog
+ * composite and debug overlays. Each light is drawn into its own additive buffer, but the
+ * composite treats that buffer as illumination added to the sight field and multiplied into the
+ * scene — a lamp, not a colour laid over the frame.
  */
 public final class FxPipeline implements Disposable {
 
@@ -226,7 +228,10 @@ public final class FxPipeline implements Disposable {
         }
     }
 
-    /** Executes the half-resolution additive light pass after visibility has been rendered. */
+    /**
+     * Executes the half-resolution light pass after visibility has been rendered. The buffer it
+     * produces is illumination for the composite's multiply, not a colour added to the frame.
+     */
     public void renderLights(GameCamera camera, Player localPlayer, boolean hardShadows) {
         lightPass.render(
                 camera,
@@ -354,7 +359,7 @@ public final class FxPipeline implements Disposable {
                 radius,
                 PLAYER_LIGHT_COLOUR,
                 intensity,
-                Light.DEFAULT_FALLOFF,
+                Light.SIGHT_FALLOFF,
                 castsShadow)) {
             return handle;
         }
@@ -364,7 +369,7 @@ public final class FxPipeline implements Disposable {
                 radius,
                 PLAYER_LIGHT_COLOUR,
                 intensity,
-                Light.DEFAULT_FALLOFF,
+                Light.SIGHT_FALLOFF,
                 castsShadow);
     }
 

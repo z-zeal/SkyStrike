@@ -221,7 +221,7 @@ public final class ClientCommandModule {
             .build());
         cvars.register(Cvar.builder(
                 "r_player_light_intensity", ArgTypes.FLOAT(0f, 1f), "0.35")
-            .description("player-light additive intensity from 0 to 1; live-tunable (M6)")
+            .description("player-light intensity from 0 to 1; live-tunable (M6)")
             .build());
         // Cvar hooks fire on changes, not on construction; seed the mirrored defaults explicitly.
         deps.debugState().setPlayerLight(Boolean.parseBoolean(playerLight.value()));

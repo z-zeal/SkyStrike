@@ -89,7 +89,7 @@ import java.util.function.Consumer;
  * Composition root for a match.
  *
  * <p>Routes input, drives authoritative prediction/interpolation, and coordinates multi-pass
- * rendering across terrain, entities, occluded visibility, additive player lights and the fog
+ * rendering across terrain, entities, occluded visibility, player lights and the fog
  * composite.
  */
 public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAdapter {
@@ -666,10 +666,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // replaced by the device's — the point of view has genuinely moved.
         pipeline.renderVisibility(camera, observers, !isShadowsOn());
 
-        // Pass 3: LIGHTS (half-resolution additive player lights, SDF-shadowed and vision-gated)
+        // Pass 3: LIGHTS (half-resolution light buffer: SDF-shadowed, vision-gated illumination)
         pipeline.renderLights(camera, localPlayer, !isShadowsOn());
 
-        // Pass 4: COMPOSITE (scene * max(visibility, ambientFloor) + safe light buffer)
+        // Pass 4: COMPOSITE (scene * (max(visibility, ambientFloor) + light buffer))
         pipeline.composite();
 
         // M7: the additive particle batch glows through the fog, gated by the visibility

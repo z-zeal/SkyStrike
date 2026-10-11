@@ -348,9 +348,11 @@ point of the request.
 > player there stays black, and their light never shows. See `M14_VISION_BUBBLE_ACCEPTANCE.md`.
 
 Guards that matter:
-- Keep intensity low enough that it cannot reveal enemies *outside* the vision cone and bubble. Light adds
-  after visibility multiplies; a bright self-light is effectively a wallhack-lite in a fog game.
-  Tune against `VisionConfig.AMBIENT_FLOOR = 0.04` and verify an enemy at 200 u stays black.
+- Keep intensity low enough that the lamp reads as light on the surfaces it falls on, not as a glow that
+  identifies things *outside* the vision cone and bubble. The light buffer joins the visibility field
+  before the multiply, so it cannot brighten a pixel the observer cannot see — a self-light is only a
+  wallhack-lite if the *field* leaks, which is what the gate is there to test. Tune against
+  `VisionConfig.AMBIENT_FLOOR = 0.04` and verify an enemy at 200 u stays black.
 - Cvars: `r_player_light` (on/off), `r_player_light_radius`, `r_player_light_intensity`,
   `r_player_light_shadows` — live-tunable, which is the fastest way to find the value above.
 

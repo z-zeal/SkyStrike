@@ -328,7 +328,7 @@ public final class GpuParticleSystem implements Disposable {
             radius,
             spec.color(),
             intensity,
-            Light.DEFAULT_FALLOFF,
+            Light.EFFECT_FALLOFF,
             true);
         if (handle == LightPool.INVALID_HANDLE) {
             return;
@@ -374,7 +374,7 @@ public final class GpuParticleSystem implements Disposable {
                 light.radius,
                 scratchColor,
                 intensity,
-                Light.DEFAULT_FALLOFF,
+                Light.EFFECT_FALLOFF,
                 true);
         }
     }

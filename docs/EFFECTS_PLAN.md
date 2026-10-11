@@ -168,12 +168,12 @@ One orchestrator owns pass order, explicitly. Pass ordering bugs — clearing th
 3. **Visibility pass** → half-res single channel. Player vision cone plus any active drone/camera cone, each SDF-occluded, combined with **max blending** so overlapping cones union rather than double-brighten.
 4. **Light pass** → half-res RGB, additive. One quad per emissive light, each SDF-shadowed.
 5. **Distortion pass** → half-res two-channel. Shockwave rings and heat haze write screen-space UV offsets. Skipped entirely on the low tier.
-6. **Composite** → `scene × max(visibility, ambientFloor) + light`, sampling the scene through the distortion offset. One pass, three texture reads.
+6. **Composite** → `scene × (max(visibility, ambientFloor) + light)`, sampling the scene through the distortion offset. One pass, three texture reads.
 7. **Additive overlay** — fire and spark particles that must glow *through* darkness, drawn after composite so fog does not multiply them down.
 8. **Post chain** — optional bloom (bright-pass plus two quarter-res blur taps), then blindness/aberration/vignette/grain, then final blit.
 9. **HUD** — drawn last, untouched by any of the above.
 
-**The composite rule that defines the game's look: visibility multiplies, light adds.** An explosion behind you brightens a wall you can see even though that wall is outside your cone, because light is emissive — but it is still SDF-shadowed, so an explosion on the far side of a wall stays invisible. This gives correct, readable behaviour without special cases.
+**The composite rule that defines the game's look: the visibility field and the light buffer are one illumination, and it multiplies the scene.** An explosion behind you brightens a wall you can see even though that wall is outside your cone, because its light joins the field before the multiply — but it is still SDF-shadowed, so an explosion on the far side of a wall stays invisible, and no light can brighten a pixel the observer cannot see. This gives correct, readable behaviour without special cases, and it is what makes the player's own lamp read as the same light as the sight field around it instead of a brighter disc laid over it. *(Amended when that lamp was unified with the field: the light buffer used to be added to the finished frame, which is exactly the disc.)*
 
 ---
 
@@ -381,7 +381,7 @@ fx/
 │
 ├── post/
 │   ├── PostChain          Ordered pass list, tier-aware skipping
-│   ├── CompositePass      scene × visibility + light, distortion-sampled
+│   ├── CompositePass      scene × (visibility + light), distortion-sampled
 │   ├── DistortionBuffer   Shockwave and heat-haze offset accumulation
 │   ├── BloomPass          Bright-pass plus separable blur
 │   ├── BlindnessPass      Flash/stun overlay
@@ -431,7 +431,7 @@ assets/shaders/
 │
 ├── post/
 │   ├── fullscreen.vert    Shared by every post pass
-│   ├── composite.frag     scene × visibility + light, distortion-sampled
+│   ├── composite.frag     scene × (visibility + light), distortion-sampled
 │   ├── distortion.frag    Shockwave rings and heat haze
 │   ├── bloom_bright.frag
 │   ├── bloom_blur.frag    Separable, direction by uniform
@@ -478,7 +478,7 @@ Ten phases. Each ends with something runnable and a specific gate. **Do not star
 
 ### Phase 4 — Pipeline and composite
 `FxPipeline` with explicit pass ordering, `CompositePass`, `FinalPass`, `PostChain`.
-**Gate:** `scene × visibility + light` composites correctly; emissive light is visible outside the vision cone but still blocked by walls.
+**Gate:** `scene × (visibility + light)` composites correctly; light brightens the surfaces the observer's field reaches, sharing that field's falloff, still wall-occluded, and never a flat colour laid over the frame.
 
 ### Phase 5 — GPU particles
 `GpuParticlePool`, `GpuParticleWriter`, `ParticleRenderer`, the analytic vertex shader, and a few proof presets.

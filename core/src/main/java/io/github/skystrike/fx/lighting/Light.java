@@ -11,9 +11,36 @@ import com.badlogic.gdx.graphics.Color;
  */
 public final class Light {
 
+    /**
+     * Default radius of a player light. It is the body vision bubble's radius
+     * ({@code VisionConfig.BODY_BUBBLE_RADIUS}), because the lamp lights the field its owner sees:
+     * same centre, same reach, same falloff.
+     */
     public static final float DEFAULT_PLAYER_RADIUS = 140f;
+
+    /**
+     * Default intensity of a player light. It no longer appears as a brightness added on top of
+     * the fog — it scales the illumination the lamp contributes to the sight field, so 0.35 is a
+     * clearly read pool without washing the lit surfaces out.
+     */
     public static final float DEFAULT_PLAYER_INTENSITY = 0.35f;
-    public static final float DEFAULT_FALLOFF = 2f;
+
+    /**
+     * Falloff exponent of a vision light — the local player, a lit remote player, a device bubble.
+     *
+     * <p>It is applied to the sight field's own quadratic distance falloff, {@code 1 - (d /
+     * radius)²} (the curve {@code light/visibility_cone.frag} gives an observer). {@code 1} is that
+     * curve exactly, so the lamp and the field it lights fall off as one light; higher values
+     * tighten the pool around the source. Not exposed as a cvar.
+     */
+    public static final float SIGHT_FALLOFF = 1f;
+
+    /**
+     * Falloff exponent of an effect light — a muzzle flash, an explosion, a flare. Effects are
+     * emissive and may be tighter than the field they sit in, so 2 keeps their light from
+     * spreading into a second ambient pool.
+     */
+    public static final float EFFECT_FALLOFF = 2f;
 
     private float x;
     private float y;
