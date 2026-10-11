@@ -79,6 +79,19 @@ on compilation and tests. What *was* verified statically:
 
 - `tools/scratch/static_check.py`, `static_api_check.py`, `static_audio_check.py`,
   `synth_sfx.py --check` and `phase3_ballistics.py` are clean after the change.
+- **The one generated file this change added did not compile.** `SpriteScales.java` is written by
+  `gen_sprite_scales`, whose rows call a private `put(table, id, scale)` — and that template, alone
+  among the five generated tables, never emitted the helper, so every row was a
+  `cannot find symbol: method put(Map<WeaponId,Float>,WeaponId,float)`. The generator now emits one
+  `put` per map, next to the `buildGuns`/`buildMelee` it serves.
+- **Why the static checks missed it, and what changed.** `static_api_check.py` treated the row
+  `put(table, …);` as a *declaration* — a line that is nothing but a name and a `(` matched its
+  signature pattern, and enum constants like `IRON_SIDEARM("Iron Sidearm", "iron-sidearm"),` were
+  indexed the same way — so the call appeared to declare the method it called. The indexer now
+  requires a declaration to carry modifiers, a return type, or the type's own name, and the tool
+  resolves unqualified calls inside generated files against the declarations of that same file. It
+  reports one aggregated finding (`put(...) is called but this generated file declares no put
+  (x110)`) on the file as merged and is clean on the fixed one.
 - `tools/weapons/generate_weapon_tables.py` re-run reproduces every generated file byte-for-byte,
   including `SpriteScales.java` (89 guns, 21 melee) and `docs/WEAPONS_TABLE.md`.
 - The barrel tip fraction and the uniform horizontal art fitting were measured across all 110

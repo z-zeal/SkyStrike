@@ -154,6 +154,10 @@ public final class SpriteScales {
         return Collections.unmodifiableMap(table);
     }
 
+    private static void put(Map<WeaponId, Float> table, WeaponId id, float scale) {
+        table.put(id, scale);
+    }
+
     private static Map<MeleeId, Float> buildMelee() {
         Map<MeleeId, Float> table = new EnumMap<>(MeleeId.class);
         put(table, MeleeId.POCKET_THORN, 0.424f);
@@ -178,5 +182,9 @@ public final class SpriteScales {
         put(table, MeleeId.WINTER_TANTO, 0.504f);
         put(table, MeleeId.BLACK_WAKIZASHI, 0.8f);
         return Collections.unmodifiableMap(table);
+    }
+
+    private static void put(Map<MeleeId, Float> table, MeleeId id, float scale) {
+        table.put(id, scale);
     }
 }

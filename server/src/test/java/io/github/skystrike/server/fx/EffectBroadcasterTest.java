@@ -65,7 +65,7 @@ class EffectBroadcasterTest {
 
         assertEquals(1, gunfire.size());
         assertTrue(broadcaster.cullFor(
-            window, Recipient.of(player(1700f, 500f, 0f)), arena, null).isEmpty(),
+            window, EffectBroadcaster.Recipient.of(player(1700f, 500f, 0f)), arena, null).isEmpty(),
             "the sound cue is retained even though this recipient cannot see its muzzle flash");
         assertNotSame(attributedFlash, gunfire.get(0));
         assertEquals(attributedFlash.seed, gunfire.get(0).seed);
@@ -88,8 +88,8 @@ class EffectBroadcasterTest {
         broadcaster.emit(null);
         assertEquals(0, broadcaster.pendingCount());
         assertTrue(broadcaster.drain().isEmpty());
-        assertTrue(broadcaster.cullFor(List.of(), Recipient.of(player(1300f, 400f, 0f)), arena, null).isEmpty());
-        assertTrue(broadcaster.cullFor(null, Recipient.of(player(1300f, 400f, 0f)), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(List.of(), EffectBroadcaster.Recipient.of(player(1300f, 400f, 0f)), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(null, EffectBroadcaster.Recipient.of(player(1300f, 400f, 0f)), arena, null).isEmpty());
         assertTrue(broadcaster.cullFor(
             List.of(new EffectSpawn(EffectType.FRAG_EXPLOSION, 1400f, 400f, 0f, 1f)),
             null,
@@ -105,7 +105,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        List<EffectSpawn> visible = broadcaster.cullFor(spawns, Recipient.of(observer), arena, null);
+        List<EffectSpawn> visible = broadcaster.cullFor(spawns, EffectBroadcaster.Recipient.of(observer), arena, null);
         assertEquals(1, visible.size());
         assertEquals(EffectType.BULLET_IMPACT_CONCRETE, visible.get(0).type);
     }
@@ -119,7 +119,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 500f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(spawns, EffectBroadcaster.Recipient.of(observer), arena, null).isEmpty());
     }
 
     @Test
@@ -130,7 +130,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        assertEquals(1, broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).size(),
+        assertEquals(1, broadcaster.cullFor(spawns, EffectBroadcaster.Recipient.of(observer), arena, null).size(),
             "the body's bubble is all round, so the back of the body sees this close");
     }
 
@@ -158,7 +158,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(spawns, EffectBroadcaster.Recipient.of(observer), arena, null).isEmpty());
     }
 
     @Test
@@ -168,7 +168,7 @@ class EffectBroadcasterTest {
         List<EffectSpawn> spawns = List.of(
             new EffectSpawn(EffectType.FRAG_EXPLOSION, 2400f, 1000f, 0f, 1f));
 
-        assertTrue(broadcaster.cullFor(spawns, Recipient.of(observer), arena, null).isEmpty());
+        assertTrue(broadcaster.cullFor(spawns, EffectBroadcaster.Recipient.of(observer), arena, null).isEmpty());
     }
 
     @Test
@@ -182,8 +182,8 @@ class EffectBroadcasterTest {
         EffectSpawn unscaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1830f, 400f, 0f, 1f);
         EffectSpawn scaled = new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1830f, 400f, 0f, 3f);
 
-        assertTrue(broadcaster.cullFor(List.of(unscaled), Recipient.of(observer), arena, null).isEmpty());
-        assertEquals(1, broadcaster.cullFor(List.of(scaled), Recipient.of(observer), arena, null).size());
+        assertTrue(broadcaster.cullFor(List.of(unscaled), EffectBroadcaster.Recipient.of(observer), arena, null).isEmpty());
+        assertEquals(1, broadcaster.cullFor(List.of(scaled), EffectBroadcaster.Recipient.of(observer), arena, null).size());
     }
 
     @Test
@@ -195,7 +195,7 @@ class EffectBroadcasterTest {
             new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 1400f, 400f, 0f, 1f), // visible
             new EffectSpawn(EffectType.MUZZLE_FLASH, 300f, 1000f, 0f, 1f)); // out of reach
 
-        List<EffectSpawn> visible = broadcaster.cullFor(spawns, Recipient.of(observer), arena, null);
+        List<EffectSpawn> visible = broadcaster.cullFor(spawns, EffectBroadcaster.Recipient.of(observer), arena, null);
         assertEquals(2, visible.size());
     }
 

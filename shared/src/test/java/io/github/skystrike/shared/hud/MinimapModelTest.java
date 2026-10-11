@@ -130,7 +130,7 @@ class MinimapModelTest {
     @DisplayName("a body's marker sits at its centre, in normalised arena space")
     void blipsAreNormalisedCentres() {
         Player viewer = player(1, TEAM_A, 400f, 600f, 0f);
-        View view = model.view(input(viewer, List.of()), T0);
+        View view = model.view(input(viewer, List.of(), false), T0);
 
         Blip self = only(view.blips(), Allegiance.SELF);
         assertEquals(400f / WorldConfig.ARENA_WIDTH, self.x(), 0.0001f);
@@ -145,7 +145,7 @@ class MinimapModelTest {
     @Test
     @DisplayName("the widget's frame is fitted to the arena aspect and centred, never stretched")
     void fitPreservesAspect() {
-        View view = model.view(input(player(1, TEAM_A, 400f, 600f, 0f), List.of()), T0);
+        View view = model.view(input(player(1, TEAM_A, 400f, 600f, 0f), List.of(), false), T0);
 
         // A 210x160 box holds a 3:2 map at 210x140, letterboxed top and bottom.
         Box wide = view.fit(10f, 20f, 210f, 160f);
