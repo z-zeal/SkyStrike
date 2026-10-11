@@ -57,8 +57,9 @@ public final class MapQueries {
      * <p>This is the movement column's box question: it reads every block whose
      * {@link MovementRule} is {@link MovementRule#SOLID}, so intact glass and a closed door stop a
      * body even though no bullet or sight line notices them, and a one-way platform never does —
-     * a platform stops a falling body's centre of mass from above, which a box overlap cannot
-     * express. Callers that need the landing test ask the sweeper, not this.
+     * a platform catches a falling body at its top face alone, and a box overlap cannot say
+     * whether the body was above that face. Callers that need the landing test ask the sweeper,
+     * not this.
      */
     public static boolean overlapsMovementBlocker(ArenaMap map, Rect box) {
         for (Rect rect : map.movementBlockers(MovementRule.SOLID)) {

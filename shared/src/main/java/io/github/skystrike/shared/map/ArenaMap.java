@@ -113,8 +113,8 @@ public final class ArenaMap {
      * Every authored block whose shared {@link BlockRules} row carries {@code rule}, as rectangles
      * in authored order. Immutable.
      *
-     * <p>The movement column is not a {@link Blocking} purpose: it says which *faces* may stop a
-     * body, not whether a kind answers a line query. The shared sweeper therefore sweeps
+     * <p>The movement column is not a {@link Blocking} purpose: it says which <b>faces</b> may
+     * stop a body, not whether a kind answers a line query. The shared sweeper therefore sweeps
      * {@link MovementRule#SOLID} for walls, floors and ceilings, and {@link MovementRule#ONE_WAY_TOP}
      * for landings alone; a renderer or device that means "geometry that stops a body" reads this
      * view rather than naming a kind.
