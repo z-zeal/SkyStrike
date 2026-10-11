@@ -4,6 +4,13 @@
 > The console is not a mode — it is always live for anyone with permission.
 > Text must stay readable over a dark, fog-of-war game.
 
+> **This is a plan, not a status tracker.** Nothing here is a claim about the current tree.
+> Build-order Phases 0–7 have landed in source (`PHASE7_AUDIT.md` §6 records the chronology), so
+> most of §12's definition of done is implemented; Phase 8 (the `ServerConsole` stdin front-end)
+> and Phase 9 (mobile polish — soft keyboard, quick-chat wheel, touch completion) have **not**.
+> The Phase 0–9 *gates* have not been re-checked one by one against the source, and none of them
+> has been runtime-verified.
+
 ---
 
 ## 1. GOALS

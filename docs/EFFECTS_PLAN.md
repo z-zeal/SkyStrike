@@ -3,6 +3,17 @@
 > A from-scratch plan for building the lighting, fog-of-war, particle and post-processing layer of a 2D shooter.
 > Assumes an empty project. Nothing here depends on an existing codebase.
 
+> **This is a plan, not a status tracker.** It was written against an empty project and is kept as
+> the design reference; it is not a record of what SkyStrike has built. The layer that exists today
+> is partial: the light pass and pool, GPU/CPU particles, the effect-event channel, the
+> blindness/aberration/post chain, `FxBudget`/`FxClock`/`FxEventQueue` and the quality tiers have
+> landed (see `IMPLEMENTATION_ROADMAP.md` §0 and `PHASE7_AUDIT.md` §3.7 for the current gap list —
+> no `GlCaps`, no named `FxDebugOverlay`/`FxProfiler`/`PostChain`, no `VisibilityQuery` type), while
+> decals, shockwave distortion, heat haze, camera shake, hot reload and the mobile-hardening phase
+> have not. **None of the gates in this document has been re-checked line by line against the
+> source, and none has been runtime-verified** — in particular §13's frame-budget gates, which
+> require hardware this sandbox does not have.
+
 **Hard constraints, set up front:**
 
 1. **Pure OpenGL.** Every visual effect is a vertex/fragment shader program we write and own.

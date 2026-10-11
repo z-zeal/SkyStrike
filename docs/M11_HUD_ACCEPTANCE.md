@@ -13,8 +13,11 @@ and the map's blip gate ask one question and get one answer), `VisionMath.isTarg
 `Team.areAllies`, `core/ui/hud/Minimap` (shapes only), the two cvars `cl_minimap` and
 `cl_minimap_allies`, and the debug inset that moves the F1 readout below the map.
 
-**No wire change.** `PROTOCOL_VERSION` is still 12. `GameServer.broadcastSnapshot` has always sent
-every player's true position to every client — it is `sendEffectSpawns` that culls per recipient —
+**No wire change in this increment.** `PROTOCOL_VERSION` was 12 when this checklist was written
+(the M10 device-entity value) and is **13** today, after the server-authenticated gunfire cue list
+was appended to `PacketGameState`; M11 itself added no packet fields.
+`GameServer.broadcastSnapshot` has always sent every player's true position to every client — it
+is `sendEffectSpawns` that culls per recipient —
 so the map is presentation over state the client already holds. That is exactly why the gate is the
 whole feature: a minimap that read the snapshot directly would be a wallhack the game ships with.
 
