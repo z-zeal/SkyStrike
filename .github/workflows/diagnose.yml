@@ -1,0 +1,59 @@
+# TEMPORARY, branch-only diagnostic.
+#
+# This branch was authored in a sandbox that cannot read Actions logs — the host the log zip is
+# served from is not reachable — so CI was red with no way to see why. This job re-runs the same
+# Gradle tasks as ci.yml and posts the output as a PR comment, which the API does serve.
+#
+# Delete this file before the branch is merged.
+name: diagnose
+
+on:
+  push:
+    branches: ["arena/37b0d42c-skystrike"]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Reproduce the build
+        run: |
+          chmod +x gradlew
+          : > /tmp/build.log
+          echo "=== git log -1 ===" >> /tmp/build.log
+          git log --oneline -1 >> /tmp/build.log
+          for tasks in \
+            "shared:test" \
+            "server:test" \
+            "shared:compileJava server:compileJava core:compileJava"; do
+            echo "=== ./gradlew $tasks ===" >> /tmp/build.log
+            ./gradlew $tasks --no-daemon --console=plain >> /tmp/build.log 2>&1 || true
+          done
+
+      - name: Post the output to the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "### Gradle output (from the temporary diagnostic workflow)"
+            echo '```'
+            tail -c 55000 /tmp/build.log
+            echo '```'
+          } > /tmp/body.md
+          pr=$(gh pr list --head "$GITHUB_REF_NAME" --json number --jq '.[0].number')
+          gh pr comment "$pr" --body-file /tmp/body.md
