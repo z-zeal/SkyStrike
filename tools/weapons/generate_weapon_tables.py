@@ -716,10 +716,18 @@ public final class SpriteScales {{
         return Collections.unmodifiableMap(table);
     }}
 
+    private static void put(Map<WeaponId, Float> table, WeaponId id, float scale) {{
+        table.put(id, scale);
+    }}
+
     private static Map<MeleeId, Float> buildMelee() {{
         Map<MeleeId, Float> table = new EnumMap<>(MeleeId.class);
 {melee_rows}
         return Collections.unmodifiableMap(table);
+    }}
+
+    private static void put(Map<MeleeId, Float> table, MeleeId id, float scale) {{
+        table.put(id, scale);
     }}
 }}
 '''
