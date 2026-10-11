@@ -33,8 +33,9 @@ import java.util.Objects;
  *       by overlapping zones or by being resolved twice in one tick.</li>
  *   <li><b>Blocks take the same blast, measured at their nearest face.</b> {@link #resolveBlocks}
  *       asks the shared {@link MaterialTable} which surfaces accept an explosion's damage and
- *       {@link MapDamageState} what that did to them; the shipped arena is wall-only, whose kind
- *       is permanent, so nothing here fires until a map authors a breakable.</li>
+ *       {@link MapDamageState} what that did to them; a wall never enters the loop, and the
+ *       shipped arena's fixture range — one crate and one pane per side — is what a blast in the
+ *       air can actually open.</li>
  * </ul>
  *
  * <p>Sight and distance are both measured to the player's centre rather than the eye: a blast is
@@ -205,9 +206,9 @@ public final class ExplosionMath {
      * Applies one blast to every block the live map can lose, in map order.
      *
      * <p>{@link MaterialTable#takesDamage} is what decides which blocks are asked: a wall's kind is
-     * permanent and a stone surface refuses nothing but blasts, so a wall never enters the loop and
-     * the shipped wall-only arena resolves no block damage at all. Each block is damaged at most
-     * once per blast by construction.
+     * permanent and a stone surface refuses nothing but blasts, so a wall never enters the loop —
+     * a blast resolves nothing against the arena's stone, and only the map's authored breakables
+     * and panes can answer it. Each block is damaged at most once per blast by construction.
      *
      * @return the blocks that left the map, in the order they broke
      */

@@ -35,8 +35,9 @@ import org.junit.jupiter.api.Test;
  * lets the round fly on through the hole, a pane shatters under anything and costs the round only
  * the small pass-through loss, and a swing reaches the blocks its arc covers.
  *
- * <p>These maps are authored rather than the shipped wall-only arena — nothing in that arena can
- * break, so nothing about destruction can be observed in it. The crate is authored with
+ * <p>These maps are authored rather than the shipped arena, whose fixture range would put the
+ * pane, the crate and the platform in one line and leave nothing isolated to assert on. The crate
+ * is authored with
  * {@code durability=0.4}, which is what makes one hit a chip and the second a break for a carbine,
  * and what proves the authored multiplier reaches the pool the damage is spent from.
  */

@@ -229,8 +229,8 @@ public final class PlayerMotion {
      *
      * <p>This is the "is there a platform under me right now" test that decides whether a
      * crouch+jump is a drop-through or an ordinary jump. It only ever matches geometry the sweeper
-     * could be supporting the body with, so on a wall-only arena it is always false and
-     * crouch+jump keeps its plain-jump meaning.
+     * could be supporting the body with, so a body on ordinary ground — a wall top, the arena
+     * floor — is never standing on one and crouch+jump keeps its plain-jump meaning there.
      */
     private static boolean standsOnOneWayTop(Player p, ArenaMap map) {
         float left = p.x - PlayerConfig.WIDTH / 2f;

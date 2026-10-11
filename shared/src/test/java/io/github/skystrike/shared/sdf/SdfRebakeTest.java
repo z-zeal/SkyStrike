@@ -21,10 +21,12 @@ import org.junit.jupiter.api.Test;
  * The milestone-3 gate, shared side: the re-bake path is deterministic, and what a re-bake asks a
  * renderer to re-upload is the changed texel region rather than the whole field.
  *
- * <p>The maps here are authored, because the shipped arena is wall-only and nothing in it can
- * break. The room below is built so the destroyed crate's removal can only move the texels inside
- * it: every texel outside the room already has one of the room's walls for its nearest solid, so
- * a changed region that leaked out of the room would be a bug, not a tolerance question.
+ * <p>The maps here are authored so the fixture under test stands alone: the shipped arena's own
+ * crate is on a sky platform with the rest of its range, and a region that leaked past a test
+ * room's own walls would prove nothing about the crate inside it. The room below is built so the
+ * destroyed crate's removal can only move the texels inside it: every texel outside the room is
+ * already nearer one of the room's walls than it is the crate, so a changed region that leaked out
+ * of the room would be a bug rather than a tolerance question.
  */
 class SdfRebakeTest {
 

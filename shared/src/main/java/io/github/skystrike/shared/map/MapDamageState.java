@@ -29,8 +29,9 @@ import java.util.Objects;
  *
  * <p><b>Permanence costs nothing.</b> A block whose rule row is {@link DamageRule#INDESTRUCTIBLE} is
  * never recorded, never chipped and never removed: {@link #damage} refuses it before it measures
- * anything, so the shipped wall-only arena leaves this state at rest — no damage taken,
- * {@code liveMap()} is the authored map itself and the revision stays zero.
+ * anything, so the walls, doors and platforms a map is mostly made of cost nothing — no damage
+ * taken, {@code liveMap()} is the authored map itself and the revision stays zero until something
+ * the map did author as destructible is hit.
  *
  * <p><b>Damage is per round.</b> {@link #reset()} puts the authored map back and returns the
  * revision to zero, because a map chewed through in one round is not the map both teams agreed to

@@ -15,9 +15,10 @@ import org.junit.jupiter.api.Test;
  * The rule-aware line queries: sight, bullets and blast each get the answer their own column of
  * the shared {@link BlockRules} table gives.
  *
- * <p>The shipped arena is wall-only, so nothing here can be proved against it — a wall answers
- * every purpose the same way. These tests therefore author a mixed-kind map and ask it the
- * questions a map consumer can ask.
+ * <p>The shipped arena now carries a fixture range of its own, but its blocks stand next to each
+ * other and a line through one of them proves less than a line through an isolated one. These
+ * tests therefore author a mixed-kind map — each kind alone in open air — and ask it the questions
+ * a map consumer can ask.
  */
 class MapQueryPurposeTest {
 
