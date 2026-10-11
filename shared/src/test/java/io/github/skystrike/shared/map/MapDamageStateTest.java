@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.WorldConfig;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -18,9 +19,10 @@ import org.junit.jupiter.api.Test;
  * The destruction rules of plan §7: damage accumulates only from the sources the material accepts,
  * and at zero the block leaves the collision, sight, bullet and blast sets in the same call.
  *
- * <p>The maps here are authored rather than taken from the shipped arena, because the shipped arena
- * is wall-only and a wall is permanent — these properties need a breakable, a pane and a platform to
- * mean anything.
+ * <p>Most maps here are authored rather than taken from the shipped arena, because a property like
+ * "a chip stops a round" needs one isolated breakable; the shipped arena's own fixture range is used
+ * where the point is that the shipped map really does carry one — the crate chips and breaks, the
+ * pane shatters, and every permanent block refuses damage outright.
  */
 class MapDamageStateTest {
 
@@ -175,19 +177,46 @@ class MapDamageStateTest {
     }
 
     @Test
-    @DisplayName("the shipped wall-only arena never leaves the resting state")
-    void theShippedArenaCostsNothing() {
+    @DisplayName("the shipped arena's permanent blocks cost nothing and its fixtures are live")
+    void theShippedArenaCostsNothingButItsFixtures() {
         MapDamageState state = MapDamageState.intact(ArenaMap.standard());
+        List<MapBlock> destructible = new ArrayList<>();
 
         for (MapBlock block : state.authoredMap().blocks()) {
-            assertFalse(MaterialTable.takesDamage(block, DamageSource.BULLET), block.toString());
-            assertFalse(MaterialTable.takesDamage(block, DamageSource.BLAST), block.toString());
-            assertFalse(MaterialTable.takesDamage(block, DamageSource.MELEE), block.toString());
-            assertNull(state.damage(block, DamageSource.BLAST, 1_000f, block.rect().centerX(),
-                block.rect().centerY()));
+            // A wall, a door and a one-way platform are permanent by their own rule row: this state
+            // has nothing to record for them however hard they are hit.
+            if (BlockRules.damage(block.kind()) == DamageRule.INDESTRUCTIBLE) {
+                assertNull(state.damage(block, DamageSource.BLAST, 1_000f,
+                    block.rect().centerX(), block.rect().centerY()), block.toString());
+                continue;
+            }
+            destructible.add(block);
         }
-        assertEquals(0, state.revision());
+        assertEquals(0, state.revision(), "nothing the arena authored as permanent can be hurt");
         assertSame(state.authoredMap(), state.liveMap());
+        assertEquals(4, destructible.size(),
+            "the arena authors one crate and one pane per side: " + destructible);
+
+        // And they are real. The shipped map is no longer wall-only, so the milestone can be
+        // exercised in a running game instead of only in authored test rooms: the crate spends its
+        // pool and leaves the live map, its pane shatters on any accepted hit.
+        MapBlock crate = destructible.stream()
+            .filter(block -> block.kind() == BlockKind.BREAKABLE)
+            .findFirst()
+            .orElseThrow();
+        MapBlock pane = destructible.stream()
+            .filter(block -> block.kind() == BlockKind.GLASS)
+            .findFirst()
+            .orElseThrow();
+
+        assertTrue(MaterialTable.takesDamage(crate, DamageSource.BULLET));
+        assertNotNull(state.damage(crate, DamageSource.BLAST, 1_000f,
+            crate.rect().centerX(), crate.rect().centerY()));
+        assertNotNull(state.damage(pane, DamageSource.BULLET, 1f,
+            pane.rect().centerX(), pane.rect().centerY()));
+        assertEquals(2, state.revision());
+        assertFalse(state.liveMap().blocks().contains(crate));
+        assertFalse(state.liveMap().blocks().contains(pane));
     }
 
     @Test

@@ -6,6 +6,13 @@ package io.github.skystrike.shared.map;
  * <p>This remains embedded only until the shipped-maps milestone moves it verbatim to
  * {@code assets/maps/arena.map}. Keeping it as text now makes {@link ArenaMap#standard()} prove
  * the real parser path without making shared depend on a desktop or LibGDX file API.
+ *
+ * <p>The last three lines are milestone 3's fixture range: one mirrored one-way platform high over
+ * the centre carrying a pane and a wooden crate. The arena is deliberately not wall-only any more,
+ * because with no map file and no editor (milestone 5) a running game could otherwise never meet
+ * the kinds that milestone built — stand on the platform and drop through it, shoot the pane and
+ * watch it shatter, chip the crate and break it. Everything else is the pre-existing arena, and
+ * the range sits far above every lane the game and the older tests use.
  */
 final class StandardArenaMap {
 
@@ -45,6 +52,9 @@ final class StandardArenaMap {
         "mirrored wall stone 1300 700 100 16",
         "centred wall stone 1380 1000 240 18",
         "mirrored wall stone 760 900 240 18",
+        "mirrored platform wood 1620 1300 220 18",
+        "mirrored glass glass 1660 1318 20 180",
+        "mirrored breakable wood 1740 1318 60 60 durability=0.4",
         "");
 
     private StandardArenaMap() {

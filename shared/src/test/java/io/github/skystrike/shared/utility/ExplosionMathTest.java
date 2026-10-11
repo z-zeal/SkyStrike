@@ -179,7 +179,18 @@ class ExplosionMathTest {
         assertTrue(
             ExplosionMath.resolveBlocks(frag(1500f, 125f), MapDamageState.intact(ArenaMap.standard()))
                 .isEmpty(),
-            "the shipped wall-only arena has nothing a blast can remove");
+            "nothing in the arena's fixture range is within a ground-level frag's reach");
+
+        // The shipped arena's own fixtures, though: a frag up at the range's height shatters both
+        // panes and only chips the crates standing beside them, so the milestone can be exercised
+        // in a running game rather than only in authored rooms.
+        List<BlockBreak> sky = ExplosionMath.resolveBlocks(
+            frag(1500f, 1350f), MapDamageState.intact(ArenaMap.standard()));
+        assertEquals(2, sky.size(), "one pane per side: " + sky);
+        for (BlockBreak broke : sky) {
+            assertEquals(BlockKind.GLASS, broke.block().kind());
+            assertTrue(broke.shattered(), "a pane is never chipped, it goes");
+        }
 
         List<BlockBreak> broke = ExplosionMath.resolveBlocks(chip, state);
 

@@ -7,8 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.WorldConfig;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -17,19 +19,31 @@ class ArenaMapFormatTest {
     private static final float AXIS = WorldConfig.MIRROR_AXIS_X;
 
     @Test
-    void standardTextPreservesThePreMigrationArenaGeometry() {
+    void standardTextCarriesTheExpectedArenaGeometry() {
         ArenaMap map = ArenaMap.standard();
-        Set<Rect> expected = legacyStandardSolids();
+        Set<Rect> expected = expectedStandardSolids();
 
         assertEquals(expected, new HashSet<>(map.solids()));
         assertEquals(expected.size(), map.solids().size(), "the migrated map must not add duplicates");
         assertEquals(List.of(
             new SpawnPoint(0, 240f, 180f),
             new SpawnPoint(1, 2760f, 180f)), map.spawns());
+
+        // The pre-migration arena was wall and stone throughout. Milestone 3 then authored the sky
+        // range — a one-way platform, a pane and a crate per side — so this census is the shipped
+        // map's published shape: the wall count is the pre-migration one, and every other block is
+        // named here rather than appearing quietly.
+        Map<BlockKind, Integer> kinds = new EnumMap<>(BlockKind.class);
+        Map<Material, Integer> materials = new EnumMap<>(Material.class);
         for (MapBlock block : map.blocks()) {
-            assertEquals(BlockKind.WALL, block.kind());
-            assertEquals(Material.STONE, block.material());
+            kinds.merge(block.kind(), 1, Integer::sum);
+            materials.merge(block.material(), 1, Integer::sum);
         }
+        assertEquals(
+            Map.of(BlockKind.WALL, 56, BlockKind.GLASS, 2, BlockKind.BREAKABLE, 2,
+                BlockKind.PLATFORM, 2),
+            kinds);
+        assertEquals(Map.of(Material.STONE, 56, Material.WOOD, 4, Material.GLASS, 2), materials);
     }
 
     @Test
@@ -195,7 +209,7 @@ class ArenaMapFormatTest {
     @Test
     void standardArenaHashPinsTheBakedSdfIdentity() {
         assertEquals(
-            "767b90fd0a4963152dcdd07151944fb99f9b9e4a7eb75ed23f60d267cf4c2b1c",
+            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693",
             MapHash.hex(ArenaMap.standard().mapHash()));
     }
 
@@ -258,8 +272,17 @@ class ArenaMapFormatTest {
         return String.join("\n", lines) + "\n";
     }
 
-    /** The old Java builder's exact rectangles, kept independent of the new text source. */
-    private static Set<Rect> legacyStandardSolids() {
+    /**
+     * The shipped arena's bullet-blocking rectangles, written by hand so the comparison below is
+     * independent of the text source it is checking.
+     *
+     * <p>This list began as the old Java builder's exact rectangles — the pre-migration arena,
+     * which the text conversion had to reproduce to the unit. Milestone 3 then added the sky range
+     * to the shipped map on purpose, and the crate is the only fixture of it that appears here:
+     * glass passes bullets and a one-way platform never blocks them, so neither changes the bullet
+     * view this set describes.
+     */
+    private static Set<Rect> expectedStandardSolids() {
         Set<Rect> solids = new HashSet<>();
 
         addCentred(solids, new Rect(0f, 0f, 3000f, 100f));
@@ -296,6 +319,9 @@ class ArenaMapFormatTest {
         addMirrored(solids, new Rect(1300f, 700f, 100f, 16f));
         addCentred(solids, new Rect(1380f, 1000f, 240f, 18f));
         addMirrored(solids, new Rect(760f, 900f, 240f, 18f));
+
+        // Milestone 3's fixture range: the crate on the sky platform, which does block bullets.
+        addMirrored(solids, new Rect(1740f, 1318f, 60f, 60f));
 
         return solids;
     }
