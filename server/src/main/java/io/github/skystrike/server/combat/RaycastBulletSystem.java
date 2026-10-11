@@ -1,6 +1,8 @@
 package io.github.skystrike.server.combat;
 
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Geometry;
 import io.github.skystrike.shared.model.CameraEntity;
@@ -20,6 +22,11 @@ import java.util.Collection;
  *
  * <p>Nearest entry wins across both sets, so a player standing behind a wall is protected by the
  * wall and a player standing in front of it is not.
+ *
+ * <p>Terrain is read as the shared {@link Blocking#BULLETS} column of {@code BlockRules} through
+ * {@link ArenaMap#blockers(Blocking)}, never as a list of kinds: intact glass and one-way
+ * platforms are simply absent from that view, which is what lets a round pass through a window
+ * without this class knowing what a window is.
  */
 public final class RaycastBulletSystem {
 
@@ -87,7 +94,7 @@ public final class RaycastBulletSystem {
         float bestTerrain = Float.MAX_VALUE;
         Rect hitRect = null;
         if (arena != null) {
-            for (Rect solid : arena.solids()) {
+            for (Rect solid : arena.blockers(Blocking.BULLETS)) {
                 float entry = Geometry.segmentAabbEntry(x0, y0, x1, y1, solid);
                 if (entry >= 0f && entry < bestTerrain) {
                     bestTerrain = entry;
@@ -189,17 +196,18 @@ public final class RaycastBulletSystem {
         return new GadgetHit(best, lerp(x0, x1, best), lerp(y0, y1, best), hitDrone, hitCamera);
     }
 
-    /** True when terrain blocks the straight line between two points. */
-    public boolean blockedByTerrain(float x0, float y0, float x1, float y1) {
+    /**
+     * True when terrain blocks the straight line between two points for the given purpose.
+     *
+     * <p>The purpose is explicit because the question has more than one right answer: the muzzle
+     * guard asks {@link Blocking#BULLETS} (a round is absorbed by whatever would have stopped it),
+     * while sight and blast ask the same segment through their own column.
+     */
+    public boolean blockedByTerrain(float x0, float y0, float x1, float y1, Blocking purpose) {
         if (arena == null) {
             return false;
         }
-        for (Rect solid : arena.solids()) {
-            if (Geometry.segmentIntersectsAabb(x0, y0, x1, y1, solid)) {
-                return true;
-            }
-        }
-        return false;
+        return MapQueries.lineBlocked(arena, x0, y0, x1, y1, purpose);
     }
 
     private static float lerp(float from, float to, float t) {
