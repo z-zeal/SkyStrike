@@ -1,12 +1,12 @@
 # Map building system — plan
 
 **Status: increment 1 is in progress.** The shared `BlockKind`/`Material`/`MapBlock` model,
-central `BlockRules` table, strict version-1 text parser/writer and the standard-arena migration
-have landed. `ArenaMap.standard()` now loads the embedded canonical text through that parser, and
-shared tests cover the rule rows, migration geometry, strict failures and canonical save → load →
-save. The asset move, SDF hash guard and every rule-aware runtime consumer remain unfinished; no
-Java was compiled or executed, and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been
-executed.
+central `BlockRules` table, strict version-1 text parser/writer, standard-arena migration and SDF
+map-hash guard have landed. `ArenaMap.standard()` now loads the embedded canonical text through
+that parser; every version-2 SDF names its semantic map, and shared tests cover the rule rows,
+migration geometry, strict failures, canonical save → load → save and SDF hash contract. The asset
+move and most rule-aware runtime consumers remain unfinished; no Java was compiled or executed,
+and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
 
 ## 1. What exists today
 
@@ -38,10 +38,12 @@ and a strict persistence path.
 - **`server/combat/BulletSystem`** — per-tick projectile integration plus the muzzle guard
   (`raycaster.blockedByTerrain(eye, muzzle)`), which the per-weapon muzzle made load-bearing.
 - **SDF** — `tools/.../SdfBakeTool` bakes `ArenaMap.standard()` through `shared/sdf/SdfBaker` into
-  `assets/data/arena.sdf`, a versioned binary (`SdfField.MAGIC`/`VERSION`). `core/fx/sdf/SdfCache`
-  loads it and falls back to a runtime bake; `SdfTexture` uploads it and the visibility, light,
-  particle and debug passes read it. The **server never reads the SDF** — the client uses it for
-  what is drawn (cone shadows, light shadows, particle collision).
+  `assets/data/arena.sdf`, a version-2 binary (`SdfField.MAGIC`/`VERSION`) whose header carries a
+  SHA-256 map hash. `core/fx/sdf/SdfCache` rejects a missing, old or mismatched field in a
+  shipping-default run; an explicitly enabled development run logs and re-bakes it. `SdfTexture`
+  uploads the verified field and the visibility, light, particle and debug passes read it. The
+  **server never reads the SDF** — the client uses it for what is drawn (cone shadows, light
+  shadows, particle collision).
 - **Where the map comes from** — the server builds `ArenaMap.standard()` in `GameServer`; the
   client builds its own `ArenaMap.standard()` in `GameScreen`. Both sides agree because both call
   the same Java. Nothing about the layout crosses the wire, and nothing checks that the two sides
@@ -75,7 +77,8 @@ behaviour while new call sites can ask by rule.
 **D2 — One rule table, four readers.** Every kind declares, in one shared table, what it does to
 each consumer: movement, sight, bullets, the SDF bake, and rendering. The table is the plan's
 heart (§3), and every consumer reads it rather than testing kinds by name. **Implemented so far:**
-the shared rows and tests; consumer migration is milestone 2 work.
+the shared rows and tests plus `SdfBaker`'s SDF column; the collision, sight, bullet and rendering
+consumer migrations remain milestone 2 work.
 
 **D3 — Doors are server-owned dynamic blockers.** A door has an id, an `access` rule and a state
 (`CLOSED`/`OPENING`/`OPEN`/`SHUTTING`) with the opening tick. Collision, sight and bullets consult
@@ -114,10 +117,11 @@ is re-expressed through the loader in the first milestone and a test proves the 
 is identical to today's (same order-insensitive set, same symmetry), so the migration cannot move
 a wall. The hand-written format (§5) is versioned and parsed in `shared`, with no new dependency.
 
-**D9 — The SDF names its map.** `SdfField` gains a map hash in its header (version bump) and the
-loader refuses a field whose hash does not match the map being played. Development builds may
-re-bake on mismatch and log it; a shipping build fails loudly rather than drawing walls that are
-not there.
+**D9 — The SDF names its map.** **Implemented:** `SdfField` version 2 carries the SHA-256
+identity of `ArenaMap`'s sorted semantic contents (axis, spawns, kinds, materials and exact rect
+float bits). `SdfCache` refuses a missing, old or mismatched field in the shipping-default path;
+an explicitly debug-enabled client logs and re-bakes. Reordering equivalent text lines does not
+change the hash, while any authored content change does.
 
 **D10 — The editor is a view; the rules are shared.** An in-game editor screen behind the debug
 master switch (`DebugFlags.enabled()`, the `GameSettingsDialog`/`LoadoutScreen` patterns) plus a
@@ -291,8 +295,8 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   standing player fits and `MapQueries.surfaceBelow` supports it) with the M8 jump envelope
   (110-unit step, 40% fuel ascent), asserting every spawn reaches every objective marker; run for
   every shipped map, so a saved map that seals itself fails CI rather than a playtest.
-- **SDF hash guard:** a field whose header hash does not match the map is refused, and the old
-  header version is refused with a version message.
+- **SDF hash guard (implemented):** a field whose header hash does not match the map is refused,
+  and the old header version is refused with a version message.
 
 ## 8. Wire contract (protocol 13 → 14)
 
@@ -318,11 +322,12 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
 
 1. **Model and format (no behaviour change; in progress).** **Landed:**
    `BlockKind`/`Material`/`MapBlock`, the shared rule table, strict version-1 text format and
-   parser/writer, `ArenaMap` re-expressed through the embedded canonical loader, and migration plus
-   round-trip tests. The standard arena remains wall-only, so the legacy `solids()` geometry is
-   unchanged. **Still deferred in this milestone:** the SDF map-hash header/loader guard and the
-   physical `assets/maps/arena.map` move. Gate: `shared`'s tests must prove the loaded arena is
-   today's arena when a human/CI can execute them.
+   parser/writer, `ArenaMap` re-expressed through the embedded canonical loader, migration plus
+   round-trip tests, and the version-2 SDF map-hash header/cache guard. `SdfBaker` now reads the
+   SDF column of the shared table. The standard arena remains wall-only, so its legacy `solids()`
+   geometry and SDF texels are unchanged. **Still deferred in this milestone:** the physical
+   `assets/maps/arena.map` move. Gate: `shared`'s tests must prove the loaded arena is today's
+   arena when a human/CI can execute them.
 2. **Rule-aware consumers.** `MapQueries` line queries take a purpose; `PlayerMotion` learns
    platform tops; `RaycastBulletSystem` asks the bullet column; `TerrainRenderer` draws per kind
    (with glass, platforms and doors as flats). Gate: the CI tests for one-way rules and the kind

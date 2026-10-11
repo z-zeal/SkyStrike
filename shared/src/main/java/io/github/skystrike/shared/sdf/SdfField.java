@@ -1,5 +1,7 @@
 package io.github.skystrike.shared.sdf;
 
+import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.MapHash;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -7,6 +9,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * CPU representation of the Signed Distance Field for the arena geometry.
@@ -19,22 +23,40 @@ import java.io.OutputStream;
  * </ul>
  *
  * <p>Supports bilinear sampling, central-difference surface gradients, and CPU sphere-tracing.
+ * Its version-2 header also carries the SHA-256 identity of the map that was baked, so a caller
+ * can reject derived data for another layout before it reaches rendering or particle collision.
  */
 public final class SdfField {
 
     public static final int MAGIC = 0x53534446; // "SSDF"
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
+    public static final int MAP_HASH_BYTES = MapHash.BYTE_LENGTH;
+    public static final int HEADER_BYTES = Integer.BYTES * 4 + Float.BYTES * 3 + MAP_HASH_BYTES;
 
     private final int width;
     private final int height;
     private final float texelScale;
     private final float worldWidth;
     private final float worldHeight;
+    private final byte[] mapHash;
     private final byte[] data;
 
-    public SdfField(int width, int height, float texelScale, float worldWidth, float worldHeight, byte[] data) {
+    public SdfField(
+            int width,
+            int height,
+            float texelScale,
+            float worldWidth,
+            float worldHeight,
+            byte[] mapHash,
+            byte[] data) {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("dimensions must be positive: " + width + "x" + height);
+        }
+        Objects.requireNonNull(mapHash, "mapHash");
+        Objects.requireNonNull(data, "data");
+        if (mapHash.length != MAP_HASH_BYTES) {
+            throw new IllegalArgumentException(
+                "map hash must be " + MAP_HASH_BYTES + " bytes, was " + mapHash.length);
         }
         if (data.length != width * height) {
             throw new IllegalArgumentException(
@@ -45,6 +67,7 @@ public final class SdfField {
         this.texelScale = texelScale;
         this.worldWidth = worldWidth;
         this.worldHeight = worldHeight;
+        this.mapHash = mapHash.clone();
         this.data = data;
     }
 
@@ -66,6 +89,16 @@ public final class SdfField {
 
     public float worldHeight() {
         return worldHeight;
+    }
+
+    /** SHA-256 identity of the map this field was baked from. The returned array is a copy. */
+    public byte[] mapHash() {
+        return mapHash.clone();
+    }
+
+    /** True when this field belongs to the exact semantic map supplied by the caller. */
+    public boolean matchesMap(ArenaMap map) {
+        return Arrays.equals(mapHash, Objects.requireNonNull(map, "map").mapHash());
     }
 
     public byte[] rawData() {
@@ -182,6 +215,7 @@ public final class SdfField {
         DataOutputStream dataOut = new DataOutputStream(new BufferedOutputStream(out));
         dataOut.writeInt(MAGIC);
         dataOut.writeInt(VERSION);
+        dataOut.write(mapHash);
         dataOut.writeInt(width);
         dataOut.writeInt(height);
         dataOut.writeFloat(texelScale);
@@ -202,6 +236,8 @@ public final class SdfField {
         if (version != VERSION) {
             throw new IOException("unsupported SDF version: " + version);
         }
+        byte[] mapHash = new byte[MAP_HASH_BYTES];
+        dataIn.readFully(mapHash);
         int width = dataIn.readInt();
         int height = dataIn.readInt();
         float texelScale = dataIn.readFloat();
@@ -211,6 +247,6 @@ public final class SdfField {
         byte[] data = new byte[width * height];
         dataIn.readFully(data);
 
-        return new SdfField(width, height, texelScale, worldWidth, worldHeight, data);
+        return new SdfField(width, height, texelScale, worldWidth, worldHeight, mapHash, data);
     }
 }

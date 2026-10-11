@@ -1,5 +1,6 @@
 package io.github.skystrike.shared.map;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,6 +54,34 @@ class ArenaMapFormatTest {
         assertEquals(original.blocks(), loaded.blocks());
         assertEquals(original.spawns(), loaded.spawns());
         assertEquals(firstSave, secondSave);
+    }
+
+    @Test
+    void mapHashIgnoresAuthoredLineOrderButIncludesMapContents() {
+        ArenaMap first = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "mirrored wall stone 100 200 20 20",
+            "mirrored breakable wood 700 450 40 20"));
+        ArenaMap reordered = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 1 2760 180",
+            "spawn 0 240 180",
+            "mirrored breakable wood 700 450 40 20",
+            "mirrored wall stone 100 200 20 20"));
+        ArenaMap changed = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "mirrored wall stone 100 200 20 20",
+            "mirrored breakable wood 710 450 40 20"));
+
+        assertArrayEquals(first.mapHash(), reordered.mapHash());
+        assertFalse(java.util.Arrays.equals(first.mapHash(), changed.mapHash()));
     }
 
     @Test

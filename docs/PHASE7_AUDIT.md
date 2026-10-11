@@ -408,6 +408,10 @@ run here either; each change carries its own unexecuted acceptance note.
   fallback. The OS pointer is hidden while the crosshair stands in for it, and restored for every
   modal dialog, a dead local player, and when the match screen is left or disposed.
   `docs/CROSSHAIR_POINTER_ACCEPTANCE.md` is new and unexecuted.
+- **Planned, not built:** the map building system (`docs/MAP_BUILDER_PLAN.md`, with
+  `docs/MAP_BUILDER_ACCEPTANCE.md`): doors, breakables, glass, one-way platforms, materials, the
+  text map format, the SDF re-bake and hash guard, the editor/CLI split, and the protocol 13 → 14
+  additions it will need. No code from it exists in the tree.
 - **Map building system, increment 1 — shared model and text format.** Implemented:
   `shared/map/{BlockKind,Material,MapBlock,MovementRule,BlockRenderStyle,Blocking,BlockRules}`;
   `ArenaMap.blocks()` with its legacy `solids()` view derived from the bullet column; and a public
@@ -420,6 +424,15 @@ run here either; each change carries its own unexecuted acceptance note.
   rendering behaviour changes in this increment; there is no wire or protocol change. Door ids and
   state, material damage, rule-aware consumers, SDF hash/rebake, an `assets/maps` file, editor/CLI
   and protocol 14 remain future work. `docs/MAP_BUILDER_ACCEPTANCE.md` remains wholly unexecuted.
+- **Map building system, increment 1 — SDF identity guard.** Implemented: order-independent
+  `MapHash` (SHA-256 over the authored axis, spawns, kinds, materials and exact rectangle bits),
+  cached through `ArenaMap.mapHash()`; `SdfField` version 2 embeds that 32-byte identity;
+  `SdfBaker` reads the SDF column of `BlockRules`; and `SdfCache` verifies the requested map before
+  upload. A shipping-default client now fails loudly for a missing, old or mismatched asset, while
+  an explicitly debug-enabled client logs and re-bakes. `assets/data/arena.sdf` was re-headered
+  with the current standard-map hash; the 1.5M texel payload is unchanged because the migrated
+  arena geometry is unchanged. Shared tests cover hash mismatch, header round-trip and SDF-column
+  selection. No wire or protocol change; the manual map checklist remains wholly unexecuted.
 
 ---
 
@@ -432,8 +445,8 @@ test status come only from GitHub Actions.
 The same limit applies to the rebaseline pass at `a293f80`: it re-read the source and ran the
 permitted Python checks (`tools/scratch/static_check.py`, `static_api_check.py`, both clean; the
 module-boundary rules find zero violations), and it did not run the game, the server, Gradle, the
-test suites or any acceptance checklist. The map-model/format increment likewise ran only
-`tools/scratch/static_check.py`, `static_api_check.py`, `static_audio_check.py`,
+test suites or any acceptance checklist. The map-model, format and SDF-identity increments likewise
+ran only `tools/scratch/static_check.py`, `static_api_check.py`, `static_audio_check.py`,
 `synth_sfx.py --check` and `phase3_ballistics.py` (all clean), plus the weapon-table generator
 (which left no tracked diff); it did not compile or execute its new shared tests. **Every runtime
 checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`,

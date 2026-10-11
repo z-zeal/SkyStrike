@@ -24,6 +24,7 @@ public final class ArenaMap {
     private final List<MapBlock> blocks;
     private final List<Rect> solids;
     private final List<SpawnPoint> spawns;
+    private final byte[] mapHash;
 
     private ArenaMap(float mirrorAxisX, List<MapBlock> blocks, List<SpawnPoint> spawns) {
         validateMirrorAxis(mirrorAxisX);
@@ -38,6 +39,16 @@ public final class ArenaMap {
             }
         }
         this.solids = List.copyOf(bulletBlockers);
+        this.mapHash = MapHash.of(this);
+    }
+
+    /**
+     * Stable SHA-256 identity for the authored map contents. The returned array is a copy.
+     *
+     * <p>It is carried by derived data such as the SDF, never by the mutable legacy rect view.
+     */
+    public byte[] mapHash() {
+        return mapHash.clone();
     }
 
     /** Every authored map block, in authored order. Immutable. */

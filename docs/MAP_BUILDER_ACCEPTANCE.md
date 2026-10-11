@@ -2,9 +2,10 @@
 
 **Status: unexecuted. Every box below is unchecked.** Increment 1 has landed the shared block
 model, rule table and strict version-1 text parser/writer, with the legacy arena loaded through its
-canonical embedded text and shared tests written for migration and round trips. It does **not** yet
-ship an `assets/maps` file, editor, SDF map-hash guard, material damage, glass, platform, door or
-breakable runtime behaviour; those checks remain unattempted. Nothing in this repository was
+canonical embedded text, a version-2 SDF map-hash guard, and shared tests written for migration,
+round trips and SDF identity. It does **not** yet ship an `assets/maps` file, editor, material
+damage, glass, platform, door or breakable runtime behaviour; those checks remain unattempted.
+Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
 
