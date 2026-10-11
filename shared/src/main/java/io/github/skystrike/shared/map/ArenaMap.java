@@ -82,6 +82,44 @@ public final class ArenaMap {
         return mapHash.clone();
     }
 
+    /** The map hash as lower-case hexadecimal — the form logs and error messages quote. */
+    public String mapHashHex() {
+        return MapHash.hex(mapHash);
+    }
+
+    /**
+     * One-line identity of this map for startup logs and operator dumps: the block census by
+     * kind, the mirror axis and the map hash.
+     *
+     * <p>The reason this exists is the first live run of the milestone-3 fixture range: findings
+     * that read as physics bugs — a pane that neither stops a body nor shatters — are exactly
+     * what a client and a server running different maps produce, and the ordinary startup line's
+     * bare block count cannot tell a stale process from a current one. Both sides now announce
+     * the map they actually parsed, so a mismatch is one log line apart. The census is computed
+     * here, inside {@code shared/map}, because no consumer outside this package may name a block
+     * kind — a census every consumer can print is also the one string that cannot drift from the
+     * rule table.
+     */
+    public String describe() {
+        Map<BlockKind, Integer> census = new EnumMap<>(BlockKind.class);
+        for (MapBlock block : blocks) {
+            census.merge(block.kind(), 1, Integer::sum);
+        }
+        StringBuilder text = new StringBuilder(blocks.size() * 12);
+        text.append(blocks.size()).append(" blocks [");
+        boolean first = true;
+        for (Map.Entry<BlockKind, Integer> entry : census.entrySet()) {
+            if (!first) {
+                text.append(", ");
+            }
+            text.append(entry.getKey()).append(' ').append(entry.getValue());
+            first = false;
+        }
+        text.append("], mirror x=").append(mirrorAxisX);
+        text.append(", map ").append(MapHash.hex(mapHash));
+        return text.toString();
+    }
+
     /** Every authored map block, in authored order. Immutable. */
     public List<MapBlock> blocks() {
         return blocks;
