@@ -248,18 +248,6 @@ public final class LoadoutSystem {
         mirror(player, loadout, gun);
     }
 
-    /**
-     * The server's own view of the thrower when a throw is refused by terrain. Terrain refusals
-     * are decided from the body's eye and release point, so the refusal line carries the position
-     * the server holds: that shows whether the body or the map disagrees with what the player sees.
-     */
-    private static String throwDiagnostics(Player player) {
-        return String.format(java.util.Locale.ROOT,
-            " (pos=%.1f,%.1f eye=%.1f,%.1f aim=%.1f crouched=%s ads=%s)",
-            player.x, player.y, player.eyeX(), player.eyeY(), player.aimAngle,
-            player.crouched, player.ads);
-    }
-
     private void refuse(PlayerSession session, String reason) {
         if (!session.recordLoadoutRefusal(reason, System.currentTimeMillis())) {
             return;
@@ -355,7 +343,7 @@ public final class LoadoutSystem {
         }
         UtilitySystem.ThrowResult result = utilitySystem.tryThrowUtility(player, utility);
         if (!result.accepted()) {
-            refuse(session, "utility throw refused: " + result.reason() + throwDiagnostics(player));
+            refuse(session, "utility throw refused: " + result.reason());
             return;
         }
         loadout.consumeActiveUtility();
