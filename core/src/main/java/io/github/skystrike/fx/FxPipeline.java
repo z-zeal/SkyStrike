@@ -305,9 +305,12 @@ public final class FxPipeline implements Disposable {
      * {@link #updateFx} that finds it finished patches the texture and hands the particle systems
      * the new field.
      *
-     * <p>Nothing calls this in this milestone: the client's authoritative set arrives with the
-     * protocol-14 block events, and the packet is the next milestone's work. The path itself is
-     * pinned by the shared bake-determinism tests.
+     * <p>The caller is the play screen's destruction sync: every applied block event and every
+     * non-empty join baseline re-bakes for the client's live map. The re-baked field names that
+     * live map — its hash stops matching the authored one with the first break — while the
+     * load-time {@code SdfCache} guard still verifies the shipped asset against the authored
+     * hash, exactly as D9 asks: the asset must describe the map both sides agreed to, and only
+     * the runtime field follows the damage.
      */
     public void rebakeSdf(ArenaMap liveMap) {
         sdfRebakes.request(liveMap, sdfTexture.texelScale());

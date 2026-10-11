@@ -6,6 +6,7 @@ import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
+import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
@@ -70,6 +71,19 @@ public final class ClientSession {
     private Consumer<PacketCapabilities> capabilityListener;
     private Consumer<PacketCommandResponse> commandResponseListener;
     private Runnable sessionResetListener;
+    /**
+     * The retained join accept: its destruction baseline outlives the packet that carried it,
+     * because the screen that applies it is built after the join completes.
+     */
+    private PacketJoinAccept joinAccept;
+    private Consumer<PacketJoinAccept> joinListener;
+    private Consumer<PacketBlockBreak> blockBreakListener;
+    /**
+     * Breaks that arrived before anyone was listening — the frames between the join completing
+     * and the play screen registering. Replayed in order when the listener arrives, so a break
+     * in that window desyncs nothing.
+     */
+    private final List<PacketBlockBreak> pendingBreaks = new ArrayList<>();
 
     /**
      * The local player's blindness, decayed locally between snapshots so the whiteout recovers
@@ -158,6 +172,33 @@ public final class ClientSession {
         this.commandResponseListener = listener;
     }
 
+    /**
+     * Called on the render thread when the server accepts the join.
+     *
+     * <p>A screen built after the join — the normal path, where the connecting screen drives
+     * this session — misses the call and must pull {@link #joinAccept()} instead.
+     */
+    public void setJoinListener(Consumer<PacketJoinAccept> listener) {
+        this.joinListener = listener;
+    }
+
+    /**
+     * Called on the render thread for every authoritative block break.
+     *
+     * <p>Breaks that arrived before this was set are replayed in order first: the join accept
+     * precedes them on the reliable channel, so the listener that just synced the baseline gets
+     * the window's breaks after it, exactly as if it had been listening all along.
+     */
+    public void setBlockBreakListener(Consumer<PacketBlockBreak> listener) {
+        this.blockBreakListener = listener;
+        if (listener != null && !pendingBreaks.isEmpty()) {
+            for (PacketBlockBreak pending : pendingBreaks) {
+                listener.accept(pending);
+            }
+            pendingBreaks.clear();
+        }
+    }
+
     /** Called whenever a connection attempt or joined session is torn down. */
     public void setSessionResetListener(Runnable listener) {
         this.sessionResetListener = listener;
@@ -237,6 +278,10 @@ public final class ClientSession {
             acceptedName = accept.playerName;
             serverTickRateHz = accept.tickRateHz;
             serverTick = accept.serverTick;
+            joinAccept = accept;
+            if (joinListener != null) {
+                joinListener.accept(accept);
+            }
         } else if (payload instanceof PacketJoinReject reject) {
             state = ConnectionState.FAILED;
             joinRejectReason = reject.reason == null || reject.reason.isBlank()
@@ -256,6 +301,12 @@ public final class ClientSession {
             effectsReceived += effects.effectCount();
             if (effectListener != null) {
                 effectListener.accept(effects);
+            }
+        } else if (payload instanceof PacketBlockBreak broke) {
+            if (blockBreakListener != null) {
+                blockBreakListener.accept(broke);
+            } else {
+                pendingBreaks.add(broke);
             }
         } else if (payload instanceof PacketDamageEvent damage) {
             applyDamageEvent(damage);
@@ -366,6 +417,8 @@ public final class ClientSession {
     private void resetSessionState() {
         playerId = -1;
         acceptedName = "";
+        joinAccept = null;
+        pendingBreaks.clear();
         serverPlayerCount = 0;
         latencyMillis = -1;
         latestSnapshot = null;
@@ -418,6 +471,15 @@ public final class ClientSession {
 
     public String acceptedName() {
         return acceptedName;
+    }
+
+    /**
+     * The retained join accept, or {@code null} before the join completes. Carries the
+     * destruction baseline — the map hash, the revision and the break history — for a screen
+     * that registered too late for the join listener.
+     */
+    public PacketJoinAccept joinAccept() {
+        return joinAccept;
     }
 
     public long serverTick() {
