@@ -2,8 +2,10 @@ package io.github.skystrike.shared.map;
 
 import io.github.skystrike.shared.config.WorldConfig;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -11,9 +13,10 @@ import java.util.Set;
  * Immutable authored geometry for one symmetric arena.
  *
  * <p>A map owns {@link MapBlock blocks}; their shared {@link BlockRules} rows decide what each
- * consumer sees. {@link #solids()} remains a compatibility view for existing bullet-blocking
+ * consumer sees. {@link #blockers(Blocking)} exposes those rows as one cached rectangle list per
+ * query purpose, and {@link #solids()} remains a compatibility view for existing bullet-blocking
  * callers while those callers migrate to their specific rule columns. The shipped arena contains
- * only wall blocks today, so that view is geometrically identical to the old rect-only map.
+ * only wall blocks today, so every view is geometrically identical to the old rect-only map.
  *
  * <p>Use {@link Builder#mirrored(MapBlock)} or {@link Builder#centred(MapBlock)} to preserve the
  * fairness invariant that every authored block has a reflection about {@link #mirrorAxisX()}.
@@ -22,7 +25,7 @@ public final class ArenaMap {
 
     private final float mirrorAxisX;
     private final List<MapBlock> blocks;
-    private final List<Rect> solids;
+    private final Map<Blocking, List<Rect>> blockers;
     private final List<SpawnPoint> spawns;
     private final byte[] mapHash;
 
@@ -32,13 +35,22 @@ public final class ArenaMap {
         this.blocks = List.copyOf(blocks);
         this.spawns = List.copyOf(spawns);
 
-        List<Rect> bulletBlockers = new ArrayList<>();
-        for (MapBlock block : this.blocks) {
-            if (BlockRules.blocks(block.kind(), Blocking.BULLETS)) {
-                bulletBlockers.add(block.rect());
+        // One cached view per query purpose, still derived from the one rule table: the rectangles
+        // whose row answers that purpose, in authored order. Consumers that sweep every segment of
+        // a frame (the bullet raycaster, line queries) then pay the rule lookup once per block here
+        // rather than once per rect per query, and no consumer has to know a kind by name.
+        EnumMap<Blocking, List<Rect>> views = new EnumMap<>(Blocking.class);
+        for (Blocking purpose : Blocking.values()) {
+            List<Rect> rects = new ArrayList<>();
+            for (MapBlock block : this.blocks) {
+                if (BlockRules.blocks(block.kind(), purpose)) {
+                    rects.add(block.rect());
+                }
             }
+            views.put(purpose, List.copyOf(rects));
         }
-        this.solids = List.copyOf(bulletBlockers);
+        this.blockers = views;
+
         this.mapHash = MapHash.of(this);
     }
 
@@ -57,14 +69,26 @@ public final class ArenaMap {
     }
 
     /**
+     * Every authored block whose shared {@link BlockRules} row blocks {@code purpose}, as
+     * rectangles in authored order. Immutable.
+     *
+     * <p>This is the set a rule-aware query sweeps. It is derived data, computed once when the map
+     * is built: the rule table stays the only place that decides whether a kind blocks a purpose.
+     */
+    public List<Rect> blockers(Blocking purpose) {
+        Objects.requireNonNull(purpose, "purpose");
+        return blockers.get(purpose);
+    }
+
+    /**
      * Compatibility view of rectangles whose intact/closed kind blocks bullets. Immutable.
      *
-     * <p>This preserves the legacy rect API while query, movement, rendering and SDF consumers
-     * migrate to their own {@link BlockRules} column. It must not be used as a universal meaning
-     * of "solid" for a newly introduced block kind.
+     * <p>Identical to {@code blockers(Blocking.BULLETS)}; it preserves the legacy rect API while
+     * query, movement, rendering and SDF consumers migrate to their own {@link BlockRules} column.
+     * It must not be used as a universal meaning of "solid" for a newly introduced block kind.
      */
     public List<Rect> solids() {
-        return solids;
+        return blockers(Blocking.BULLETS);
     }
 
     /** Spawn positions in authored order. Immutable. */

@@ -11,6 +11,7 @@ import io.github.skystrike.shared.combat.BallisticsMath;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
@@ -117,7 +118,9 @@ public final class BulletSystem {
         // segment the round is born along is tested against the terrain, and a shot fired while
         // hugging a wall is absorbed at the muzzle instead of appearing on the far side of it.
         // Note that a longer barrel needs more clear space in front of the eye to exist at all.
-        if (raycaster.blockedByTerrain(eyeX, eyeY, muzzleX, muzzleY)) {
+        // The guard asks the shared BULLETS column, exactly as the round's own sweep does: the
+        // muzzle is not blocked by anything the round could have passed through.
+        if (raycaster.blockedByTerrain(eyeX, eyeY, muzzleX, muzzleY, Blocking.BULLETS)) {
             return null;
         }
 

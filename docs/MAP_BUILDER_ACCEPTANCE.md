@@ -1,10 +1,16 @@
 # Map building system — acceptance checklist
 
-**Status: unexecuted. Every box below is unchecked.** Increment 1 has landed the shared block
-model, rule table and strict version-1 text parser/writer, with the legacy arena loaded through its
+**Status: unexecuted. Every box below is unchecked.** Milestone 1 landed the shared block model,
+rule table and strict version-1 text parser/writer, with the legacy arena loaded through its
 canonical embedded text, a version-2 SDF map-hash guard, and shared tests written for migration,
-round trips and SDF identity. It does **not** yet ship an `assets/maps` file, editor, material
-damage, glass, platform, door or breakable runtime behaviour; those checks remain unattempted.
+round trips and SDF identity. Milestone 2 has started with the rule-aware line queries: a shared
+`Blocking` purpose on `MapQueries`, one cached per-purpose rectangle view on `ArenaMap`, the sight
+column in `VisionMath`, the bullet column in the raycaster and the muzzle guard, and the blast
+column (pinned to sight) in the frag, claymore-cone and fire-spread consumers, with tests written
+for the mixed-kind cases. None of that changes the shipped wall-only arena's gameplay. It does
+**not** yet ship an `assets/maps` file, editor, material damage, glass, platform, door or breakable
+runtime behaviour, and the movement sweeper still reads the compatibility rect view; those checks
+remain unattempted.
 Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
@@ -104,14 +110,17 @@ automated tests for that milestone are green in CI. The CI-side tests are listed
 ## Verification note
 
 No Java, Gradle task, unit test, server, desktop client or checklist item was run in the authoring
-sandbox. The source-only checks run after the increment were:
+sandbox. The source-only checks run after this increment were:
 
-- `python3 tools/scratch/static_check.py` — clean (including module-boundary checks).
-- `python3 tools/scratch/static_api_check.py` — clean.
+- `python3 tools/scratch/static_check.py` — clean (405 Java files scanned, including the
+  module-boundary rules).
+- `python3 tools/scratch/static_api_check.py` — clean (502 project types indexed).
 - `python3 tools/scratch/static_audio_check.py` — clean.
-- `python3 tools/scratch/synth_sfx.py --check` — clean.
+- `python3 tools/scratch/synth_sfx.py --check` — clean (13 generated sounds agree).
 - `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
 - `python3 tools/weapons/generate_weapon_tables.py` — regenerated no tracked diff.
 
-Those checks do not compile or execute the new shared tests and do not validate runtime map loading;
-every manual box above remains unchecked.
+Those checks do not compile or execute the shared and server tests this increment added
+(`MapQueryPurposeTest`, the `VisionMath` sight-column test and `RaycastBulletSystemTest`) and do not
+validate runtime map loading or any kind's runtime behaviour; every manual box above remains
+unchecked.

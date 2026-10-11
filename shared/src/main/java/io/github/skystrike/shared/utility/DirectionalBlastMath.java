@@ -1,9 +1,10 @@
 package io.github.skystrike.shared.utility;
 
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
-import io.github.skystrike.shared.vision.VisionMath;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -13,8 +14,9 @@ import java.util.List;
  *
  * <p>This deliberately mirrors {@link ExplosionMath}: linear falloff, an absolute terrain
  * block, one result per live target, and an impulse directed away from the device. The additional
- * cone test happens before the line-of-sight ray so a player standing behind the claymore is
- * never hit by its forward charge.
+ * cone test happens before the occlusion ray so a player standing behind the claymore is never
+ * hit by its forward charge. Occlusion is the shared {@link Blocking#BLAST} column, which the
+ * rule table pins to sight, so the claymore and a frag can never disagree about a window.
  */
 public final class DirectionalBlastMath {
 
@@ -91,7 +93,8 @@ public final class DirectionalBlastMath {
             float targetX = player.centerX();
             float targetY = player.centerY();
             if (!contains(blast, targetX, targetY)
-                || !VisionMath.hasLineOfSight(blast.x(), blast.y(), targetX, targetY, map)) {
+                || MapQueries.lineBlocked(
+                    map, blast.x(), blast.y(), targetX, targetY, Blocking.BLAST)) {
                 continue;
             }
             float dx = targetX - blast.x();

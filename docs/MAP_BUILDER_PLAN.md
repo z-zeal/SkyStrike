@@ -1,12 +1,16 @@
 # Map building system — plan
 
-**Status: increment 1 is in progress.** The shared `BlockKind`/`Material`/`MapBlock` model,
-central `BlockRules` table, strict version-1 text parser/writer, standard-arena migration and SDF
-map-hash guard have landed. `ArenaMap.standard()` now loads the embedded canonical text through
-that parser; every version-2 SDF names its semantic map, and shared tests cover the rule rows,
-migration geometry, strict failures, canonical save → load → save and SDF hash contract. The asset
-move and most rule-aware runtime consumers remain unfinished; no Java was compiled or executed,
-and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
+**Status: milestone 1 has landed and milestone 2 is under way.** The shared
+`BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text
+parser/writer, standard-arena migration and SDF map-hash guard landed in PR #47.
+`ArenaMap.standard()` loads the embedded canonical text through that parser; every version-2 SDF
+names its semantic map, and shared tests cover the rule rows, migration geometry, strict failures,
+canonical save → load → save and the SDF hash contract. Milestone 2's first increment has landed
+too: line queries take a shared `Blocking` purpose, `ArenaMap` derives one cached rectangle view
+per purpose from the rule table, and the sight, bullet and blast consumers ask their own column
+instead of the compatibility rect list. The `assets/maps` move, the movement column (one-way
+platform tops), kind-aware rendering and every later milestone remain unfinished; no Java was
+compiled or executed, and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
 
 ## 1. What exists today
 
@@ -19,22 +23,29 @@ and a strict persistence path.
 - **`shared/map/{BlockKind, Material, MapBlock, BlockRules}`** — the immutable block triple and
   the one rule table for movement, sight, bullets, SDF inclusion and renderer treatment. The table
   describes intact/closed blocks; dynamic state is still later work.
-- **`shared/map/ArenaMap`** — immutable `blocks()` plus a backwards-compatible `List<Rect>
-  solids()` derived from the bullet-blocking rule. `spawns()`, `width()`, `height()`,
-  `mirrorAxisX()` and `bounds()` remain. Its public builder enforces `mirrored(block)`/
-  `centred(block)` symmetry and rejects duplicate blocks. `ArenaMap.standard()` now parses
-  `StandardArenaMap`'s canonical version-1 text; `ArenaMapTest` still pins its legacy geometry.
+- **`shared/map/ArenaMap`** — immutable `blocks()`, rule-derived `blockers(Blocking)` (one cached
+  rectangle view per query purpose) and a backwards-compatible `List<Rect> solids()` that is
+  exactly `blockers(Blocking.BULLETS)`. `spawns()`, `width()`, `height()`, `mirrorAxisX()` and
+  `bounds()` remain. Its public builder enforces `mirrored(block)`/`centred(block)` symmetry and
+  rejects duplicate blocks. `ArenaMap.standard()` now parses `StandardArenaMap`'s canonical
+  version-1 text; `ArenaMapTest` still pins its legacy geometry.
 - **`shared/map/ArenaMapFormat`** — a dependency-free, strict line parser/writer. It rejects a
   malformed header, unknown verbs/kinds/materials, non-positive or out-of-bounds blocks,
   duplicate blocks and wrong symmetry verbs rather than exposing a partial map.
 - **`shared/map/MapQueries`** — the stateless questions: `solidAt`, `overlapsSolid`,
-  `lineBlocked`, `firstBlocker`, `surfaceBelow`, `solidsOverlapping`. The javadoc calls this "the
-  one query used for sight, explosion occlusion and bullet sweeps".
+  purpose-aware `lineBlocked`/`firstBlocker` (their five-argument forms are the sight
+  convenience), `surfaceBelow`, `solidsOverlapping`. Line queries answer from the shared rule
+  table through `ArenaMap.blockers(Blocking)`; the point/box questions still read the
+  bullet-blocking compatibility view until the movement column migrates.
 - **`shared/physics/PlayerMotion`** — the shared swept-AABB movement with its own ground skin,
   ceiling clearance for uncrouching, and `noclip`. Server authority and client prediction run this
-  same function; the server has no separate collision code.
+  same function; the server has no separate collision code. It still sweeps the bullet-blocking
+  compatibility view: the movement column and one-way platform tops are the next milestone-2
+  increment, because half a movement column would be worse than none.
 - **`server/combat/RaycastBulletSystem`** — the swept round path: nearest entry across terrain and
-  player hitboxes, with the terrain case recorded as the `Rect` that was hit.
+  player hitboxes, with the terrain case recorded as the `Rect` that was hit. Terrain is the
+  `BULLETS` column of the shared table, and `blockedByTerrain` takes the purpose explicitly so the
+  muzzle guard and the round's own sweep always ask the same question.
 - **`server/combat/BulletSystem`** — per-tick projectile integration plus the muzzle guard
   (`raycaster.blockedByTerrain(eye, muzzle)`), which the per-weapon muzzle made load-bearing.
 - **SDF** — `tools/.../SdfBakeTool` bakes `ArenaMap.standard()` through `shared/sdf/SdfBaker` into
@@ -77,8 +88,10 @@ behaviour while new call sites can ask by rule.
 **D2 — One rule table, four readers.** Every kind declares, in one shared table, what it does to
 each consumer: movement, sight, bullets, the SDF bake, and rendering. The table is the plan's
 heart (§3), and every consumer reads it rather than testing kinds by name. **Implemented so far:**
-the shared rows and tests plus `SdfBaker`'s SDF column; the collision, sight, bullet and rendering
-consumer migrations remain milestone 2 work.
+the shared rows and tests, `SdfBaker`'s SDF column, and milestone 2's line-query threading —
+`ArenaMap.blockers(Blocking)`, purpose-aware `MapQueries` line queries, `VisionMath`, the bullet
+raycaster and muzzle guard, and the blast consumers. The sweeper's movement column and the
+renderer remain milestone 2 work.
 
 **D3 — Doors are server-owned dynamic blockers.** A door has an id, an `access` rule and a state
 (`CLOSED`/`OPENING`/`OPEN`/`SHUTTING`) with the opening tick. Collision, sight and bullets consult
@@ -163,7 +176,10 @@ Consequences the table forces, spelled out because they are the places a plan us
   parameter on the raycaster and the sweeper's set, with the old 5-argument signature kept as a
   `SIGHT` convenience so the existing call sites do not change meaning. The blast decision:
   explosion occlusion follows **sight**, because a blast is an area of effect, and glass that
-  passes sight also passes the blast.
+  passes sight also passes the blast. **Landed:** the purpose API, `ArenaMap`'s per-purpose views,
+  the raycaster parameter, `VisionMath`, and every frag, claymore-cone and fire-spread occlusion
+  call (they ask `BLAST`). The sweeper's movement set is the one reader still on the compatibility
+  view.
 - **One-way platforms cannot be expressed by the current sweeper.** `PlayerMotion.integrateAndCollide`
   tests every rect for both axes; platform support is an added rule — tops are considered only when
   `vy <= 0` and the body's feet were above the slab on the previous step, and skipped while the
@@ -297,6 +313,14 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   every shipped map, so a saved map that seals itself fails CI rather than a playtest.
 - **SDF hash guard (implemented):** a field whose header hash does not match the map is refused,
   and the old header version is refused with a version message.
+- **Rule-aware line queries (implemented, this milestone's first increment):** `MapQueryPurposeTest`
+  authors a mixed-kind map and asks every kind and every `Blocking` purpose through
+  `MapQueries.lineBlocked`/`firstBlocker`, comparing the answer with `BlockRules.blocks` and the
+  `ArenaMap.blockers(purpose)` view; `VisionMathTest` shows sight, and the gameplay visibility
+  query with it, passes intact glass and a one-way platform and stops on a wall and a closed door.
+  In `server/src/test`, `RaycastBulletSystemTest` proves a round passes intact glass and a platform,
+  stops on a wall, an intact breakable and a closed door, and cannot reach a body standing behind
+  the wall behind a window. The one-way sweeper tests are still to come with their increment.
 
 ## 8. Wire contract (protocol 13 → 14)
 
@@ -328,10 +352,16 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    geometry and SDF texels are unchanged. **Still deferred in this milestone:** the physical
    `assets/maps/arena.map` move. Gate: `shared`'s tests must prove the loaded arena is today's
    arena when a human/CI can execute them.
-2. **Rule-aware consumers.** `MapQueries` line queries take a purpose; `PlayerMotion` learns
-   platform tops; `RaycastBulletSystem` asks the bullet column; `TerrainRenderer` draws per kind
-   (with glass, platforms and doors as flats). Gate: the CI tests for one-way rules and the kind
-   table, plus a static check that no consumer tests a kind by name.
+2. **Rule-aware consumers (in progress).** **Landed:** `ArenaMap.blockers(Blocking)` derives one
+   cached rectangle view per purpose from the rule table; `MapQueries` line queries take a purpose
+   while their five-argument forms stay the `SIGHT` convenience; `VisionMath` and the sight
+   consumers ask the `SIGHT` column; `RaycastBulletSystem` and `BulletSystem.spawn`'s muzzle guard
+   ask the `BULLETS` column, with the purpose threaded through `blockedByTerrain`; the frag,
+   claymore-cone and fire-spread consumers ask `BLAST`, which the table pins to sight. **Still
+   deferred in this milestone:** `PlayerMotion` learning platform tops through the movement column
+   (it still reads the bullet compatibility view), `TerrainRenderer` drawing per kind (with glass,
+   platforms and doors as flats), and the static check that no consumer tests a kind by name.
+   Gate: the CI tests for one-way rules and the kind table, plus that static check.
 3. **Breakables and glass.** Durability, damage sources, destruction, effects, SDF re-bake and
    hash update. Gate: destruction tests and the re-bake path's determinism (baking twice gives the
    same field).

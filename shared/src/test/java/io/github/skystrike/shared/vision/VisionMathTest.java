@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.ArenaMapFormat;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class VisionMathTest {
@@ -242,6 +244,39 @@ class VisionMathTest {
                 null),
             "in the open cone both bars give the same answer, so the stricter one only bites at "
                 + "the periphery and behind terrain");
+    }
+
+    @Test
+    @DisplayName("line of sight asks the shared SIGHT column: glass and platforms pass, a door does not")
+    void lineOfSightFollowsTheSightRuleColumn() {
+        // The shipped arena is wall-only, so this mixed map is the only way to show that sight is
+        // the rule table's column rather than "everything in the collision set".
+        ArenaMap mixed = ArenaMapFormat.parse(String.join("\n",
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "mirrored wall stone 100 200 20 20",
+            "mirrored glass glass 400 300 20 80",
+            "mirrored platform energy 700 450 40 18",
+            "centred door metal 1490 500 20 90") + "\n");
+
+        assertFalse(VisionMath.hasLineOfSight(0f, 210f, 300f, 210f, mixed), "a wall blocks sight");
+        assertFalse(VisionMath.hasLineOfSight(1400f, 545f, 1600f, 545f, mixed),
+            "a closed door blocks sight");
+        assertTrue(VisionMath.hasLineOfSight(300f, 340f, 600f, 340f, mixed),
+            "an intact window is see-through");
+        assertTrue(VisionMath.hasLineOfSight(600f, 459f, 900f, 459f, mixed),
+            "a one-way platform is see-through");
+
+        // The gameplay query reads the same column, so visibility is non-zero through the window
+        // and exactly zero through the wall and the closed door.
+        assertTrue(VisionMath.calculateVisibility(300f, 340f, 0f, 640f, 500f, 340f, mixed, null) > 0f);
+        assertEquals(0f, VisionMath.calculateVisibility(0f, 210f, 0f, 640f, 300f, 210f, mixed, null), 0f);
+        assertEquals(0f, VisionMath.calculateVisibility(1400f, 545f, 0f, 640f, 1600f, 545f, mixed, null), 0f);
+
+        // A missing map is still "no occlusion" at this boundary.
+        assertTrue(VisionMath.hasLineOfSight(0f, 0f, 1000f, 1000f, null));
     }
 
     @Test

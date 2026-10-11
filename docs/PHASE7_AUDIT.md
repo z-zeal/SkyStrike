@@ -433,6 +433,25 @@ run here either; each change carries its own unexecuted acceptance note.
   with the current standard-map hash; the 1.5M texel payload is unchanged because the migrated
   arena geometry is unchanged. Shared tests cover hash mismatch, header round-trip and SDF-column
   selection. No wire or protocol change; the manual map checklist remains wholly unexecuted.
+- **Map building system, increment 2 — rule-aware line queries.** Implemented: `ArenaMap` now
+  derives one cached, immutable rectangle view per `Blocking` purpose from `BlockRules` at build
+  time (`blockers(Blocking)`), with `solids()` kept as exactly `blockers(BULLETS)`;
+  `MapQueries.lineBlocked`/`firstBlocker` take an explicit purpose (the five-argument forms remain
+  the `SIGHT` convenience, and a null map still means open space);
+  `shared/vision/VisionMath.hasLineOfSight` asks the `SIGHT` column instead of sweeping
+  `arena.solids()` itself, so a kind that passes sight passes the cone shader's maths with it;
+  `server/combat/RaycastBulletSystem` sweeps and reports terrain through the `BULLETS` column and
+  its `blockedByTerrain` takes the purpose explicitly, which `BulletSystem.spawn`'s muzzle guard
+  now passes; and the frag, claymore-cone and molotov fire-spread occlusion queries ask `BLAST`,
+  the column the rule table pins to sight. New tests: `MapQueryPurposeTest` (every kind × every
+  purpose against the rule table, on a mixed-kind map), a sight-column test in `VisionMathTest`,
+  and `RaycastBulletSystemTest` (a round passes intact glass and a one-way platform, stops on a
+  wall, an intact breakable and a closed door, and cannot reach a body standing behind the wall
+  behind a window). Behaviourally inert for the shipped arena — it contains only walls, so every
+  purpose view holds the same rects — and no wire or protocol change. Still deferred in milestone
+  2: `PlayerMotion`'s movement column and one-way platform tops (it still sweeps the bullet
+  compatibility view), the kind-aware `TerrainRenderer`, and the static check that no consumer
+  tests a kind by name.
 
 ---
 
@@ -448,10 +467,18 @@ module-boundary rules find zero violations), and it did not run the game, the se
 test suites or any acceptance checklist. The map-model, format and SDF-identity increments likewise
 ran only `tools/scratch/static_check.py`, `static_api_check.py`, `static_audio_check.py`,
 `synth_sfx.py --check` and `phase3_ballistics.py` (all clean), plus the weapon-table generator
-(which left no tracked diff); it did not compile or execute its new shared tests. **Every runtime
+(which left no tracked diff); it did not compile or execute its new shared tests. The map-building
+rule-query increment ran that same set (`static_check.py` clean over 405 Java files,
+`static_api_check.py` clean over 502 indexed project types, `static_audio_check.py`,
+`synth_sfx.py --check` and `phase3_ballistics.py` clean, and the weapon-table generator left no
+tracked diff); it did not execute the shared `MapQueryPurposeTest`/`VisionMathTest` additions or the
+new `server/src/test` `RaycastBulletSystemTest`, and it observed no runtime map query. **Every
+runtime
 checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`,
 `VISION_AUDIO_DRONE_ACCEPTANCE.md`, the mechanics §11 feel checklist and this pass's
 `PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md`,
 `CROSSHAIR_POINTER_ACCEPTANCE.md` and `MAP_BUILDER_ACCEPTANCE.md` — is still unexecuted. The map
-checklist's format/model source is now present, but all desktop validation and its later-milestone
-items remain pending; no checkbox in any of them may be ticked from source reading alone.**
+checklist's format/model source and its rule-aware line-query source are now present, but all
+desktop validation and its later-milestone items remain pending — the shipped arena is wall-only,
+so none of the new kind behaviour can be exercised until a map carrying glass, platforms, doors or
+breakables ships; no checkbox in any of them may be ticked from source reading alone.**
