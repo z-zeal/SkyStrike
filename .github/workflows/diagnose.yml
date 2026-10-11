@@ -2,7 +2,8 @@
 #
 # This branch was authored in a sandbox that cannot read Actions logs — the host the log zip is
 # served from is not reachable — so CI was red with no way to see why. This job re-runs the same
-# Gradle tasks as ci.yml and posts each task's output as a PR comment, which the API does serve.
+# Gradle tasks as ci.yml and posts each task's output, plus the failing test cases, as PR
+# comments, which the API does serve.
 #
 # Delete this file before the branch is merged.
 name: diagnose
@@ -35,23 +36,61 @@ jobs:
 
       - name: Check module dependencies
         continue-on-error: true
-        run: ./gradlew checkModuleDependencies --no-daemon --console=plain > /tmp/1-modules.log 2>&1
+        run: |
+          set +e
+          ./gradlew checkModuleDependencies --no-daemon --console=plain > /tmp/1-modules.log 2>&1
+          echo "exit=$? bytes=$(wc -c < /tmp/1-modules.log)" >> /tmp/1-modules.log
 
-      - name: shared:compileJava
+      - name: Compile every module's main sources
         continue-on-error: true
-        run: ./gradlew shared:compileJava --no-daemon --console=plain > /tmp/2-shared-main.log 2>&1
-
-      - name: server:compileJava core:compileJava
-        continue-on-error: true
-        run: ./gradlew server:compileJava core:compileJava --no-daemon --console=plain > /tmp/3-server-core-main.log 2>&1
+        run: |
+          set +e
+          ./gradlew shared:compileJava server:compileJava core:compileJava --no-daemon --console=plain > /tmp/2-compile.log 2>&1
+          echo "exit=$? bytes=$(wc -c < /tmp/2-compile.log)" >> /tmp/2-compile.log
 
       - name: shared:test
         continue-on-error: true
-        run: ./gradlew shared:test --no-daemon --console=plain > /tmp/4-shared-test.log 2>&1
+        run: |
+          set +e
+          ./gradlew shared:test --no-daemon --console=plain > /tmp/3-shared-test.log 2>&1
+          echo "exit=$? bytes=$(wc -c < /tmp/3-shared-test.log)" >> /tmp/3-shared-test.log
 
       - name: server:test
         continue-on-error: true
-        run: ./gradlew server:test --no-daemon --console=plain > /tmp/5-server-test.log 2>&1
+        run: |
+          set +e
+          ./gradlew server:test --no-daemon --console=plain > /tmp/4-server-test.log 2>&1
+          echo "exit=$? bytes=$(wc -c < /tmp/4-server-test.log)" >> /tmp/4-server-test.log
+
+      - name: Collect failing test cases
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 - > /tmp/5-failures.log <<'PY'
+          import glob
+          import re
+          import xml.etree.ElementTree as ET
+
+          found = 0
+          for path in sorted(glob.glob("*/build/test-results/test/*.xml")):
+              tree = ET.parse(path)
+              for case in tree.iter("testcase"):
+                  failure = case.find("failure")
+                  if failure is None:
+                      failure = case.find("error")
+                  if failure is None:
+                      continue
+                  found += 1
+                  print(f"--- {case.get('classname')}.{case.get('name')}")
+                  message = (failure.get("message") or "").strip()
+                  if message:
+                      print(f"    message: {message[:600]}")
+                  trace = (failure.text or "").strip().splitlines()
+                  for line in trace[:14]:
+                      print(f"    {line}")
+                  print()
+          print(f"{found} failing test case(s)")
+          PY
 
       - name: Post the output to the pull request
         if: always()
@@ -61,7 +100,7 @@ jobs:
           pr=$(gh pr list --head "$GITHUB_REF_NAME" --json number --jq '.[0].number')
           for log in /tmp/[1-5]-*.log; do
             {
-              echo "### \`$(basename "$log" .log | cut -d- -f2-)\` — $(head -c 2000 "$log" | grep -o 'BUILD [A-Z]*' | tail -1)"
+              echo "### \`$(basename "$log" .log | cut -d- -f2-)\`"
               echo '```'
               if [ "$(wc -c < "$log")" -gt 45000 ]; then
                 head -c 20000 "$log"
