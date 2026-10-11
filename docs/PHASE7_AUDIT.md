@@ -535,6 +535,30 @@ run here either; each change carries its own unexecuted acceptance note.
   `DirectionalBlastMathTest` additions, and the server `BlockDestructionTest`/
   `UtilityBlockDestructionTest`. Milestone-1/2 work was not redone and milestones 4–6 were not
   started.
+- **Map building system, milestone 3, shipped-arena fixture range (supersedes the "still wall-only"
+  statements above).** Source-checked; requested by the user so the milestone can be tried in a
+  running build instead of only in authored test rooms. `StandardArenaMap.TEXT` gained one mirrored
+  fixture range high over the centre — `platform wood 1620 1300 220 18`, `glass glass 1660 1318 20
+  180`, `breakable wood 1740 1318 60 60 durability=0.4`, mirrored to x 1160..1380 — so the arena now
+  carries 62 blocks (WALL 56, GLASS 2, BREAKABLE 2, PLATFORM 2; STONE 56, WOOD 4, GLASS 2) and
+  `assets/data/arena.sdf` was re-baked in the same commit (41,576 of 1,500,000 texels changed, header
+  hash `bef76535…6693`), because a shipping-default client refuses a field that does not name the map
+  in play. `ArenaMapFormatTest`'s census, solid list and hash pin; `MapDamageStateTest`'s resting-state
+  test and class note; and an `ExplosionMathTest` case at the range's height (a frag there takes both
+  panes and only chips the crates) were updated, and the "wall-only" wording the change falsified was
+  swept out of nine files in its own commit. A separate commit fixes the ambiguous
+  `hasLineOfSight(null, …)` call a Windows build reported in `VisionMathTest:287` — pre-existing on
+  `main` from the #51 merge — by casting to `ArenaMap`. Exactly the permitted checks were run:
+  `static_check.py` (clean: 419 Java files, 419 declared types), `static_api_check.py` (clean: 520
+  project types from 415 files), `static_audio_check.py` (clean: 13 world entries, 6 weapon events, 1
+  loop, 14 effect types, 30 manifest entries), `synth_sfx.py --check` (clean: 14 sounds agree),
+  `phase3_ballistics.py` (completed), `tools/weapons/generate_weapon_tables.py` (89 gun and 21 melee
+  rows regenerated, no tracked diff), plus the new `tools/scratch/arena_sdf_check.py` — a
+  dependency-free re-implementation of `MapHash`, the `SdfBaker` rasterisation, its 8SSEDT pass,
+  `Math.round`/float32 rounding and the 60-byte version-2 header, validated by reproducing the
+  pre-change asset byte-for-byte before it re-baked the new one, and now reporting the committed asset
+  as the bake of the committed map. No Java was compiled, no test, server, client, game or CI run was
+  performed or observed, and no acceptance box was ticked.
 
 ---
 
@@ -570,10 +594,17 @@ checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`,
 `PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md`,
 `CROSSHAIR_POINTER_ACCEPTANCE.md` and `MAP_BUILDER_ACCEPTANCE.md` — is still unexecuted. The map
 checklist's format/model, rule-aware line-query, movement-column and rendering sources are now
-present, but all desktop validation and its later-milestone items remain pending — the shipped arena
-is wall-only, so no one-way platform, pane, door or breakable can be exercised until a map carrying
-one ships, and `MAP_BUILDER_ACCEPTANCE.md` gained a Rendering section that is likewise unticked; no
-checkbox in any of them may be ticked from source reading alone.**
+present, but all desktop validation and its later-milestone items remain pending — the milestone-3
+fixture range means a one-way platform, a pane and a crate per side can now be met in a runnable
+build, while a door, a saved map file, the editor and a client-side re-bake still cannot, and
+`MAP_BUILDER_ACCEPTANCE.md` gained a Rendering section that is likewise unticked; no checkbox in any
+of them may be ticked from source reading alone.**
+
+The shipped-arena fixture-range increment ran the same permitted set plus the new
+`tools/scratch/arena_sdf_check.py`, which re-implements the bake and the map hash in Python and was
+validated against the pre-change asset before it re-baked the new one; it compiled and executed
+nothing, and §6 above records the detail. The one-line `VisionMathTest` disambiguation in the same
+increment is read from the compiler error a Windows build reported, not from a build run here.
 
 The held-utility rendering correction was checked only with `python3 tools/scratch/static_check.py`
 (clean: 406 Java files, no findings), `python3 tools/scratch/static_api_check.py` (clean: 503

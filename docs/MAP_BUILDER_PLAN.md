@@ -17,10 +17,13 @@ durability multiplier, `MapDamageState` (the per-round destruction state, reset 
 §11.2), block damage from rounds, blasts and swings, the `GLASS_SHATTER` effect, and the runtime
 re-bake path (`SdfField.diff`, `SdfRebakeWorker`, the changed-region `SdfTexture.patch`). What
 milestone 3 deliberately does **not** close: the client is not yet told that a block is gone, so
-nothing requests a re-bake at runtime — that is the protocol-14 block event of milestone 4 — and the
-shipped arena stays wall-only, so no pane, crate or shatter can be exercised in a running game. The
-`assets/maps` move, door ids and state and every later milestone remain unfinished; no Java was
-compiled or executed, and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
+nothing requests a re-bake at runtime — that is the protocol-14 block event of milestone 4. So that
+the milestone can be exercised in a running game anyway, one mirrored **fixture range** was authored
+into the shipped arena and the SDF asset re-baked with it (§1, §9): the glass, the crate and the
+one-way platform can all be met, shot and broken today, while what a destroyed block *looks* like
+still waits on milestone 4. The `assets/maps` move, door ids and state and every later milestone
+remain unfinished; no Java was compiled or executed, and no checklist in
+`docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
 
 ## 1. What exists today
 
@@ -50,6 +53,18 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   `bounds()` remain. Its public builder enforces `mirrored(block)`/`centred(block)` symmetry and
   rejects duplicate blocks. `ArenaMap.standard()` now parses `StandardArenaMap`'s canonical
   version-1 text; `ArenaMapTest` still pins its legacy geometry.
+- **The shipped arena's fixture range** — what `ArenaMap.standard()` loads is no longer wall-only.
+  Milestone 3 authored one mirrored range into it: a one-way platform high over the centre
+  (`x` 1620..1840, `y` 1300..1318) carrying a pane (`1660..1680 × 1318..1498`) and a wooden crate
+  (`1740..1800 × 1318..1378`, `durability=0.4`, so two carbine hits open it and a frag at its own
+  height breaks it), with the whole range reflected to `x` 1160..1380. The reason is testability,
+  not level design: with the editor still milestone 5 and no map file to edit, a running game has
+  to be able to meet what the milestone built. It is authored data like anything else — mirrored by
+  the builder, drawn from the material table, moved through and shot at by the shared columns, and
+  baked into the SDF (the crate; the pane and the platform are not, exactly as the table says). The
+  height is deliberate: `y ≈ 1300` is above every lane the existing tests use, so nothing that was
+  pinned before this range existed moved, and `ArenaMapFormatTest` now pins the fixture census
+  instead of the wall-only one.
 - **`shared/map/ArenaMapFormat`** — a dependency-free, strict line parser/writer. It rejects a
   malformed header, unknown verbs/kinds/materials, non-positive or out-of-bounds blocks,
   duplicate blocks and wrong symmetry verbs rather than exposing a partial map.
@@ -69,8 +84,9 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   platform starts the shared drop-through window (`PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS`,
   carried as transient motion state on `Player`, so the snapshot layout and protocol 13 are
   untouched); the window ends as soon as the feet leave the slab, and while it runs the platform
-  cannot catch the body again. The shipped arena is wall-only, so none of this changes what it
-  plays like.
+  cannot catch the body again. The shipped arena's own one-way top is the sky platform of its
+  fixture range (below), and a body on ordinary ground is never standing on it, so crouch+jump on
+  the floor plays exactly as it always did.
 - **`core/world/TerrainRenderer`** — the picture of the same map: one loop over `blocks()` per draw
   pass, with the treatment chosen from the shared `BlockRenderStyle` column and the fill and outline
   colours from the block's `MaterialTable` row, so no block kind and no surface material is named in
@@ -106,9 +122,12 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   `SdfRebakeWorker` bakes off the frame (one bake at a time, newest map wins), and the next frame
   patches only the texels `SdfField.diff` reports and re-supplies the new field to the particle
   systems that hold it. Nothing calls it yet — the client learns of a destroyed block in milestone
-  4 — and the shipped `assets/data/arena.sdf` is unchanged: a default durability multiplier is not
-  part of the map hash, so the asset still names the map in play. The **server never reads the
-  SDF** — the client uses it for what is drawn (cone shadows, light shadows, particle collision).
+  4. The shipped `assets/data/arena.sdf` was re-baked by this milestone, for the one reason that the
+  map itself changed: the fixture range below. The per-block durability multiplier did *not* move
+  the hash — it is hashed only when the map authors one — so the re-bake is entirely the new
+  geometry, and `tools/scratch/arena_sdf_check.py` proves the committed bytes are the bake of the
+  committed map. The **server never reads the SDF** — the client uses it for what is drawn (cone
+  shadows, light shadows, particle collision).
 - **Where the map comes from** — the server builds `ArenaMap.standard()` in `GameServer`; the
   client builds its own `ArenaMap.standard()` in `GameScreen`. Both sides agree because both call
   the same Java. Nothing about the layout crosses the wire, and nothing checks that the two sides
@@ -138,8 +157,8 @@ Two traps follow directly from that list, and the whole plan is shaped by them:
 **D1 — Blocks, not rects.** A map is a list of `MapBlock`s: `(BlockKind kind, Material material,
 Rect rect)`. `kind` is `WALL`, `GLASS`, `DOOR`, `BREAKABLE`, `PLATFORM`(one-way). `material` names
 the surface (see D7). **Implemented:** `ArenaMap.blocks()` is that list and `solids()` is the
-backwards-compatible derived bullet-blocking view, so existing call sites keep their wall-only
-behaviour while new call sites can ask by rule.
+backwards-compatible derived bullet-blocking view, so a call site that has not been taught about a
+kind keeps the answer it always got while a new one can ask by rule.
 
 **D2 — One rule table, four readers.** Every kind declares, in one shared table, what it does to
 each consumer: movement, sight, bullets, the SDF bake, and rendering. The table is the plan's
@@ -401,9 +420,11 @@ holds the authoritative block set, which is what the hash describes.
 the worker's request carries the live map, so a stale field can only come from a caller that passes
 the wrong map. What is missing is the *trigger*: the client's authoritative removed set rides the
 protocol-14 block event, so no live client asks for a bake yet. `MapTool bake` is milestone 5's CLI.
-The shipped `assets/data/arena.sdf` is untouched by this milestone — the authored multiplier is not
-part of the map hash when it is the default, so the arena's identity and its baked texels are the
-same as before.
+The shipped `assets/data/arena.sdf` was re-baked in the same commit as the map text it names: the
+fixture range below is authored geometry, the crate is baked into the field while the pane and the
+platform are not, and `tools/scratch/arena_sdf_check.py` re-implements `MapHash`/`SdfBaker` to
+prove the committed bytes are that bake — the only way this sandbox can verify a binary the client
+loads by hash.
 
 ## 6. The editor
 
@@ -461,8 +482,8 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   a rising body is never stopped or landed on, a falling body lands on the top face and stays
   there, crouch+jump drops a body through without ever re-landing on it while the feet are inside
   it, and a body already inside a slab is neither ejected nor supported. It also pins that a
-  platform is not a horizontal collider and that crouch+jump on the wall-only shipped arena is
-  still a plain jump. `MapQueryPurposeTest` proves the movement questions read the movement column
+  platform is not a horizontal collider and that crouch+jump on the floor of the shipped arena
+  (whose only one-way top is 1200 units overhead) is still a plain jump. `MapQueryPurposeTest` proves the movement questions read the movement column
   (glass and a closed door stop a body, a platform never does; every rule presents a standable top
   for `surfaceBelow`), and `NetworkRegistrationTest` proves the drop-through window stays off the
   snapshot layout. The two milestone gates are checked by `tools/scratch/static_check.py`: no kind
@@ -476,7 +497,8 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   breakable leaves the live map and every rule view in the same call the pool is spent, that a pane
   shatters on any hit and never keeps a partial state, that the live map's hash is reproducible from
   `ArenaMap.without`, that `reset()` restores the authored map and revision 0, that a block from
-  another map is refused, and that the shipped wall-only arena can never leave its resting state.
+  another map is refused, and that the shipped arena's permanent blocks can never leave its
+  resting state while its authored fixtures can.
   `ExplosionMathTest`/`DirectionalBlastMathTest` cover the nearest-face measurement, the
   self-shadow exclusion, the cone-on-the-nearest-corner rule and the chip-then-break resolution;
   `EffectTypeTest`, with `EffectSoundTableTest`'s catalogue sweep, covers the appended
@@ -517,8 +539,10 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    `BlockKind`/`Material`/`MapBlock`, the shared rule table, strict version-1 text format and
    parser/writer, `ArenaMap` re-expressed through the embedded canonical loader, migration plus
    round-trip tests, and the version-2 SDF map-hash header/cache guard. `SdfBaker` now reads the
-   SDF column of the shared table. The standard arena remains wall-only, so its legacy `solids()`
-   geometry and SDF texels are unchanged. **Still deferred in this milestone:** the physical
+   SDF column of the shared table. The standard arena's legacy `solids()` geometry and SDF texels
+   were unchanged by this milestone, and stayed so through milestone 2 — milestone 3 then authored
+   the fixture range described below, which moved both on purpose. **Still deferred in this
+   milestone:** the physical
    `assets/maps/arena.map` move. Gate: `shared`'s tests must prove the loaded arena is today's
    arena when a human/CI can execute them.
 2. **Rule-aware consumers (landed).** `ArenaMap.blockers(Blocking)` derives one cached rectangle
@@ -541,8 +565,11 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    recording, and the re-bake path (worker plus changed-region patch). **No `PROTOCOL_VERSION`
    change:** the client is told about none of it yet, which is milestone 4's block event. **Still
    deferred in this milestone:** the client half of the picture (a destruction state to hand
-   `TerrainRenderer`, and a caller for `FxPipeline.rebakeSdf`) and any shipped map that can actually
-   break — the arena stays wall-only. Gate: the destruction tests and the re-bake determinism proof
+   `TerrainRenderer`, and a caller for `FxPipeline.rebakeSdf`). **Deliberate deviation from the
+   plan as written:** the arena no longer stays wall-only — one mirrored fixture range was authored
+   into it (see §1) so the milestone can be exercised in a running game while the editor is still
+   milestone 5, and `assets/data/arena.sdf` was re-baked with it. Gate: the destruction tests and
+   the re-bake determinism proof
    (`SdfRebakeTest` plus the server destruction cases) must pass in CI, which no sandbox can check —
    no Java was compiled or run here.
 4. **Doors, with dynamic occluders.** The occluder array in the visibility and light shaders, the
