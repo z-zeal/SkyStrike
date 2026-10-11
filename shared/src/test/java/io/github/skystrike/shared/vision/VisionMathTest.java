@@ -34,6 +34,14 @@ class VisionMathTest {
     }
 
     @Test
+    void testThrowReleaseFromFloorIsClearWhenNoWallIsOnThePath() {
+        // A body standing on the floor top (y=100) throws from its eye (y=142.5) to a release
+        // point just in front of it. The reported refusal segment crosses no authored wall, so the
+        // line must read as clear; before the fix every such throw was refused as "path blocked".
+        assertTrue(VisionMath.hasLineOfSight(399.0f, 142.5f, 417.5f, 149.9f, arena));
+    }
+
+    @Test
     void testLineOfSightBlockedByFloor() {
         // Line of sight vertically through centre room floor (y=280..300, x=1120..1880)
         assertFalse(VisionMath.hasLineOfSight(1400f, 200f, 1400f, 350f, arena));
