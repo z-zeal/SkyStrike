@@ -51,7 +51,7 @@
 | `core` | `shared`, game framework, rendering | `server`, any launcher, platform-specific APIs |
 | `lwjgl3` / `android` | `core`, `shared`, platform APIs | `server` |
 
-Enforce the two that matter with a build check: `server` must fail to compile if it imports a rendering package, and `core` must fail if it imports `server`.
+Enforce the dependency direction with `checkModuleDependencies`: it resolves imports to the source module that owns each type, rejecting `shared` → `server`/`core`, `server` → `core`/LibGDX, and `core` → `server`. This ownership check matters because client packages such as `audio`, `fx` and `ui` live directly under `io.github.skystrike`, not under a `.core` package.
 
 ---
 

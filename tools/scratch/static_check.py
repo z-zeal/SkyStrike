@@ -38,15 +38,35 @@ def java_files() -> list[pathlib.Path]:
 
 FILES = java_files()
 
-# fully-qualified-name -> file, for every project type declared at top level
+# fully-qualified-name -> source file/module, for every project type declared at top level.
 declared: dict[str, pathlib.Path] = {}
+declared_modules: dict[str, str] = {}
 for f in FILES:
     text = f.read_text(encoding="utf-8")
     pkg_match = re.search(r"^package\s+([\w.]+);", text, re.M)
     if not pkg_match:
         add(f, "no package declaration")
         continue
-    declared[f"{pkg_match.group(1)}.{f.stem}"] = f
+    fqn = f"{pkg_match.group(1)}.{f.stem}"
+    declared[fqn] = f
+    declared_modules[fqn] = f.relative_to(ROOT).parts[0]
+
+
+def resolve_project_type(reference: str) -> str | None:
+    """Resolve a qualified type or member path back to its declared top-level type."""
+    parts = reference.split(".")
+    for cut in range(len(parts), 3, -1):
+        candidate = ".".join(parts[:cut])
+        if candidate in declared:
+            return candidate
+    return None
+
+
+FORBIDDEN_MODULE_DEPENDENCIES = {
+    "shared": {"core", "server"},
+    "server": {"core"},
+    "core": {"server"},
+}
 
 
 def strip_comments_and_strings(text: str) -> str:
@@ -140,12 +160,17 @@ for f in FILES:
             add(f, f"duplicate import {fqn}")
         seen.add(fqn)
 
+        project_type = None
         if fqn.startswith(PKG_ROOT):
-            target = fqn
-            if is_static:
-                target = fqn.rsplit(".", 1)[0]
-            if target not in declared and target.rsplit(".", 1)[0] not in declared:
+            target = fqn.rsplit(".", 1)[0] if is_static else fqn
+            project_type = resolve_project_type(target)
+            if project_type is None:
                 add(f, f"import does not resolve to a project type: {fqn}")
+            else:
+                module = f.relative_to(ROOT).parts[0]
+                owner = declared_modules[project_type]
+                if owner in FORBIDDEN_MODULE_DEPENDENCIES.get(module, set()):
+                    add(f, f"{module} module must not reference {owner} type {project_type}")
         elif not JAVA_LANG_OK.match(fqn):
             add(f, f"unexpected import root: {fqn}")
 
@@ -163,18 +188,22 @@ for f in FILES:
             continue
         add(f, f"unused import: {fqn}")
 
-    # Module boundaries, mirroring the root build.gradle checkModuleDependencies task.
-    rel = f.relative_to(ROOT).as_posix()
-    if rel.startswith("server/src"):
-        if "com.badlogic.gdx" in raw:
-            add(f, "server module must not reference com.badlogic.gdx")
-        if f"{PKG_ROOT}.core" in raw or re.search(r"import io\.github\.skystrike\.(render|screens|fx|input|net\.Client)", raw):
-            add(f, "server module must not reference the core module")
-    if rel.startswith("core/src") and f"{PKG_ROOT}.server" in raw:
-        add(f, "core module must not reference the server module")
-    if rel.startswith("shared/src"):
-        if "com.badlogic.gdx" in raw:
-            add(f, "shared module must not reference libGDX")
+    # Module boundaries are checked by the owning source type, not by a package-name guess:
+    # client code is spread across io.github.skystrike.audio/fx/ui/etc., not a .core package.
+    module = f.relative_to(ROOT).parts[0]
+    if module in ("shared", "server") and "com.badlogic.gdx" in raw:
+        add(f, f"{module} module must not reference libGDX")
+
+    forbidden_owners = FORBIDDEN_MODULE_DEPENDENCIES.get(module, set())
+    if forbidden_owners:
+        code_without_imports = re.sub(r"^import[^;]+;", "", code, flags=re.M)
+        for reference in re.findall(rf"\b({re.escape(PKG_ROOT)}(?:\.\w+)+)\b", code_without_imports):
+            project_type = resolve_project_type(reference)
+            if project_type is None:
+                continue
+            owner = declared_modules[project_type]
+            if owner in forbidden_owners:
+                add(f, f"{module} module must not reference {owner} type {project_type}")
 
 # Cross-check referenced project types that are imported nowhere but used as Pkg.Type
 for f in FILES:
