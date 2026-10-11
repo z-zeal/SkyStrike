@@ -16,13 +16,19 @@ import io.github.skystrike.shared.model.Player;
  *
  * <p>ADS has its own form: the arms draw thinner and closer (the multiplier, not a second
  * formula) and a centre dot appears, so the sighted state is unmistakable at a glance.
+ *
+ * <p>On a desktop the crosshair is drawn under the OS pointer, because the aim already is: the
+ * mouse pixel is unprojected into the world to produce the angle, so the reticle belongs on that
+ * pixel. A frame with no pointer — touch, or a menu — anchors to the centre of the screen, where
+ * the crosshair has always been.
  */
 final class Crosshair {
 
     private final HudTheme theme;
 
-    private float centerX;
-    private float centerY;
+    /** Fallback anchor: the screen centre, used on every frame with no pointer to follow. */
+    private float anchorX;
+    private float anchorY;
     private float scale;
 
     Crosshair(HudTheme theme) {
@@ -30,8 +36,8 @@ final class Crosshair {
     }
 
     void layout(int screenWidth, int screenHeight, float scale) {
-        this.centerX = screenWidth / 2f;
-        this.centerY = screenHeight / 2f;
+        this.anchorX = screenWidth / 2f;
+        this.anchorY = screenHeight / 2f;
         this.scale = scale;
     }
 
@@ -40,6 +46,13 @@ final class Crosshair {
         if (player == null || !player.alive) {
             return;
         }
+        // The cursor is the crosshair on desktop; the screen centre is the fallback anchor on a
+        // frame with no pointer (touch, or a menu). Nothing else may move it: ADS changes the
+        // form and the camera pan moves the world, but the reticle stays on the pointer.
+        PointerPosition pointer = frame.pointer();
+        float centerX = pointer != null ? pointer.x() : anchorX;
+        float centerY = pointer != null ? pointer.y() : anchorY;
+
         float adsAlpha = frame.adsAlpha();
         boolean ads = CrosshairMath.adsForm(adsAlpha);
         // The gap is quoted in design pixels, so the arms grow with it before scaling.
@@ -54,7 +67,7 @@ final class Crosshair {
         float lockDim = player.isSurveillanceLocked() ? 0.35f : 1f;
         Color color = ads ? theme.crosshairAds : theme.crosshair;
         shapes.setColor(color.r, color.g, color.b, color.a * lockDim);
-        arms(shapes, gap, arm, thickness);
+        arms(shapes, centerX, centerY, gap, arm, thickness);
 
         if (ads) {
             float dot = Math.max(1f, thickness);
@@ -62,11 +75,12 @@ final class Crosshair {
         }
 
         if (frame.hitMarkerActive()) {
-            drawHitMarker(shapes, frame);
+            drawHitMarker(shapes, frame, centerX, centerY);
         }
     }
 
-    private void arms(ShapeRenderer shapes, float gap, float arm, float thickness) {
+    private void arms(
+            ShapeRenderer shapes, float centerX, float centerY, float gap, float arm, float thickness) {
         // Left, right, down, up. Rectangles rather than lines: ShapeRenderer line width is not
         // portable, and the HUD must look identical on every backend.
         shapes.rect(centerX - gap - arm, centerY - thickness / 2f, arm, thickness);
@@ -80,7 +94,8 @@ final class Crosshair {
      * peripherally; a headshot and a kill recolour it rather than redrawing it bigger, so the
      * shape stays one thing the eye has learned.
      */
-    private void drawHitMarker(ShapeRenderer shapes, HudFrame frame) {
+    private void drawHitMarker(
+            ShapeRenderer shapes, HudFrame frame, float centerX, float centerY) {
         float alpha = Math.min(1f, Math.max(0f, frame.hitMarkerAlpha()));
         Color base = frame.hitMarkerLethal() ? theme.hitMarkerLethal
             : frame.hitMarkerHeadshot() ? theme.hitMarkerHeadshot : theme.hitMarker;

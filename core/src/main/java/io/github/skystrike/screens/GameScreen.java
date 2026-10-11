@@ -1,5 +1,6 @@
 package io.github.skystrike.screens;
 
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
@@ -77,6 +78,7 @@ import io.github.skystrike.shared.weapons.WeaponRegistry;
 import io.github.skystrike.ui.console.ConsoleDialog;
 import io.github.skystrike.ui.hud.HudFrame;
 import io.github.skystrike.ui.hud.HudStage;
+import io.github.skystrike.ui.hud.PointerPosition;
 import io.github.skystrike.ui.text.ContrastTestOverlay;
 import io.github.skystrike.ui.text.MessageBuffer;
 import io.github.skystrike.ui.text.MessageSeverity;
@@ -732,7 +734,11 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 camera.viewportWidth(),
                 camera.viewportHeight(),
                 Gdx.graphics.getWidth(),
-                Gdx.graphics.getHeight())));
+                Gdx.graphics.getHeight()),
+            // The crosshair is drawn under the OS pointer on desktop: the same pixel the aim
+            // angle was unprojected from, so the reticle is the cursor rather than a second
+            // opinion about where it is.
+            pointerPosition()));
 
         // Pass 7: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
@@ -815,6 +821,22 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         float halfHeight = camera.viewportHeight() / 2f;
         return new Rect(
             camera.x() - halfWidth, camera.y() - halfHeight, halfWidth * 2f, halfHeight * 2f);
+    }
+
+    /**
+     * The OS pointer for this frame's HUD, or {@code null} when there is no cursor to follow.
+     *
+     * <p>Desktop only: the mouse is what the aim is sampled from there, so the crosshair belongs
+     * on the pixel the angle was taken from. Touch devices have no pointer, and a menu has no
+     * crosshair to place, so both fall back to the screen centre. {@code Gdx.input} reports the
+     * window pixel with y down; this flips it to the HUD projection's y up.
+     */
+    private PointerPosition pointerPosition() {
+        if (Gdx.app == null || Gdx.input == null || Gdx.graphics == null
+                || Gdx.app.getType() != Application.ApplicationType.Desktop) {
+            return null;
+        }
+        return new PointerPosition(Gdx.input.getX(), Gdx.graphics.getHeight() - Gdx.input.getY());
     }
 
     /** {@code r_shadows}: soft by default; unrouted through {@link DebugState} since it ships on. */
@@ -1117,6 +1139,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     @Override
     public void hide() {
+        // Leaving the match gives the OS pointer back: the menus behind this screen need an arrow.
+        hud.releasePointer();
         if (disposeOnHide) {
             dispose();
         } else {
