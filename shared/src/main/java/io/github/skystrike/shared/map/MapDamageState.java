@@ -12,8 +12,10 @@ import java.util.Objects;
  *
  * <p>An {@link ArenaMap} is authored geometry and never changes. This is the other half of the
  * picture: what has been chipped and what has been removed since the round started. The server owns
- * it, the shared damage paths (bullets, blasts, melee) mutate it through {@link #damage}, and every
- * consumer that cares whether a block is still standing reads {@link #liveMap()}.
+ * the authority — the shared damage paths (bullets, blasts, melee) mutate it through {@link #damage}
+ * — and the client holds a mirror fed by the authoritative block events through
+ * {@link #applyRemoteBreak}, never by measuring damage itself. Every consumer that cares whether a
+ * block is still standing reads {@link #liveMap()}.
  *
  * <p><b>The live map is derived, never authored.</b> {@link #liveMap()} is an ordinary immutable
  * {@link ArenaMap} built from the surviving blocks, so the rule views a query already reads are the
@@ -48,6 +50,8 @@ public final class MapDamageState {
     private final float[] damage;
     private final boolean[] destroyed;
     private final List<MapBlock> destroyedBlocks = new ArrayList<>();
+    /** Every break in destruction order: the server's broadcast queue and the wire history. */
+    private final List<BlockBreak> breaks = new ArrayList<>();
     private int revision;
     private ArenaMap liveMap;
 
@@ -94,6 +98,30 @@ public final class MapDamageState {
     /** Blocks destroyed since the round started, in the order they went. Immutable copy. */
     public List<MapBlock> destroyedBlocks() {
         return List.copyOf(destroyedBlocks);
+    }
+
+    /**
+     * Every break since the round started, in destruction order. Immutable copy.
+     *
+     * <p>This is the wire history: the authority broadcasts the tail the clients have not seen yet,
+     * and the join payload replays the whole list, so a late joiner lands on the same set without
+     * replaying the match. Position {@code i} in this list is the break that moved the revision
+     * from {@code i} to {@code i + 1}.
+     */
+    public List<BlockBreak> breaks() {
+        return List.copyOf(breaks);
+    }
+
+    /**
+     * The authored index of {@code block}: its position in {@link #authoredMap()}'s block list.
+     *
+     * <p>This index is the block's wire identity. Both sides build the identical authored list from
+     * the same canonical text, so an index names a block unambiguously without carrying the whole
+     * triple — but only against the map hash the join payload states. A client whose map differs
+     * must not apply indices at all.
+     */
+    public int authoredIndexOf(MapBlock block) {
+        return indexOf(block);
     }
 
     /** True when {@code block} has been destroyed this round. */
@@ -177,6 +205,39 @@ public final class MapDamageState {
     }
 
     /**
+     * Applies one authoritative break received over the wire.
+     *
+     * <p>The mirror's only mutation besides {@link #reset()}. Nothing is measured here — the
+     * authority already decided the cause, the position and whether it shattered, and the client
+     * never re-derives any of it (plan D11). The recorded {@link BlockBreak} is the packet's own
+     * record, so both sides' {@link #breaks()} lists agree and their revisions stay in lock-step.
+     *
+     * <p>Defensive by necessity: wire data can be stale, duplicated or indexed against a map this
+     * side is not playing. An out-of-range index and an already-destroyed block both return
+     * {@code null} instead of throwing, and a caller that failed the join-time map-hash check must
+     * not call this at all.
+     *
+     * @param authoredIndex the block's position in the authored list, per {@link #authoredIndexOf}
+     * @param cause the authoritative cause, exactly as the packet carried it
+     * @param x impact position, in world units, for the debris
+     * @param y impact position, in world units, for the debris
+     * @param shattered whether the block shattered outright rather than spending its pool
+     * @return the recorded break, or {@code null} when there was nothing new to apply
+     */
+    public BlockBreak applyRemoteBreak(
+            int authoredIndex, DamageSource cause, float x, float y, boolean shattered) {
+        Objects.requireNonNull(cause, "cause");
+        if (authoredIndex < 0 || authoredIndex >= destroyed.length) {
+            return null;
+        }
+        if (destroyed[authoredIndex]) {
+            return null;
+        }
+        return destroy(authoredIndex, authoredMap.blocks().get(authoredIndex),
+            cause, x, y, shattered);
+    }
+
+    /**
      * Puts every block back for the next round: damage cleared, destroyed blocks restored, the
      * revision back to zero and the live map the authored one again.
      *
@@ -196,9 +257,11 @@ public final class MapDamageState {
             int index, MapBlock block, DamageSource source, float x, float y, boolean shattered) {
         destroyed[index] = true;
         destroyedBlocks.add(block);
+        BlockBreak broke = new BlockBreak(block, source, x, y, shattered);
+        breaks.add(broke);
         revision++;
         liveMap = authoredMap.without(destroyedBlocks);
-        return new BlockBreak(block, source, x, y, shattered);
+        return broke;
     }
 
     private int indexOf(MapBlock block) {
