@@ -2,12 +2,20 @@ package io.github.skystrike.shared.utility;
 
 import io.github.skystrike.shared.config.UtilityConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.map.MapQueries;
+import io.github.skystrike.shared.map.MaterialTable;
+import io.github.skystrike.shared.map.Rect;
+import io.github.skystrike.shared.math.Geometry;
 import io.github.skystrike.shared.model.Player;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Blast resolution (mechanics §6): linear falloff, and terrain occlusion that is absolute.
@@ -23,12 +31,23 @@ import java.util.List;
  *   <li><b>One hit per target per explosion.</b> {@link #resolve} returns at most one
  *       {@link BlastHit} per player by construction, so a blast can never be made to double-dip
  *       by overlapping zones or by being resolved twice in one tick.</li>
+ *   <li><b>Blocks take the same blast, measured at their nearest face.</b> {@link #resolveBlocks}
+ *       asks the shared {@link MaterialTable} which surfaces accept an explosion's damage and
+ *       {@link MapDamageState} what that did to them; the shipped arena is wall-only, whose kind
+ *       is permanent, so nothing here fires until a map authors a breakable.</li>
  * </ul>
  *
  * <p>Sight and distance are both measured to the player's centre rather than the eye: a blast is
  * a volume arriving at a body, not a glance.
  */
 public final class ExplosionMath {
+
+    /**
+     * Slack at the far end of an occlusion ray: an entry fraction closer to 1 than this is the
+     * ray touching that block's face, not a block standing in the way. In world units it is the
+     * fraction of the ray's length, so a two-hundred-unit ray tolerates a fifth of a unit.
+     */
+    private static final float OCCLUSION_ENDPOINT_TOLERANCE = 1e-3f;
 
     private ExplosionMath() {
     }
@@ -154,6 +173,93 @@ public final class ExplosionMath {
         float t = Math.min(1f, Math.max(0f, distance / blast.radius()));
         float scale = 1f - t * (1f - UtilityConfig.BLAST_EDGE_IMPULSE_FRACTION);
         return blast.impulse() * scale;
+    }
+
+    /**
+     * Damage one block takes from one blast, measured at the block's nearest point to the
+     * detonation.
+     *
+     * <p>Measured at the nearest face rather than the centre because a blast is a volume arriving
+     * at a surface: a grenade lying against a crate is touching it, and a detonation just outside a
+     * thick wall's face must not read as far away because the wall's centre is. Occlusion is the
+     * shared {@link Blocking#BLAST} column with the target's own rectangle excluded — the segment
+     * ends inside the block being measured, and a block cannot shadow itself.
+     */
+    public static float damageAtBlock(Blast blast, MapBlock block, ArenaMap map) {
+        Objects.requireNonNull(blast, "blast");
+        Objects.requireNonNull(block, "block");
+        Rect rect = block.rect();
+        float nearX = rect.clampX(blast.x());
+        float nearY = rect.clampY(blast.y());
+        float distance = distance(blast.x(), blast.y(), nearX, nearY);
+        if (distance >= blast.radius()) {
+            return 0f;
+        }
+        if (occludedExcluding(map, blast.x(), blast.y(), rect, nearX, nearY)) {
+            return 0f;
+        }
+        return falloff(blast.maxDamage(), distance, blast.radius());
+    }
+
+    /**
+     * Applies one blast to every block the live map can lose, in map order.
+     *
+     * <p>{@link MaterialTable#takesDamage} is what decides which blocks are asked: a wall's kind is
+     * permanent and a stone surface refuses nothing but blasts, so a wall never enters the loop and
+     * the shipped wall-only arena resolves no block damage at all. Each block is damaged at most
+     * once per blast by construction.
+     *
+     * @return the blocks that left the map, in the order they broke
+     */
+    public static List<BlockBreak> resolveBlocks(Blast blast, MapDamageState state) {
+        List<BlockBreak> broke = new ArrayList<>();
+        if (blast == null || state == null) {
+            return broke;
+        }
+        ArenaMap map = state.liveMap();
+        for (MapBlock block : map.blocks()) {
+            if (!MaterialTable.takesDamage(block, DamageSource.BLAST)) {
+                continue;
+            }
+            float damage = damageAtBlock(blast, block, map);
+            if (damage <= 0f) {
+                continue;
+            }
+            Rect rect = block.rect();
+            BlockBreak result = state.damage(
+                block, DamageSource.BLAST, damage, rect.clampX(blast.x()), rect.clampY(blast.y()));
+            if (result != null) {
+                broke.add(result);
+            }
+        }
+        return broke;
+    }
+
+    /**
+     * True when something other than {@code target} stands between the detonation and
+     * {@code (toX, toY)} on the shared {@link Blocking#BLAST} column.
+     *
+     * <p>The target's own rectangle is skipped: the measured point is inside the block being
+     * asked about, so the block would otherwise always shadow itself. The entry fraction is
+     * required to be strictly inside the segment — a ray that only grazes another block's face at
+     * its far end is contact, not cover — with a small tolerance so a shared face between two
+     * neighbouring blocks does not read as occlusion.
+     */
+    static boolean occludedExcluding(
+            ArenaMap map, float fromX, float fromY, Rect target, float toX, float toY) {
+        if (map == null) {
+            return false;
+        }
+        for (Rect rect : map.blockers(Blocking.BLAST)) {
+            if (rect.equals(target)) {
+                continue;
+            }
+            float entry = Geometry.segmentAabbEntry(fromX, fromY, toX, toY, rect);
+            if (entry >= 0f && entry < 1f - OCCLUSION_ENDPOINT_TOLERANCE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static float distance(float x0, float y0, float x1, float y1) {

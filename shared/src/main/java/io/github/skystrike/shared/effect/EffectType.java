@@ -46,10 +46,10 @@ public enum EffectType {
     /** A round hitting concrete: dust cloud plus small chips. */
     BULLET_IMPACT_CONCRETE(24f),
 
-    /** A round hitting metal: bright sparks plus molten droplets. No surface material yet. */
+    /** A round hitting metal: bright sparks plus molten droplets. */
     BULLET_IMPACT_METAL(24f),
 
-    /** A round hitting wood: brown splinters plus floating dust. No surface material yet. */
+    /** A round hitting wood: brown splinters plus floating dust. */
     BULLET_IMPACT_WOOD(24f),
 
     /** A gun's muzzle flash at the barrel: core disc, gas burst, one-frame light. */

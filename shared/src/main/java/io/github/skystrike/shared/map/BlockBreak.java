@@ -1,5 +1,6 @@
 package io.github.skystrike.shared.map;
 
+import io.github.skystrike.shared.effect.EffectType;
 import java.util.Objects;
 
 /**
@@ -20,5 +21,17 @@ public record BlockBreak(MapBlock block, DamageSource cause, float x, float y, b
     public BlockBreak {
         Objects.requireNonNull(block, "block");
         Objects.requireNonNull(cause, "cause");
+    }
+
+    /**
+     * What a break should look and sound like: the block's material impact.
+     *
+     * <p>Derived rather than stored, so the debris of a break and the mark of a chip on the same
+     * surface cannot disagree, and the recording follows from the type through the existing sound
+     * catalogue. A pane's row names {@code GLASS_SHATTER}, which is exactly the shard burst the
+     * append added for it.
+     */
+    public EffectType effect() {
+        return MaterialTable.profileFor(block.material()).impactEffect();
     }
 }

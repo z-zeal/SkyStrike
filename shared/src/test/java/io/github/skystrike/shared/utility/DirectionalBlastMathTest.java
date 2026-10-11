@@ -4,6 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.UtilityConfig;
+import io.github.skystrike.shared.config.WorldConfig;
+import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockKind;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.Material;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +51,40 @@ class DirectionalBlastMathTest {
 
         assertEquals(0f, hit.impulseX(), 0.0001f);
         assertTrue(hit.impulseY() > 0f);
+    }
+
+    @Test
+    @DisplayName("the charge's cone decides which blocks a directional blast reaches")
+    void coneDecidesWhichBlocksAreReached() {
+        ArenaMap map = ArenaMap.builder(WorldConfig.MIRROR_AXIS_X)
+            .mirrored(new MapBlock(BlockKind.BREAKABLE, Material.WOOD, new Rect(1400f, 300f, 40f, 40f)))
+            .build();
+        MapBlock inFront = blockAt(map, 1400f);
+        MapBlock behind = blockAt(map, 1560f);
+        // Facing west from between the two crates: both are inside the 300-unit radius, and only
+        // the cone separates them.
+        DirectionalBlastMath.Blast charge = new DirectionalBlastMath.Blast(
+            1450f, 320f, 300f, 100f, 0f, 180f, 45f, 1, UtilityId.CLAYMORE.wireId());
+
+        assertEquals(
+            ExplosionMath.falloff(100f, 10f, 300f),
+            DirectionalBlastMath.damageAtBlock(charge, inFront, map),
+            0.01f,
+            "the crate the charge faces takes the hit on its near edge");
+        assertEquals(
+            0f,
+            DirectionalBlastMath.damageAtBlock(charge, behind, map),
+            0.0001f,
+            "the crate behind the charge is outside the cone however close it stands");
+    }
+
+    private static MapBlock blockAt(ArenaMap map, float left) {
+        for (MapBlock block : map.blocks()) {
+            if (block.rect().x() == left) {
+                return block;
+            }
+        }
+        throw new AssertionError("no block with left edge " + left + " in " + map.blocks());
     }
 
     private static Player player(int id, float x, float y) {

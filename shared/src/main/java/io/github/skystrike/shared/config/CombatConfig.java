@@ -69,6 +69,14 @@ public final class CombatConfig {
     public static final float SELF_HIT_GRACE_SECONDS = 0.05f;
 
     /**
+     * Fraction of its speed a round loses each time it takes a block out of the map and keeps
+     * flying — a pane shattering in front of it, or the last hit that opens a breakable. Small on
+     * purpose: shooting through a window must still be worth doing, so the loss is visible in a
+     * tracer without changing the hit the round was already going to make.
+     */
+    public static final float PASS_THROUGH_SPEED_LOSS_FRACTION = 0.12f;
+
+    /**
      * Hard lifetime cap: a stalled round falls out of the fight instead of raining down later.
      * Raised for the big map — a fast round crossing the arena end to end is airborne for well
      * over two seconds, and it should land before it is deleted.
