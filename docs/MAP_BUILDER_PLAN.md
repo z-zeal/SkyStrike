@@ -1,6 +1,6 @@
 # Map building system — plan
 
-**Status: milestone 2 has landed and milestone 3 is next.** The shared
+**Status: milestone 3's source has landed and milestone 4 is next.** The shared
 `BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text
 parser/writer, standard-arena migration and SDF map-hash guard landed in PR #47.
 `ArenaMap.standard()` loads the embedded canonical text through that parser; every version-2 SDF
@@ -11,10 +11,16 @@ per purpose from the rule table, and the sight, bullet and blast consumers ask t
 instead of the compatibility rect list. The rest of milestone 2 followed: `PlayerMotion` sweeps the
 movement column with one-way platform tops and the crouch+jump drop-through window, `TerrainRenderer`
 draws every `BlockRenderStyle` the table declares, and `tools/scratch/static_check.py` now carries
-the two consumer gates (no kind named outside `shared/map`, every treatment drawn). The
-`assets/maps` move, door ids and state, material damage, breakables, glass and every later
-milestone remain unfinished; no Java was compiled or executed, and no checklist in
-`docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
+the two consumer gates (no kind named outside `shared/map`, every treatment drawn). Milestone 3 has
+now landed in source: the shared `MaterialTable` and its damage rules, the per-block authored
+durability multiplier, `MapDamageState` (the per-round destruction state, reset by the round layer —
+§11.2), block damage from rounds, blasts and swings, the `GLASS_SHATTER` effect, and the runtime
+re-bake path (`SdfField.diff`, `SdfRebakeWorker`, the changed-region `SdfTexture.patch`). What
+milestone 3 deliberately does **not** close: the client is not yet told that a block is gone, so
+nothing requests a re-bake at runtime — that is the protocol-14 block event of milestone 4 — and the
+shipped arena stays wall-only, so no pane, crate or shatter can be exercised in a running game. The
+`assets/maps` move, door ids and state and every later milestone remain unfinished; no Java was
+compiled or executed, and no checklist in `docs/MAP_BUILDER_ACCEPTANCE.md` has been executed.
 
 ## 1. What exists today
 
@@ -25,8 +31,18 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   with `mirror(axis)`, `translated`, `contains` and `overlaps`. It is geometry only; a block's
   shared rule row now decides whether that geometry blocks, bakes or draws.
 - **`shared/map/{BlockKind, Material, MapBlock, BlockRules}`** — the immutable block triple and
-  the one rule table for movement, sight, bullets, SDF inclusion and renderer treatment. The table
-  describes intact/closed blocks; dynamic state is still later work.
+  the one rule table for movement, sight, bullets, SDF inclusion and renderer treatment. Permanent
+  versus destructible is the table's `DamageRule` column (`INDESTRUCTIBLE`, `DURABILITY`,
+  `SHATTER`), and `MapBlock` carries the optional authored `durability=` multiplier that scales its
+  material's pool.
+- **`shared/map/{MaterialTable, BlockBreak, MapDamageState}`** — the destruction layer, all data.
+  `MaterialTable` holds one immutable row per material: the durability pool, how much of each damage
+  source's damage it accepts (`BULLET`, `BLAST`, `MELEE`), its fill and line colours, and its impact
+  effect — so a surface's whole survivability and appearance are one row. `MapDamageState` is the
+  per-round authority: it accumulates damage, removes a block from its derived **live map** when the
+  pool is spent (or when a `SHATTER` block is hit at all), bumps the revision, and reports a
+  `BlockBreak` for the debris, the sound and the eventual wire event. `reset()` restores the authored
+  map and the revision for the next round.
 - **`shared/map/ArenaMap`** — immutable `blocks()`, rule-derived `blockers(Blocking)` (one cached
   rectangle view per query purpose), `movementBlockers(MovementRule)` (the same treatment for the
   movement column, which is not a line-query purpose) and a backwards-compatible `List<Rect>
@@ -56,23 +72,43 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   cannot catch the body again. The shipped arena is wall-only, so none of this changes what it
   plays like.
 - **`core/world/TerrainRenderer`** — the picture of the same map: one loop over `blocks()` per draw
-  pass, with the treatment chosen from the shared `BlockRenderStyle` column. No block kind is named
-  in core; the palette per treatment lives there, so no LibGDX type reaches shared. A `BREAKABLE`
-  is drawn intact because durability does not exist yet, a door is drawn closed because door state
-  does not exist yet, and a platform is a slab whose top edge alone is highlighted.
+  pass, with the treatment chosen from the shared `BlockRenderStyle` column and the fill and outline
+  colours from the block's `MaterialTable` row, so no block kind and no surface material is named in
+  core. A `BREAKABLE` is cracked in proportion to its `damageFraction` when the renderer was handed
+  a `MapDamageState` (and drawn pristine when it was not — a client that has been told nothing draws
+  the authored map, which is the only honest picture). A door is still drawn closed because door
+  state does not exist yet, and a platform is a slab whose top edge alone is highlighted.
 - **`server/combat/RaycastBulletSystem`** — the swept round path: nearest entry across terrain and
-  player hitboxes, with the terrain case recorded as the `Rect` that was hit. Terrain is the
-  `BULLETS` column of the shared table, and `blockedByTerrain` takes the purpose explicitly so the
-  muzzle guard and the round's own sweep always ask the same question.
+  player hitboxes, with the terrain case recorded as the `MapBlock` that was hit (its material is
+  what the impact looks and sounds like). Terrain is the `BULLETS` column of the shared table, and
+  `blockedByTerrain` takes the purpose explicitly so the muzzle guard and the round's own sweep
+  always ask the same question. `damageableCrossings` answers the complementary question — what a
+  segment crosses that a damage source could change — because a window is in *no* blocking view and
+  a damage path would otherwise never find it.
 - **`server/combat/BulletSystem`** — per-tick projectile integration plus the muzzle guard
-  (`raycaster.blockedByTerrain(eye, muzzle)`), which the per-weapon muzzle made load-bearing.
+  (`raycaster.blockedByTerrain(eye, muzzle)`), which the per-weapon muzzle made load-bearing. A
+  round's path is now walked nearest-first: a surface it merely chips, a wall, a closed door, a body
+  or a device spends the round where it stands, while a block the round itself takes out — a pane,
+  or the last hit on a breakable — lets it fly on through the hole at
+  `CombatConfig.PASS_THROUGH_SPEED_LOSS_FRACTION`. Every terrain query it makes reads the live map.
+- **`server/combat/MeleeSystem`, `server/utility/UtilitySystem`, `server/gadget/FuelTankSystem`** —
+  the other damage sources. A swing lands on the blocks its arc covers, measured to each block's
+  nearest point; a frag, an impact grenade, a claymore cone and a fuel-tank blast resolve their
+  blocks through the shared `ExplosionMath`/`DirectionalBlastMath`; and all of them read the live map
+  for every terrain question they ask. `DroneSystem`/`CameraSystem` follow the live map too, because
+  a device obeys the same movement column a body does.
 - **SDF** — `tools/.../SdfBakeTool` bakes `ArenaMap.standard()` through `shared/sdf/SdfBaker` into
   `assets/data/arena.sdf`, a version-2 binary (`SdfField.MAGIC`/`VERSION`) whose header carries a
   SHA-256 map hash. `core/fx/sdf/SdfCache` rejects a missing, old or mismatched field in a
   shipping-default run; an explicitly enabled development run logs and re-bakes it. `SdfTexture`
   uploads the verified field and the visibility, light, particle and debug passes read it. The
-  **server never reads the SDF** — the client uses it for what is drawn (cone shadows, light
-  shadows, particle collision).
+  runtime **re-bake path** (D4) now exists: a change asks `FxPipeline.rebakeSdf(liveMap)`, an
+  `SdfRebakeWorker` bakes off the frame (one bake at a time, newest map wins), and the next frame
+  patches only the texels `SdfField.diff` reports and re-supplies the new field to the particle
+  systems that hold it. Nothing calls it yet — the client learns of a destroyed block in milestone
+  4 — and the shipped `assets/data/arena.sdf` is unchanged: a default durability multiplier is not
+  part of the map hash, so the asset still names the map in play. The **server never reads the
+  SDF** — the client uses it for what is drawn (cone shadows, light shadows, particle collision).
 - **Where the map comes from** — the server builds `ArenaMap.standard()` in `GameServer`; the
   client builds its own `ArenaMap.standard()` in `GameScreen`. Both sides agree because both call
   the same Java. Nothing about the layout crosses the wire, and nothing checks that the two sides
@@ -84,7 +120,9 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   so neither `shared` nor the client parses JSON while running.
 - **Wire** — `shared/net/NetworkRegistration` registers packet types in an append-only order and
   `NetworkRegistrationTest` asserts the counts (13 registration kinds / 35 registered types as of
-  protocol 13). `PROTOCOL_VERSION = 13`.
+  protocol 13). `PROTOCOL_VERSION = 13`. Milestone 3 added **no** packet: destruction is server
+  authority, but the client is not told about it yet, so the block event and the version bump belong
+  to milestone 4 and nothing here changed a registration.
 
 Two traps follow directly from that list, and the whole plan is shaped by them:
 
@@ -124,13 +162,25 @@ the collision/bullet sets; open doors are in neither.
 is part of the SDF (it really does cast shadows). When it is destroyed, the block leaves the map
 and the SDF is re-baked once, on a worker, and the changed texel region is uploaded. Destruction is
 rare and authoritative, so the cost is a single hitch on the frame it happens — acceptable, and
-measurable; doors never take this path.
+measurable; doors never take this path. **Implemented:** `SdfRebakeWorker` (one worker, one pending
+request, newest map wins), `SdfField.diff(SdfField)` as the changed-texel region, and
+`SdfTexture.patch(SdfField)` for the region upload. The field is held by three parties (the texture,
+which also reaches the visibility, light and debug passes, and the particle systems, which keep the
+`SdfField` object), so the frame that patches the texture re-supplies all of them — the field is
+never mutated under a reader. Nothing requests a bake yet: the trigger is the client's copy of the
+destruction set, which arrives with the milestone-4 block event; the path is pinned by the
+determinism tests in `shared`.
 
 **D5 — Glass is a movement blocker you can shoot through.** Intact glass stops bodies, not sight
 and not bullets (the window's reason to exist is to look and shoot through it). Any round shatters
 it — it has no durability — the round continues with a small speed loss, and the fragments leave
 the map entirely: no movement block, no occlusion, no SDF involvement either way. Movement through
-intact glass is impossible; breaking it is the only way through. (Partial-attenuation glass —
+intact glass is impossible; breaking it is the only way through. **Implemented:** the movement
+column was milestone 2's work; the shatter is the `GLASS` row of `BlockRules.damage`, which makes any
+accepted hit take the block out in one call, and the round's continuation is
+`BulletSystem.resolvePath`, which loses `CombatConfig.PASS_THROUGH_SPEED_LOSS_FRACTION` (12%) per
+block it removes. The shards are the appended `EffectType.GLASS_SHATTER`, whose recipe and recording
+landed with the effect catalogue. (Partial-attenuation glass —
 visible through, dimmed — is explicitly deferred: it needs a per-pixel visibility modifier the
 pass does not have.)
 
@@ -145,6 +195,14 @@ during which the body ignores one-way tops; the timer ends when the body has cle
 bullet-damage retention, whether explosions/melee can hurt it, the render tint/line colour, impact
 effect and impact sound. Stone: tough, no bullet damage. Metal: tougher, reflects nothing, louder.
 Wood: breakable by bullets. Glass: shatters on any hit. Energy: scenario blocks, only explosions.
+**Implemented** as `shared/map/MaterialTable` with exactly one `Profile` per `Material` (the table
+refuses to build with a row missing) and `DamageSource` for the three columns. The "whether a source
+can hurt it" question and its measurement are one pair of calls — `takesDamage` and
+`acceptedDamage` — so a damage path filters with the same row it measures with. Per-block variation
+is the authored `durabilityMultiplier`, which scales the *pool* rather than the damage taken, so a
+reinforced crate survives more hits rather than absorbing each one better. The retention numbers were
+chosen so the four sources read as themselves: rounds open wood and glass, stone shrugs them off and
+only yields to blasts, metal chips slowly, energy answers to explosions alone.
 
 **D8 — The map travels as data.** The shipped arena becomes a text map file; `ArenaMap.standard()`
 is re-expressed through the loader in the first milestone and a test proves the resulting rect list
@@ -185,6 +243,12 @@ re-deriving it.
 | `DOOR` open | passes | passes | passes | excluded | panel drawn swung aside |
 | `PLATFORM` (one-way) | blocks only a *falling* body from above, and only until drop-through starts | passes | passes | excluded | thin slab, top edge highlighted |
 
+**Implemented for every row above except the two `DOOR` rows** (milestone 4). The damage column is
+`MapDamageState` plus each system's own call — a round's walk, `ExplosionMath`/`DirectionalBlastMath
+.resolveBlocks`, `MeleeSystem.damageBlocks` — and every consumer reads the *live* map, so "gone"
+means gone from movement, sight, bullets, the picture and the next bake in the same tick the block
+leaves. The SDF half of the `BREAKABLE` row is the re-bake path of D4.
+
 Consequences the table forces, spelled out because they are the places a plan usually lies:
 
 - **"Solid" is reached through three doors, not one.** `MapQueries.lineBlocked` serves the
@@ -219,11 +283,13 @@ Consequences the table forces, spelled out because they are the places a plan us
 - **Rendering stays a function of the map.** `TerrainRenderer` reads `map.blocks()` and draws one
   treatment per row of the table: a filled slab with an outline for `SOLID_FILL` and
   `BREAKABLE_FILL`, a translucent pane with a sheen for `GLASS_PANE`, the closed panel with its
-  seam for `DOOR_PANEL`, and a slab whose top edge alone is highlighted for `PLATFORM_SLAB`. It
-  still owns no state of its own, which is why the two treatments whose appearance depends on state
-  the game does not have yet — door swing and breakable cracks — are drawn in their current,
-  honest form instead of being faked. The minimap's static geometry reads the same block list, so
-  the two pictures cannot disagree.
+  seam for `DOOR_PANEL`, and a slab whose top edge alone is highlighted for `PLATFORM_SLAB`. Fill
+  and outline colours are the block's `MaterialTable` row, and a breakable's cracks are its damage
+  fraction, so the picture is the same data the collision is. It still owns no state of its own,
+  which is why the one treatment whose appearance depends on state the game does not have yet — the
+  door's swing — is still drawn in its current, honest form instead of being faked. The minimap's
+  static geometry reads the same block list, so the two pictures cannot disagree; a client that has
+  been handed a destruction state draws its live map, and one that has not draws the authored one.
 
 ## 4. Doors, breakables, glass and platforms in detail
 
@@ -243,9 +309,32 @@ zero the block is destroyed: an effect is emitted (dust/debris colour from the m
 leaves the authoritative map, the revision increments, and the SDF re-bakes. Nothing is repaired in
 a round; per-round reset is a server-side map revision reset (decision to confirm, §8).
 
+**Implemented, and the two places it differs from the sketch.** (1) Durability is not *in* the
+material alone: the material row holds the pool and the block holds the authored multiplier
+(`durability=<x>` on a breakable line of the map text), so two crates of the same wood can differ
+without a second material. (2) The measurement lives with the source, not here: a round measures
+the same falloff it would apply to a body at that distance, a blast measures at the block's nearest
+face, a swing uses its own damage — and all three hand the number to `MapDamageState.damage`, which
+asks the material's retention, the kind's rule and the block's multiplier. A hit that does not
+spend the pool returns `null`; the hit that does returns the `BlockBreak` the caller turns into
+debris and its recording (`BlockBreak.effect()` is the material's impact effect, and the recording
+already followed from the type through `EffectSoundTable`). The SDF half is D4. **§11.2 is settled:
+destruction resets per round**, and the hook is `GameServer.damageState()`'s `reset()` — nothing
+calls it yet because no round state machine exists.
+
 **Glass.** One hit, any hit. The shattering round keeps going with a small speed loss, so shooting
 through a window does not behave like shooting a wall. No durability, no partial breakage, no
 half-shattered collider.
+
+**Implemented:** `DamageRule.SHATTER` on the `GLASS` kind means the first accepted hit takes the
+pane out of the live map in that call, whatever the number was — the material's durability is only
+there so a *breakable* pane authored out of glass still reads as glass. The round's continuation is
+the patched-block branch of `BulletSystem.resolvePath` (12% of its speed per block removed, per
+`CombatConfig.PASS_THROUGH_SPEED_LOSS_FRACTION`), the shards are the appended
+`EffectType.GLASS_SHATTER`, and the fragments leave the map entirely because a shattered pane is
+simply absent from the live map's views. A pane in front of a device is shattered *before* the round
+reaches the device: the damage walk is bounded by whatever spends the round, so nothing behind a
+window is hit through intact glass.
 
 **Platforms.** Only the top surface collides, only for a body that is falling and was above it on
 the previous step, and never while the drop-through timer is running. The timer starts on
@@ -304,6 +393,17 @@ in-game the bake happens on a worker at the change and patches the texture. The 
 `data/<map>.sdf` only when its header hash matches the map in play (D9); otherwise a dev build
 re-bakes and logs, and a shipping build refuses. The server never bakes — it does not draw — but it
 holds the authoritative block set, which is what the hash describes.
+
+**Implemented as far as milestone 3 can go.** The in-game half exists as
+`FxPipeline.rebakeSdf(ArenaMap)` → `SdfRebakeWorker` → `SdfTexture.patch` +
+`GpuParticleSystem.setSdfField`, with `SdfField.diff` naming the changed texel region and
+`SdfField.matchesMap` still the only staleness guard: every bake names the map it was made from, and
+the worker's request carries the live map, so a stale field can only come from a caller that passes
+the wrong map. What is missing is the *trigger*: the client's authoritative removed set rides the
+protocol-14 block event, so no live client asks for a bake yet. `MapTool bake` is milestone 5's CLI.
+The shipped `assets/data/arena.sdf` is untouched by this milestone — the authored multiplier is not
+part of the map hash when it is the default, so the arena's identity and its baked texels are the
+same as before.
 
 ## 6. The editor
 
@@ -367,6 +467,29 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   for `surfaceBelow`), and `NetworkRegistrationTest` proves the drop-through window stays off the
   snapshot layout. The two milestone gates are checked by `tools/scratch/static_check.py`: no kind
   named outside `shared/map`, and every declared treatment drawn.
+- **Breakables, glass and the re-bake (implemented, milestone 3):** `MaterialTableTest` pins one
+  profile per material, the retention columns and the pool arithmetic (`durability × multiplier`,
+  infinite for a permanent kind); `BlockRulesTest`/`ArenaMapFormatTest` gained the `DamageRule` rows,
+  the `durability=` attribute (accepted only where the kind has a pool, rejected when duplicated,
+  malformed or non-positive, absent from a canonical save when default) and the unchanged canonical
+  arena hash; `MapDamageStateTest` proves damage lands only through the material's sources, that a
+  breakable leaves the live map and every rule view in the same call the pool is spent, that a pane
+  shatters on any hit and never keeps a partial state, that the live map's hash is reproducible from
+  `ArenaMap.without`, that `reset()` restores the authored map and revision 0, that a block from
+  another map is refused, and that the shipped wall-only arena can never leave its resting state.
+  `ExplosionMathTest`/`DirectionalBlastMathTest` cover the nearest-face measurement, the
+  self-shadow exclusion, the cone-on-the-nearest-corner rule and the chip-then-break resolution;
+  `EffectTypeTest`, with `EffectSoundTableTest`'s catalogue sweep, covers the appended
+  `GLASS_SHATTER`. `SdfRebakeTest` is the milestone gate: baking twice is byte-identical, a re-bake
+  after a break names the live map and repeats exactly, the changed region stays inside the room the
+  crate stood in, copying that region reproduces the re-bake byte for byte, and a field on another
+  grid diffs to everything. In `server/src/test`, `BlockDestructionTest` pins the round's walk (a
+  pane costs exactly the configured pass-through fraction, measured against a control round in the
+  same room without the pane; a pane in front of a device shatters before the device is reached; a
+  chip stops the round and the hit that opens the block lets it through; a swing chips then breaks
+  what its arc covers; a stone breakable refuses both the round and the blade) and
+  `UtilityBlockDestructionTest` pins the blast (one break at the near face, a chip further off, the
+  debris event raised before the explosion's own, and a wall as absolute cover).
 
 ## 8. Wire contract (protocol 13 → 14)
 
@@ -412,9 +535,16 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    The CI tests for the one-way rules and the kind table are written (`PlatformMotionTest`,
    `BlockRulesTest`, the movement cases in `MapQueryPurposeTest`). Gate: those tests must pass in
    CI, which no sandbox can check — no Java was compiled or run here.
-3. **Breakables and glass.** Durability, damage sources, destruction, effects, SDF re-bake and
-   hash update. Gate: destruction tests and the re-bake path's determinism (baking twice gives the
-   same field).
+3. **Breakables and glass (landed in source; the pull request is open).** Durability from the
+   material row times the block's authored multiplier, three damage sources (round, blast, swing),
+   destruction through `MapDamageState` and its derived live map, the material's own effect and
+   recording, and the re-bake path (worker plus changed-region patch). **No `PROTOCOL_VERSION`
+   change:** the client is told about none of it yet, which is milestone 4's block event. **Still
+   deferred in this milestone:** the client half of the picture (a destruction state to hand
+   `TerrainRenderer`, and a caller for `FxPipeline.rebakeSdf`) and any shipped map that can actually
+   break — the arena stays wall-only. Gate: the destruction tests and the re-bake determinism proof
+   (`SdfRebakeTest` plus the server destruction cases) must pass in CI, which no sandbox can check —
+   no Java was compiled or run here.
 4. **Doors, with dynamic occluders.** The occluder array in the visibility and light shaders, the
    door state machine and its collision/bullet/sight wiring, then the packets and the protocol
    bump. Gate: door tests plus a manual two-client pass (the acceptance document).
@@ -439,9 +569,11 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
 ## 11. Open decisions to confirm
 
 1. **Glass** as movement-only (D5) versus see-through-but-blocking-bullets or any partial variant.
-2. **Round reset:** does destruction reset between rounds (the map revision returns to zero) or
-   persist for the match? (Recommendation: reset per round, because a map that has been chewed
-   through stops being the map both teams agreed to fight on.)
+2. **Round reset — decided: destruction resets per round.** The map revision returns to zero and
+   the authored blocks come back, because a map that has been chewed through stops being the map
+   both teams agreed to fight on. The state exposes `MapDamageState.reset()`, the server hands it
+   out through `GameServer.damageState()`, and the match layer that decides a round has ended is
+   what calls it — no round state machine exists yet, so in the running server nothing does.
 3. **Door access:** manual only, or also "open for the owning team" doors at spawn?
 4. **Reachability strictness:** does a map that fails reachability ship with a warning or fail the
    build? (Recommendation: fail — the M8 gate already treats traversal as a hard requirement.)
