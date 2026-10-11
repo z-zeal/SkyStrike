@@ -3,6 +3,7 @@ package io.github.skystrike.render;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.utils.Disposable;
+import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import io.github.skystrike.shared.weapons.MeleeId;
 import io.github.skystrike.shared.weapons.WeaponId;
@@ -30,14 +31,14 @@ public final class WeaponSprites implements Disposable {
     public WeaponSprites() {
     }
 
-    /** The sprite for whatever {@code wireId} names, or {@code null} when the art is missing. */
+    /** The sprite for a held gun or melee item; utilities are drawn as hand markers instead. */
     public Texture texture(int wireId) {
-        return load(path(wireId));
+        return UtilityId.isUtilityWireId(wireId) ? null : load(path(wireId));
     }
 
     /** True when {@code wireId} has loadable art, without logging a second failure. */
     public boolean hasTexture(int wireId) {
-        return load(path(wireId)) != null;
+        return !UtilityId.isUtilityWireId(wireId) && load(path(wireId)) != null;
     }
 
     /** Frame size in world units for {@code wireId}, scale catalog and global size applied. */

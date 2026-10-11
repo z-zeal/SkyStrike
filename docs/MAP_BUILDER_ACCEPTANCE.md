@@ -149,3 +149,13 @@ These checks do not compile or execute the shared and server tests written for m
 `NetworkRegistrationTest`, `MinimapModelTest`) and do not validate runtime map loading, the
 rendered treatments, one-way platform behaviour or any other kind's runtime behaviour; every manual
 box above remains unchecked.
+
+A separate held-utility rendering correction was source-checked in this pass. It is not map
+validation, and every manual box above remains unchecked. The exact checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (406 Java files; no findings).
+- `python3 tools/scratch/static_api_check.py` — clean (503 project types indexed from 402 files).
+- `python3 tools/scratch/static_audio_check.py` — clean.
+- `python3 tools/scratch/synth_sfx.py --check` — clean (13 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — analytical report completed.
+- `python3 tools/weapons/generate_weapon_tables.py` — completed with no tracked generated-table diff.

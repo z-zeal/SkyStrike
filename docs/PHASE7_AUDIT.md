@@ -478,6 +478,14 @@ run here either; each change carries its own unexecuted acceptance note.
   `shared/map` may name a block kind or test one in a `switch`, and every declared treatment must be
   drawn. No packet changed, the shipped arena stays wall-only and no runtime behaviour of a new kind
   can be observed yet; `docs/MAP_BUILDER_ACCEPTANCE.md` remains wholly unexecuted.
+- **Held utility rendering correction.** The user-reported F1 reading showed slot 4 selected with a
+  positive utility count and the pending press acknowledged. Source tracing found that the held
+  weapon renderer passed utility wire ids (2000+) through `WeaponId.fromOrdinal`, whose defensive
+  fallback is the default rifle; selection could therefore succeed while the player still visibly
+  held a gun. Implemented: utility ids no longer request a gun sprite or barrel fallback, and the
+  player renderer draws a small utility-colored hand marker. No wire or protocol change. The server
+  throw refusal gates still need diagnostic surfacing, addressed in the following increment; no
+  runtime throw or rendering behaviour was observed in this source-only pass.
 
 ---
 
@@ -517,3 +525,12 @@ present, but all desktop validation and its later-milestone items remain pending
 is wall-only, so no one-way platform, pane, door or breakable can be exercised until a map carrying
 one ships, and `MAP_BUILDER_ACCEPTANCE.md` gained a Rendering section that is likewise unticked; no
 checkbox in any of them may be ticked from source reading alone.**
+
+The held-utility rendering correction was checked only with `python3 tools/scratch/static_check.py`
+(clean: 406 Java files, no findings), `python3 tools/scratch/static_api_check.py` (clean: 503
+project types indexed from 402 files), `python3 tools/scratch/static_audio_check.py` (clean),
+`python3 tools/scratch/synth_sfx.py --check` (clean: 13 generated sounds agree),
+`python3 tools/scratch/phase3_ballistics.py` (analytical report completed), and
+`python3 tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table diff).
+No Java, test suite, server, game, desktop build or CI was run or observed; no map acceptance item
+was executed.
