@@ -108,7 +108,11 @@ public final class PlayerMotion {
         // still flows, so the piloted device's cone follows the cursor.
         boolean locked = p.isSurveillanceLocked();
 
-        // 2. Crouch state and ceiling clearance check
+        // 2. Crouch state and ceiling clearance check. The pre-sample flag is the fresh-press edge
+        // the drop-through control reads below: input.crouch is a held level on the wire, so "the
+        // body was not already crouched when this sample arrived" is what makes one press one drop
+        // without a new packet field.
+        boolean crouchedBeforeSample = p.crouched;
         updateCrouchState(p, input != null && input.crouch && !locked, map);
 
         // 3. Horizontal movement and damping
@@ -135,16 +139,22 @@ public final class PlayerMotion {
         float fuelCapacity = fuelCapacity(p);
         p.fuel = Math.min(Math.max(0f, p.fuel), fuelCapacity);
 
-        if (input != null && input.jump && !locked && (p.grounded || p.coyoteTimer > 0f)) {
-            if (input.crouch && standsOnOneWayTop(p, map)) {
-                // Crouch+jump on a one-way platform drops through it (map plan §4, D6): the press
-                // starts the suspension window instead of a jump. The coyote clock is cleared with
-                // the grounded flag so the same held press cannot launch the body back up through
-                // the slab it is leaving.
+        if (input != null && !locked && (p.grounded || p.coyoteTimer > 0f)
+            && (input.crouch || input.jump)) {
+            boolean onOneWayTop = standsOnOneWayTop(p, map);
+            if (input.crouch && !crouchedBeforeSample && onOneWayTop) {
+                // A fresh crouch press while standing on a one-way top is the whole drop-through
+                // control (map plan §4, D6): the press starts the suspension window instead of a
+                // jump, and a jump press riding the same sample is consumed by the drop. The
+                // coyote clock is cleared with the grounded flag so neither can launch the body
+                // back up through the slab it is leaving.
                 p.dropThroughTimer = PlayerConfig.PLATFORM_DROP_THROUGH_SECONDS;
                 p.grounded = false;
                 p.coyoteTimer = 0f;
-            } else {
+            } else if (input.jump && !(p.crouched && onOneWayTop)) {
+                // Jump everywhere else. While crouched on a one-way top it is deliberately inert:
+                // the body has already said "down" with S, and a launch off the slab it stands on
+                // would fight the drop control for the same keys.
                 p.vy = PlayerConfig.JUMP_SPEED;
                 p.grounded = false;
                 p.coyoteTimer = 0f;
@@ -227,10 +237,10 @@ public final class PlayerMotion {
      * True when the body is standing on a one-way top: a slab whose top face is at the body's feet
      * within the ground skin, and which the body overlaps horizontally.
      *
-     * <p>This is the "is there a platform under me right now" test that decides whether a
-     * crouch+jump is a drop-through or an ordinary jump. It only ever matches geometry the sweeper
-     * could be supporting the body with, so a body on ordinary ground — a wall top, the arena
-     * floor — is never standing on one and crouch+jump keeps its plain-jump meaning there.
+     * <p>This is the "is there a platform under me right now" test that decides whether a fresh
+     * crouch press is a drop-through. It only ever matches geometry the sweeper could be
+     * supporting the body with, so a body on ordinary ground — a wall top, the arena floor — is
+     * never standing on one and both crouch and jump keep their ordinary meanings there.
      */
     private static boolean standsOnOneWayTop(Player p, ArenaMap map) {
         float left = p.x - PlayerConfig.WIDTH / 2f;
@@ -248,7 +258,8 @@ public final class PlayerMotion {
     }
 
     /**
-     * Ages the crouch+jump drop-through window (map plan §4, D6).
+     * Ages the drop-through window that a fresh crouch press on a one-way top starts (map plan
+     * §4, D6).
      *
      * <p>The window suspends one-way tops, so it ends the moment it is no longer needed: when the
      * body's feet have left the slab — below it, because the drop completed, or above it, because

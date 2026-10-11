@@ -1049,7 +1049,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 isMinimapAlliesOn() ? "shown" : "gated",
                 arena.width(),
                 arena.height()));
-        lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
+        lines.add("A/D move  W jump  Space jetpack  S crouch/drop  LMB fire  RMB aim/ADS"
             + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  6 view cycle"
             + "  Esc exit/pause  Enter chat/console");
         return lines;
