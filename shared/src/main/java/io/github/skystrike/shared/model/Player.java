@@ -41,7 +41,8 @@ public final class Player {
     public long lastProcessedInputSequence;
 
     /**
-     * Seconds left of the crouch+jump drop-through window (map plan §4, D6). While it is positive
+     * Seconds left of the drop-through window that a fresh crouch press on a one-way top starts
+     * (map plan §4, D6). While it is positive
      * the shared sweeper ignores one-way platform tops for this body, so a body that dropped
      * through a slab cannot re-land on the piece it is leaving.
      *

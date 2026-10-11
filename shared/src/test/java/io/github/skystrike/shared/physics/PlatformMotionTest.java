@@ -22,8 +22,11 @@ import org.junit.jupiter.api.Test;
  * tests therefore author a single thin slab in open air and drive the shared sweeper through it.
  *
  * <p>The four properties are the contract: a rising body is never stopped, a falling body lands on
- * the top face, crouch+jump drops a body through without letting it re-land on the slab it is
- * leaving, and a body already inside a slab is neither ejected nor supported.
+ * the top face, a fresh crouch press (S alone, no jump) drops a body through without letting it
+ * re-land on the slab it is leaving, and a body already inside a slab is neither ejected nor
+ * supported. The drop trigger is a <i>fresh</i> press — the body not already crouched when the
+ * sample arrived — so crouch-walking onto a platform is still possible and a held key never
+ * re-drops; the tests below pin that gate and the inertness of jump while crouched on a slab.
  */
 class PlatformMotionTest {
 
@@ -96,15 +99,16 @@ class PlatformMotionTest {
     }
 
     @Test
-    @DisplayName("crouch+jump drops the body through the slab, and it does not re-land mid-drop")
-    void crouchJumpDropsThroughAndDoesNotReland() {
+    @DisplayName(
+        "a crouch press alone drops the body through the slab, and it does not re-land mid-drop")
+    void crouchPressAloneDropsThroughAndDoesNotReland() {
         Player player = new Player(1, "Dropper", 0, 1500f, SLAB_TOP);
         player.grounded = true;
-        PlayerInput crouchJump = new PlayerInput(1L, 0f, true, true, false, false, false, 0f);
+        PlayerInput crouch = new PlayerInput(1L, 0f, false, true, false, false, false, 0f);
 
         float previous = player.y;
         for (int i = 0; i < 60; i++) {
-            player = PlayerMotion.step(player, crouchJump, 1f / 60f, PLATFORM_MAP);
+            player = PlayerMotion.step(player, crouch, 1f / 60f, PLATFORM_MAP);
             assertTrue(
                 player.y < previous,
                 "the drop must never be caught by the slab it left, froze at y=" + player.y);
@@ -116,6 +120,75 @@ class PlatformMotionTest {
         assertEquals(
             0f, player.dropThroughTimer, 1e-4f,
             "the window ends as soon as the feet have cleared the slab");
+    }
+
+    @Test
+    @DisplayName("crouch held from before the landing does not drop; releasing and re-pressing does")
+    void heldCrouchLandsAndARepressDrops() {
+        Player player = new Player(1, "Lander", 0, 1500f, SLAB_TOP + 80f);
+        player.grounded = false;
+        PlayerInput crouchHeld = new PlayerInput(1L, 0f, false, true, false, false, false, 0f);
+
+        boolean landed = false;
+        for (int i = 0; i < 120 && !landed; i++) {
+            player = PlayerMotion.step(player, crouchHeld, 1f / 60f, PLATFORM_MAP);
+            landed = player.grounded;
+        }
+        assertTrue(landed, "the body must land on the slab while crouching");
+        assertTrue(player.crouched, "the held key must keep the body crouched");
+        assertEquals(SLAB_TOP, player.y, 1e-3f);
+
+        // The same held press is not a fresh one: the body crouch-walks on instead of dropping.
+        for (int i = 0; i < 30; i++) {
+            player = PlayerMotion.step(player, crouchHeld, 1f / 60f, PLATFORM_MAP);
+            assertEquals(0f, player.dropThroughTimer, 0f, "a held crouch must not start a drop");
+            assertTrue(player.grounded, "the slab must keep supporting the crouched body");
+        }
+
+        // Release (stand up in the open sky over the slab), then a genuinely fresh press drops.
+        player = PlayerMotion.step(player, IDLE, 1f / 60f, PLATFORM_MAP);
+        assertFalse(player.crouched, "open sky above the slab must allow standing up");
+        player = PlayerMotion.step(player, crouchHeld, 1f / 60f, PLATFORM_MAP);
+        assertTrue(player.dropThroughTimer > 0f, "a fresh crouch press on the slab must drop");
+        assertFalse(player.grounded);
+    }
+
+    @Test
+    @DisplayName("a jump press while crouched on a slab cannot launch the body up off it")
+    void jumpWhileCrouchedOnASlabIsInert() {
+        Player player = new Player(1, "Crouched", 0, 1500f, SLAB_TOP);
+        player.grounded = true;
+        player.crouched = true;
+        PlayerInput crouchHoldJump = new PlayerInput(1L, 0f, true, true, false, false, false, 0f);
+
+        for (int i = 0; i < 30; i++) {
+            player = PlayerMotion.step(player, crouchHoldJump, 1f / 60f, PLATFORM_MAP);
+            assertTrue(
+                player.y <= SLAB_TOP + 1e-3f,
+                "a crouched body on a slab must not be launched up: y=" + player.y);
+            assertTrue(player.grounded, "the slab must keep supporting the crouched body");
+            assertEquals(0f, player.dropThroughTimer, 0f, "a held crouch is not a fresh press");
+        }
+    }
+
+    @Test
+    @DisplayName("a jump press riding the same sample as the drop press is consumed by the drop")
+    void jumpRidingTheDropSampleIsConsumed() {
+        Player player = new Player(1, "Dropper", 0, 1500f, SLAB_TOP);
+        player.grounded = true;
+        PlayerInput dropWithJump = new PlayerInput(1L, 0f, true, true, false, false, false, 0f);
+
+        float previous = player.y;
+        for (int i = 0; i < 60; i++) {
+            player = PlayerMotion.step(player, dropWithJump, 1f / 60f, PLATFORM_MAP);
+            assertTrue(
+                player.y <= previous + 1e-3f,
+                "the drop must win over the jump on the same sample, froze at y=" + player.y);
+            previous = player.y;
+        }
+
+        assertTrue(player.y < SLAB_BOTTOM, "the body must end below the slab, y=" + player.y);
+        assertFalse(player.grounded);
     }
 
     @Test
@@ -138,11 +211,11 @@ class PlatformMotionTest {
     }
 
     @Test
-    @DisplayName("crouch+jump on solid ground is still a plain jump on the shipped arena")
-    void crouchJumpOnGroundStillJumps() {
+    @DisplayName("crouching and jumping on solid ground still behave as they always did")
+    void crouchAndJumpOnSolidGroundStillBehaves() {
         // The arena's own one-way top is the sky platform 1200 units overhead, so nothing is under
-        // this body's feet: the drop-through branch cannot engage and crouch+jump keeps the meaning
-        // it has had since Phase 1.
+        // this body's feet: the drop-through branch cannot engage, the fresh crouch press keeps its
+        // ordinary crouch meaning on the ground, and jump still jumps.
         Player player = new Player(1, "Jumper", 0, 500f, WorldConfig.GROUND_HEIGHT);
         player.grounded = true;
         PlayerInput crouchJump = new PlayerInput(1L, 0f, true, true, false, false, false, 0f);

@@ -272,6 +272,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         rootInput.addProcessor(scrollForwarder);
         addInputProcessor(rootInput);
 
+        // Announce the map this client parsed. A client and a server that disagree about the map
+        // produce findings that read as physics bugs (a pane that neither stops a body nor
+        // shatters), so the identity goes in the log instead of being inferred from behaviour —
+        // the embedded-local-test path deliberately joins whatever already owns the default ports
+        // when its own host fails to bind.
+        Gdx.app.log("SkyStrike", "client arena: " + arena.describe());
+
         this.session.setSnapshotListener(this::onGameStateSnapshot);
         this.session.setKillListener(this::onKillEvent);
         this.session.setDamageListener(this::onDamageEvent);
@@ -1039,6 +1046,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     arena.height(),
                     arena.blocks().size()));
         }
+        lines.add(String.format(
+                "map: %d blocks, hash %.8s",
+                arena.blocks().size(),
+                arena.mapHashHex()));
         lines.add(minimap == null
             ? "minimap: off (cl_minimap)"
             : String.format(
@@ -1049,7 +1060,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 isMinimapAlliesOn() ? "shown" : "gated",
                 arena.width(),
                 arena.height()));
-        lines.add("A/D move  W jump  Space jetpack  S crouch  LMB fire  RMB aim/ADS"
+        lines.add("A/D move  W jump  Space jetpack  S crouch/drop  LMB fire  RMB aim/ADS"
             + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  6 view cycle"
             + "  Esc exit/pause  Enter chat/console");
         return lines;

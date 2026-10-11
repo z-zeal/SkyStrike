@@ -559,6 +559,36 @@ run here either; each change carries its own unexecuted acceptance note.
   pre-change asset byte-for-byte before it re-baked the new one, and now reporting the committed asset
   as the bake of the committed map. No Java was compiled, no test, server, client, game or CI run was
   performed or observed, and no acceptance box was ticked.
+- **Map building system, milestone 3 — first live run triaged (F2 fixed in source; F1/F3/F4 traced to
+  a stale-process explanation and instrumented).** The user's desktop run of the fixture range
+  reported four findings; the user's answers established that all of them happened on a plain,
+  non-debug body reached by jetpack, with both sides believed rebuilt. **F2 (drop-through on S
+  alone)** is a deliberate change, landed as `af255ea` on this session's branch: the drop trigger in
+  `PlayerMotion` moved from the crouch+jump chord to a *fresh* crouch press — `input.crouch` with the
+  body not already crouched when the sample arrived, an edge derived from simulated state so no
+  packet, registration or `PROTOCOL_VERSION` change — with the documented consequence that a crouch
+  cannot be *started* while standing on a one-way top (crouch-walking onto one with the key already
+  held still works, and a held key never re-drops), a jump press while crouched on a slab is
+  deliberately inert, and a jump press riding the drop's sample is consumed by the drop.
+  `PlatformMotionTest` renamed the chord test to the press test, kept the ground case, and added
+  three (held-crouch landing does not drop and a re-press does; jump while crouched on a slab is
+  inert; a jump riding the drop sample is consumed). D6 and the plan's crouch+jump wording were
+  amended, the acceptance box reworded (still unchecked), and the client's control help line now reads
+  "S crouch/drop". **F1 (pane ignores bullets), F3 (body passes the pane) and F4 (body passes the
+  crate)** were then traced through every consumer of the current source — `BlockRules` (GLASS and
+  BREAKABLE are `MovementRule.SOLID`), both derived views, `MapDamageState.liveMap()`, `PlayerMotion`'s
+  sweep, the muzzle guard, `RaycastBulletSystem.resolve`/`damageableCrossings`,
+  `BulletSystem.resolvePath` and `MaterialTable.takesDamage` — and none of them can be produced by
+  this source, while the fixture platform, parsed from the same three map lines, held the body in
+  that same run. The one remaining explanation is two processes on different maps, and the local-test
+  path can produce it silently: when the embedded host fails to bind because a leftover older server
+  process owns the default ports, `Main.startLocalTest` logs an error and joins that server anyway —
+  a pre-#52 server runs a wall-only map, which is exactly the observed behaviour. Landed as `18826e6`:
+  `ArenaMap.describe()` (census by kind, mirror axis, map hash — computed inside `shared/map`, the
+  one package that may name a kind), announced by `GameServer` at startup, logged by `GameScreen` at
+  construction, with a short map line in the client debug panel and a shared test pinning the line.
+  No packet, registration or protocol change; no Java compiled or executed here; the re-run is
+  pending a human.
 
 ---
 
@@ -643,3 +673,24 @@ agree), `python3 tools/scratch/synth_sfx.py --check` (clean: 13 generated sounds
 `python3 tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table diff).
 The new server tests were not executed; no Java compilation, server/game run, desktop build, CI check
 or human acceptance was performed. Every `MAP_BUILDER_ACCEPTANCE.md` checkbox remains unchecked.
+
+The first-live-run triage increment (S-alone drop-through, plus the map-identity announcement)
+was source-checked with exactly the permitted Python checks, run twice — once after the F2
+change and once after the diagnostics: `python3 tools/scratch/static_check.py` (clean both
+times: 419 Java files scanned, 419 declared types, no findings, including the module boundaries
+and the two milestone-2 consumer gates), `python3 tools/scratch/static_api_check.py` (clean:
+520 project types indexed from 415 files), `python3 tools/scratch/static_audio_check.py`
+(clean: 13 world entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries),
+`python3 tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree),
+`python3 tools/scratch/phase3_ballistics.py` (analytical report completed without findings),
+`python3 tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table
+diff), and `python3 tools/scratch/arena_sdf_check.py` (clean: the committed
+`assets/data/arena.sdf` is still the bake of the committed map — neither `StandardArenaMap.TEXT`
+nor the asset changed this session). The triage's own evidence is source reading plus the user's
+answers, not a run of anything here: the F1/F3/F4 path was traced hop by hop through
+`BlockRules`, both `ArenaMap` view derivations, `MapDamageState`, `PlayerMotion`'s sweep, the
+muzzle guard, `damageableCrossings`/`resolvePath` and `MaterialTable.takesDamage`, and the
+local-test port-fallback join was read in `Main.startLocalTest`/`EmbeddedLocalHost`. Nothing was
+compiled, executed or observed in this sandbox; the rewritten and added `PlatformMotionTest`
+cases, the new `describeAnnouncesTheCensusMirrorAxisAndHash` test, and every earlier suite
+remain unexecuted, and every `MAP_BUILDER_ACCEPTANCE.md` box remains unchecked.

@@ -213,6 +213,30 @@ class ArenaMapFormatTest {
             MapHash.hex(ArenaMap.standard().mapHash()));
     }
 
+    /**
+     * The startup-log identity line names the census, the mirror axis and the hash.
+     *
+     * <p>This is the string both a client and a server print at startup so a stale process that
+     * still runs a wall-only map is one log line apart from a current one — the first live run of
+     * the fixture range produced findings only such a mismatch can produce.
+     */
+    @Test
+    void describeAnnouncesTheCensusMirrorAxisAndHash() {
+        ArenaMap map = ArenaMap.standard();
+        String describe = map.describe();
+
+        assertTrue(describe.contains("62 blocks"), describe);
+        assertTrue(describe.contains("WALL 56"), describe);
+        assertTrue(describe.contains("GLASS 2"), describe);
+        assertTrue(describe.contains("BREAKABLE 2"), describe);
+        assertTrue(describe.contains("PLATFORM 2"), describe);
+        assertTrue(describe.contains("mirror x=1500.0"), describe);
+        assertTrue(
+            describe.contains("bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693"),
+            describe);
+        assertEquals(MapHash.hex(map.mapHash()), map.mapHashHex());
+    }
+
     @Test
     void durabilityMultiplierParticipatesInTheHashOnlyWhenAuthored() {
         ArenaMap plain = ArenaMapFormat.parse(source(
