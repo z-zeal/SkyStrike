@@ -2,6 +2,7 @@ package io.github.skystrike.shared.map;
 
 import io.github.skystrike.shared.config.WorldConfig;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
@@ -127,6 +128,41 @@ public final class ArenaMap {
     /** Spawn positions in authored order. Immutable. */
     public List<SpawnPoint> spawns() {
         return spawns;
+    }
+
+    /**
+     * The same map with {@code removed} blocks taken out — the live view of a map after
+     * destruction.
+     *
+     * <p>Deliberately separate from {@link Builder}: the builder's symmetry assertions are a rule
+     * for <b>authoring</b>, and runtime destruction is not authoring. Shooting the left-hand window
+     * must not shatter the right-hand one, so a live map is asymmetric by design while the authored
+     * map it came from stays symmetric. {@link ArenaMapFormat#write(ArenaMap)} still refuses to save
+     * such a map, which is the honest outcome: a match's damage is not a map edit.
+     *
+     * <p>The result is an ordinary immutable {@link ArenaMap} with its own cached rule views and its
+     * own {@link #mapHash()} over the surviving contents — which is the map a re-baked SDF names,
+     * and why that hash stops matching the authored one as soon as something is destroyed.
+     *
+     * @param removed blocks to leave out; a block that is not in this map is ignored
+     * @return this map when nothing actually matched, otherwise a derived map
+     */
+    public ArenaMap without(Collection<MapBlock> removed) {
+        Objects.requireNonNull(removed, "removed");
+        if (removed.isEmpty()) {
+            return this;
+        }
+        Set<MapBlock> gone = new HashSet<>(removed);
+        List<MapBlock> survivors = new ArrayList<>(blocks.size());
+        for (MapBlock block : blocks) {
+            if (!gone.contains(block)) {
+                survivors.add(block);
+            }
+        }
+        if (survivors.size() == blocks.size()) {
+            return this;
+        }
+        return new ArenaMap(mirrorAxisX, survivors, spawns);
     }
 
     public float width() {

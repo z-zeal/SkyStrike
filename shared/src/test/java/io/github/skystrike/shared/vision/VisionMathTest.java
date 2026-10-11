@@ -257,8 +257,9 @@ class VisionMathTest {
     @Test
     @DisplayName("line of sight asks the shared SIGHT column: glass and platforms pass, a door does not")
     void lineOfSightFollowsTheSightRuleColumn() {
-        // The shipped arena is wall-only, so this mixed map is the only way to show that sight is
-        // the rule table's column rather than "everything in the collision set".
+        // The arena's own fixtures stand together on one platform, so this mixed map — one kind at
+        // a time, in open air — is how each sight column is shown separately: sight is the rule
+        // table's column rather than "everything in the collision set".
         ArenaMap mixed = ArenaMapFormat.parse(String.join("\n",
             "skystrike-map 1",
             "mirror 1500",
@@ -283,8 +284,9 @@ class VisionMathTest {
         assertEquals(0f, VisionMath.calculateVisibility(0f, 210f, 0f, 640f, 300f, 210f, mixed, null), 0f);
         assertEquals(0f, VisionMath.calculateVisibility(1400f, 545f, 0f, 640f, 1600f, 545f, mixed, null), 0f);
 
-        // A missing map is still "no occlusion" at this boundary.
-        assertTrue(VisionMath.hasLineOfSight(0f, 0f, 1000f, 1000f, null));
+        // A missing map is still "no occlusion" at this boundary. The cast is required: the
+        // legacy List<Rect> overload is still public, so a bare null is ambiguous between them.
+        assertTrue(VisionMath.hasLineOfSight(0f, 0f, 1000f, 1000f, (ArenaMap) null));
     }
 
     @Test

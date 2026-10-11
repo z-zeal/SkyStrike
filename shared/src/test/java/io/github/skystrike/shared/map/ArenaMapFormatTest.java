@@ -7,8 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.WorldConfig;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -17,19 +19,31 @@ class ArenaMapFormatTest {
     private static final float AXIS = WorldConfig.MIRROR_AXIS_X;
 
     @Test
-    void standardTextPreservesThePreMigrationArenaGeometry() {
+    void standardTextCarriesTheExpectedArenaGeometry() {
         ArenaMap map = ArenaMap.standard();
-        Set<Rect> expected = legacyStandardSolids();
+        Set<Rect> expected = expectedStandardSolids();
 
         assertEquals(expected, new HashSet<>(map.solids()));
         assertEquals(expected.size(), map.solids().size(), "the migrated map must not add duplicates");
         assertEquals(List.of(
             new SpawnPoint(0, 240f, 180f),
             new SpawnPoint(1, 2760f, 180f)), map.spawns());
+
+        // The pre-migration arena was wall and stone throughout. Milestone 3 then authored the sky
+        // range — a one-way platform, a pane and a crate per side — so this census is the shipped
+        // map's published shape: the wall count is the pre-migration one, and every other block is
+        // named here rather than appearing quietly.
+        Map<BlockKind, Integer> kinds = new EnumMap<>(BlockKind.class);
+        Map<Material, Integer> materials = new EnumMap<>(Material.class);
         for (MapBlock block : map.blocks()) {
-            assertEquals(BlockKind.WALL, block.kind());
-            assertEquals(Material.STONE, block.material());
+            kinds.merge(block.kind(), 1, Integer::sum);
+            materials.merge(block.material(), 1, Integer::sum);
         }
+        assertEquals(
+            Map.of(BlockKind.WALL, 56, BlockKind.GLASS, 2, BlockKind.BREAKABLE, 2,
+                BlockKind.PLATFORM, 2),
+            kinds);
+        assertEquals(Map.of(Material.STONE, 56, Material.WOOD, 4, Material.GLASS, 2), materials);
     }
 
     @Test
@@ -108,6 +122,119 @@ class ArenaMapFormatTest {
     }
 
     @Test
+    void durabilityAttributeRoundTripsAndReachesThePool() {
+        String text = source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=2.5",
+            "centred breakable stone 1400 600 200 18");
+
+        ArenaMap map = ArenaMapFormat.parse(text);
+
+        MapBlock reinforced = map.blocks().get(0);
+        MapBlock plain = map.blocks().get(2);
+        assertEquals(2.5f, reinforced.durabilityMultiplier());
+        assertEquals(120f * 2.5f, MaterialTable.durabilityPool(reinforced));
+        assertEquals(1f, plain.durabilityMultiplier(), "an omitted attribute is the default");
+        assertEquals(420f, MaterialTable.durabilityPool(plain));
+
+        String saved = ArenaMapFormat.write(map);
+        assertTrue(saved.contains("mirrored breakable wood 700.0 450.0 40.0 20.0 durability=2.5"),
+            saved);
+        assertFalse(saved.contains("centred breakable stone 1400.0 600.0 200.0 18.0 durability"),
+            "the canonical writer does not spell out a default multiplier: " + saved);
+
+        ArenaMap reloaded = ArenaMapFormat.parse(saved);
+        assertEquals(map.blocks(), reloaded.blocks());
+        assertEquals(saved, ArenaMapFormat.write(reloaded));
+    }
+
+    @Test
+    void durabilityAttributesAreStrict() {
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 polish=2"),
+            "unknown block attribute 'polish'");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored wall stone 700 450 40 20 durability=2"),
+            "durability is only meaningful for a kind that accumulates damage: wall");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored glass glass 700 450 40 20 durability=2"),
+            "durability is only meaningful for a kind that accumulates damage: glass");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=0"),
+            "durability multiplier must be positive");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=-2"),
+            "durability multiplier must be positive");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=nan"),
+            "durability multiplier must be finite");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=2 durability=3"),
+            "duplicate durability attribute");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability"),
+            "unknown block attribute 'durability'");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability="),
+            "unknown block attribute 'durability='");
+    }
+
+    /**
+     * The shipped arena's identity, pinned as a literal.
+     *
+     * <p>{@code assets/data/arena.sdf} names exactly this hash in its header, so if this assertion
+     * ever fails the asset has to be re-baked with {@code SdfBakeTool} in the same change — a stale
+     * field is refused by the client rather than drawn. It is also the guard that the per-block
+     * durability multiplier stayed out of the encoding for maps that never authored one.
+     */
+    @Test
+    void standardArenaHashPinsTheBakedSdfIdentity() {
+        assertEquals(
+            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693",
+            MapHash.hex(ArenaMap.standard().mapHash()));
+    }
+
+    @Test
+    void durabilityMultiplierParticipatesInTheHashOnlyWhenAuthored() {
+        ArenaMap plain = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20"));
+        ArenaMap spelledOut = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=1"));
+        ArenaMap reinforced = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "mirrored breakable wood 700 450 40 20 durability=2"));
+
+        assertArrayEquals(plain.mapHash(), spelledOut.mapHash(),
+            "a default multiplier is not authored content");
+        assertFalse(java.util.Arrays.equals(plain.mapHash(), reinforced.mapHash()),
+            "a reinforced block is different authored content");
+    }
+
+    @Test
     void malformedMapsFailWholeLoadWithUsefulMessages() {
         assertFormatError(source(
             "skystrike-map 1",
@@ -145,8 +272,17 @@ class ArenaMapFormatTest {
         return String.join("\n", lines) + "\n";
     }
 
-    /** The old Java builder's exact rectangles, kept independent of the new text source. */
-    private static Set<Rect> legacyStandardSolids() {
+    /**
+     * The shipped arena's bullet-blocking rectangles, written by hand so the comparison below is
+     * independent of the text source it is checking.
+     *
+     * <p>This list began as the old Java builder's exact rectangles — the pre-migration arena,
+     * which the text conversion had to reproduce to the unit. Milestone 3 then added the sky range
+     * to the shipped map on purpose, and the crate is the only fixture of it that appears here:
+     * glass passes bullets and a one-way platform never blocks them, so neither changes the bullet
+     * view this set describes.
+     */
+    private static Set<Rect> expectedStandardSolids() {
         Set<Rect> solids = new HashSet<>();
 
         addCentred(solids, new Rect(0f, 0f, 3000f, 100f));
@@ -183,6 +319,9 @@ class ArenaMapFormatTest {
         addMirrored(solids, new Rect(1300f, 700f, 100f, 16f));
         addCentred(solids, new Rect(1380f, 1000f, 240f, 18f));
         addMirrored(solids, new Rect(760f, 900f, 240f, 18f));
+
+        // Milestone 3's fixture range: the crate on the sky platform, which does block bullets.
+        addMirrored(solids, new Rect(1740f, 1318f, 60f, 60f));
 
         return solids;
     }

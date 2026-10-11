@@ -237,6 +237,24 @@ def flash_detonation(duration: float) -> list[float]:
                               gain(thump, 0.5))), duration)
 
 
+def glass_shatter(duration: float) -> list[float]:
+    """One pane letting go: a bright crack, then a scatter of falling slivers.
+
+    Deliberately a cluster of high partials rather than one long ring: a shattered window is
+    many small pieces, and the sound has to stay readable under a simultaneous gunshot.
+    """
+    count = seconds(duration)
+    rng = rng_for("glass-shatter")
+    crack = shaped(bandpass(noise(rng, count), 2500.0, 9500.0), envelope(count, 0.0002, 0.008))
+    out = gain(crack, 0.8)
+    for _ in range(22):
+        offset = rng.uniform(0.0, 0.24)
+        sliver = shard(0.18, (rng.uniform(2600.0, 6800.0), rng.uniform(4200.0, 8800.0),
+                              rng.uniform(6200.0, 9800.0)), 0.010, rng)
+        add_at(out, gain(sliver, rng.uniform(0.18, 0.50)), offset)
+    return fit(fade_edges(out), duration)
+
+
 def impact_concrete(duration: float) -> list[float]:
     count = seconds(duration)
     rng = rng_for("impact-concrete")
@@ -317,6 +335,8 @@ SOUNDS: list[tuple[str, str, float, float, object]] = [
      lambda: impact_wood(0.25)),
     ("shell-eject", "sfx/world/shell-eject.wav", 0.30, 0.55,
      lambda: shell_eject(0.30)),
+    ("glass-shatter", "sfx/world/glass-shatter.wav", 0.35, 0.85,
+     lambda: glass_shatter(0.35)),
 ]
 
 LOOP = ("tinnitus-ring", "sfx/status/tinnitus-ring.wav", 2.00, 0.55,

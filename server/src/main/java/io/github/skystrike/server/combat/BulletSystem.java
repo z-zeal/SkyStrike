@@ -11,7 +11,12 @@ import io.github.skystrike.shared.combat.BallisticsMath;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
+import io.github.skystrike.shared.map.MaterialTable;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
@@ -46,13 +51,32 @@ import java.util.List;
  *   <li>Rounds retire on lifetime, on falling below a minimum speed, past a multiple of their
  *       maximum range, or on leaving the arena — a stalled bullet never rains down on someone a
  *       second later.</li>
+ *   <li>A round acts on the block it meets. A chip stops the round in the surface it could not
+ *       open; a block that leaves the map — a shattered pane, the last hit on a breakable — lets
+ *       the round fly on through the hole with the small pass-through speed loss, so shooting
+ *       through a window is a shot, not a wall.</li>
  * </ul>
  */
 public final class BulletSystem {
 
+    /**
+     * Upper bound on how many blocks one round may act on inside one tick before it is retired.
+     * A round would have to cross eight damageable blocks in a single 60 Hz step to reach it, so
+     * the bound never fires on a real map; it exists so a pathological one cannot make a single
+     * round resolve unbounded work.
+     */
+    private static final int MAX_BLOCK_ACTIONS_PER_TICK = 8;
+
     private final ArenaMap arena;
     private final RaycastBulletSystem raycaster;
     private final List<Projectile> projectiles = new ArrayList<>();
+
+    /**
+     * The per-round destruction state, set by the server. Null in geometry-only use: without it
+     * nothing on the map can be hurt, a pane is transparent exactly as the blocking column says,
+     * and every sweep reads the authored map — which is what the combat tests pin.
+     */
+    private MapDamageState destruction;
 
     /**
      * Where impact visuals go (build plan M7 §8.1). Null in geometry-only tests; a missing sink
@@ -81,6 +105,15 @@ public final class BulletSystem {
     /** Installs the effect sink. Null detaches; safe to call more than once. */
     public void setEffectSink(EffectSink effectSink) {
         this.effectSink = effectSink;
+    }
+
+    /**
+     * Wires the live destruction state: rounds then chip breakables, shatter panes and fly on
+     * through the holes they open, and every terrain query follows the live map. Null detaches.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+        this.raycaster.setDestruction(destruction);
     }
 
     /**
@@ -164,31 +197,8 @@ public final class BulletSystem {
             boolean canHitOwner = CombatConfig.SELF_DAMAGE
                 && projectile.age > CombatConfig.SELF_HIT_GRACE_SECONDS;
 
-            RaycastBulletSystem.Hit hit = raycaster.resolve(
-                fromX, fromY, projectile.x, projectile.y, targets, projectile.ownerId, canHitOwner);
-
-            // A round can also land on a gadget device; the nearest impact across players,
-            // terrain and devices wins, so a drone in front of a player shields them.
-            RaycastBulletSystem.GadgetHit gadgetHit = resolveGadgetHit(
-                fromX, fromY, projectile.x, projectile.y, projectile.ownerId, canHitOwner);
-            if (gadgetHit != null && (hit == null || gadgetHit.fraction() < hit.fraction())) {
-                projectile.x = gadgetHit.x();
-                projectile.y = gadgetHit.y();
-                applyGadgetHit(projectile, gadgetHit);
-                projectiles.remove(i);
-                continue;
-            }
-
-            if (hit != null) {
-                projectile.x = hit.x();
-                projectile.y = hit.y();
-                if (hit.type() == RaycastBulletSystem.HitType.PLAYER) {
-                    playerImpacts++;
-                    applyHit(projectile, hit, targets, damage);
-                } else {
-                    terrainImpacts++;
-                    emitTerrainImpact(projectile);
-                }
+            boolean spent = resolvePath(projectile, targets, damage, canHitOwner, fromX, fromY);
+            if (spent) {
                 projectiles.remove(i);
                 continue;
             }
@@ -200,17 +210,163 @@ public final class BulletSystem {
     }
 
     /**
-     * One surface impact effect (build plan M7 §8.1): the impact point, along the round's travel
-     * direction. Every arena solid is concrete today — the metal and wood variants of the effect
-     * catalogue wait on a surface-material pass, and the wire enum already carries them.
+     * Walks one round's path this tick, nearest first, and resolves what it meets.
+     *
+     * <p>The walk exists because a round can now change the map as it travels: a pane shatters and
+     * the round flies on through the aperture with a small speed loss, and the last hit that opens
+     * a breakable lets the round continue through the hole as well. Each iteration resolves the
+     * nearest player-or-blocking hit and the nearest damageable block in front of it; a block the
+     * round took out is gone from the live map, so the next iteration's sweep simply does not see
+     * it. Everything else the round meets spends it — a player, a device, a wall, a closed door,
+     * or a surface whose material refuses the round — and its position is set to the impact so the
+     * effect lands where it stopped.
+     *
+     * @return true when the round is spent and should be retired
      */
-    private void emitTerrainImpact(Projectile projectile) {
-        if (effectSink == null) {
+    private boolean resolvePath(
+            Projectile projectile,
+            Collection<Player> targets,
+            DamageService damage,
+            boolean canHitOwner,
+            float fromX,
+            float fromY) {
+
+        // The tick's end position, kept apart from the round's own position: passing through a
+        // block moves neither the round nor the segment it still has to fly this tick.
+        float endX = projectile.x;
+        float endY = projectile.y;
+        float startX = fromX;
+        float startY = fromY;
+
+        for (int step = 0; step < MAX_BLOCK_ACTIONS_PER_TICK; step++) {
+            RaycastBulletSystem.Hit hit = raycaster.resolve(
+                startX, startY, endX, endY, targets, projectile.ownerId, canHitOwner);
+            float stopFraction = hit == null ? 1f : hit.fraction();
+
+            // A round can also land on a gadget device; the nearest impact across players,
+            // terrain and devices wins, so a drone in front of a player shields them.
+            RaycastBulletSystem.GadgetHit gadgetHit = resolveGadgetHit(
+                startX, startY, endX, endY, projectile.ownerId, canHitOwner);
+
+            // Every damageable block strictly in front of whatever is about to spend the round.
+            // The device is part of that bound: a window between the round and a drone is still
+            // on the path and has to shatter before the round reaches the drone. A window is in
+            // no blocking view, so this is where a round meets one at all.
+            float crossingLimit = stopFraction;
+            if (gadgetHit != null && gadgetHit.fraction() < crossingLimit) {
+                crossingLimit = gadgetHit.fraction();
+            }
+            RaycastBulletSystem.BlockCrossing crossing =
+                firstCrossingInFront(projectile, startX, startY, crossingLimit);
+            if (crossing != null) {
+                projectile.x = crossing.x();
+                projectile.y = crossing.y();
+                if (!damageBlock(projectile, crossing.block(), crossing.x(), crossing.y())) {
+                    return true;
+                }
+                loseSpeedForPassThrough(projectile);
+                startX = crossing.x();
+                startY = crossing.y();
+                projectile.x = endX;
+                projectile.y = endY;
+                continue;
+            }
+
+            if (gadgetHit != null && gadgetHit.fraction() < stopFraction) {
+                projectile.x = gadgetHit.x();
+                projectile.y = gadgetHit.y();
+                applyGadgetHit(projectile, gadgetHit);
+                return true;
+            }
+
+            if (hit == null) {
+                projectile.x = endX;
+                projectile.y = endY;
+                return false;
+            }
+
+            projectile.x = hit.x();
+            projectile.y = hit.y();
+            if (hit.type() == RaycastBulletSystem.HitType.PLAYER) {
+                playerImpacts++;
+                applyHit(projectile, hit, targets, damage);
+                return true;
+            }
+
+            // A blocker: a wall or closed door, or a surface whose material refuses the round. If
+            // the round is what takes it out of the map, the round flies on through the hole.
+            if (damageBlock(projectile, hit.block(), hit.x(), hit.y())) {
+                loseSpeedForPassThrough(projectile);
+                startX = hit.x();
+                startY = hit.y();
+                projectile.x = endX;
+                projectile.y = endY;
+                continue;
+            }
+            terrainImpacts++;
+            return true;
+        }
+
+        // The guard above is far above any real path; retiring is the safe end if a map ever
+        // produces one that is not.
+        return true;
+    }
+
+    /**
+     * The nearest block on the segment that this source could hurt, or {@code null} when the
+     * round cannot change anything on it — including the case of no destruction state at all, in
+     * which nothing on the map can be hurt and a pane is transparent as the blocking column says.
+     */
+    private RaycastBulletSystem.BlockCrossing firstCrossingInFront(
+            Projectile projectile, float fromX, float fromY, float limit) {
+        if (destruction == null) {
+            return null;
+        }
+        List<RaycastBulletSystem.BlockCrossing> crossings = raycaster.damageableCrossings(
+            DamageSource.BULLET, fromX, fromY, projectile.x, projectile.y, limit);
+        return crossings.isEmpty() ? null : crossings.get(0);
+    }
+
+    /**
+     * Applies the round's damage to one block and emits its surface impact.
+     *
+     * <p>The damage is the same falloff number a player at that distance would take, because a
+     * round does not know what it is hitting until the material's retention answers. The impact's
+     * type comes from the block's material, so a crate sounds and looks like wood and a pane
+     * shatters the way {@code GLASS_SHATTER} was authored to.
+     *
+     * @return true when this hit took the block out of the map
+     */
+    private boolean damageBlock(Projectile projectile, MapBlock block, float x, float y) {
+        WeaponDefinition stats = WeaponRegistry.ofOrdinal(projectile.weaponId);
+        float damage = BallisticsMath.damageAfterFalloff(
+            stats.damage(), projectile.distanceTravelled, stats.ballistics());
+        BlockBreak broke = destruction == null
+            ? null
+            : destruction.damage(block, DamageSource.BULLET, damage, x, y);
+        emitImpact(projectile, block, x, y);
+        return broke != null;
+    }
+
+    /** The small cost of punching through: paid once per block the round took out. */
+    private static void loseSpeedForPassThrough(Projectile projectile) {
+        float kept = 1f - CombatConfig.PASS_THROUGH_SPEED_LOSS_FRACTION;
+        projectile.vx *= kept;
+        projectile.vy *= kept;
+    }
+
+    /**
+     * One surface impact effect (build plan M7 §8.1): the impact point, along the round's travel
+     * direction, with the type the surface's {@code MaterialTable} row names — concrete, metal,
+     * wood or the pane's shatter.
+     */
+    private void emitImpact(Projectile projectile, MapBlock block, float x, float y) {
+        if (effectSink == null || block == null) {
             return;
         }
         float travelAngle = Angles.toDegrees((float) Math.atan2(projectile.vy, projectile.vx));
         effectSink.emit(new EffectSpawn(
-            EffectType.BULLET_IMPACT_CONCRETE, projectile.x, projectile.y, travelAngle, 1f));
+            MaterialTable.profileFor(block.material()).impactEffect(), x, y, travelAngle, 1f));
     }
 
     /** The gadget-device sweep for one round's path, or {@code null} with no devices wired. */
@@ -315,8 +471,9 @@ public final class BulletSystem {
         return gadgetImpacts;
     }
 
+    /** The map rounds are resolved against: the live one when a destruction state is wired. */
     public ArenaMap arena() {
-        return arena;
+        return raycaster.arena();
     }
 
     public void clear() {

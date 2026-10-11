@@ -1,11 +1,20 @@
 package io.github.skystrike.shared.utility;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.UtilityConfig;
+import io.github.skystrike.shared.config.WorldConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.BlockKind;
+import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
+import io.github.skystrike.shared.map.Material;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.utility.ExplosionMath.Blast;
 import io.github.skystrike.shared.utility.ExplosionMath.BlastHit;
@@ -134,6 +143,100 @@ class ExplosionMathTest {
         assertTrue(ExplosionMath.resolve(frag(0f, 0f), List.of(), null).isEmpty());
         assertTrue(ExplosionMath.resolve(frag(0f, 0f), null, null).isEmpty());
         assertTrue(ExplosionMath.resolve(null, List.of(), null).isEmpty());
+    }
+
+    @Test
+    @DisplayName("a blast damages a breakable at its nearest face, and a wall between them is cover")
+    void blockDamageIsMeasuredAtTheNearestFace() {
+        ArenaMap open = crateMapWithoutCover();
+        ArenaMap covered = crateMapWithCover();
+        Blast cover = new Blast(1200f, 320f, 220f, 100f, 0f, 1, UtilityId.FRAG.wireId());
+
+        float clear = ExplosionMath.damageAtBlock(cover, crate(open), open);
+        assertTrue(clear > 0f, "the crate is inside the radius, was " + clear);
+        assertEquals(
+            0f,
+            ExplosionMath.damageAtBlock(cover, crate(covered), covered),
+            0.0001f,
+            "the wall stands between the detonation and the crate");
+        assertTrue(
+            ExplosionMath.damageAtBlock(cover, wall(covered), covered) > 0f,
+            "a block is not cover from itself: the wall takes the blast on its own face");
+    }
+
+    @Test
+    @DisplayName("a blast applies its damage through the shared state and reports what broke")
+    void resolveBlocksChipsThenBreaks() {
+        MapDamageState state = MapDamageState.intact(crateMapWithoutCover());
+        MapBlock crate = crate(state.liveMap());
+        Blast chip = new Blast(1380f, 320f, 100f, 100f, 0f, 1, UtilityId.FRAG.wireId());
+
+        assertTrue(
+            ExplosionMath.resolveBlocks(chip, state).isEmpty(),
+            "80 damage into a 120 pool chips the crate, it does not break it");
+        assertEquals(80f, state.damage(crate), 0.01f);
+        assertEquals(0, state.revision());
+        assertTrue(
+            ExplosionMath.resolveBlocks(frag(1500f, 125f), MapDamageState.intact(ArenaMap.standard()))
+                .isEmpty(),
+            "nothing in the arena's fixture range is within a ground-level frag's reach");
+
+        // The shipped arena's own fixtures, though: a frag up at the range's height shatters both
+        // panes and only chips the crates standing beside them, so the milestone can be exercised
+        // in a running game rather than only in authored rooms.
+        List<BlockBreak> sky = ExplosionMath.resolveBlocks(
+            frag(1500f, 1350f), MapDamageState.intact(ArenaMap.standard()));
+        assertEquals(2, sky.size(), "one pane per side: " + sky);
+        for (BlockBreak broke : sky) {
+            assertEquals(BlockKind.GLASS, broke.block().kind());
+            assertTrue(broke.shattered(), "a pane is never chipped, it goes");
+        }
+
+        List<BlockBreak> broke = ExplosionMath.resolveBlocks(chip, state);
+
+        assertEquals(1, broke.size(), "only the near crate is inside a 100-unit radius");
+        assertEquals(crate, broke.get(0).block());
+        assertEquals(DamageSource.BLAST, broke.get(0).cause());
+        assertEquals(crate.rect().left(), broke.get(0).x(), 1e-3f);
+        assertEquals(320f, broke.get(0).y(), 1e-3f);
+        assertEquals(1, state.revision());
+        assertFalse(state.liveMap().blocks().contains(crate));
+    }
+
+    /** A breakable crate well inside the arena, mirrored to the other half. */
+    private static MapBlock crate() {
+        return new MapBlock(BlockKind.BREAKABLE, Material.WOOD, new Rect(1400f, 300f, 40f, 40f));
+    }
+
+    /** A stone wall between the crate and the detonation point the cover case uses. */
+    private static MapBlock wall() {
+        return new MapBlock(BlockKind.WALL, Material.STONE, new Rect(1300f, 300f, 40f, 40f));
+    }
+
+    private static ArenaMap crateMapWithoutCover() {
+        return ArenaMap.builder(WorldConfig.MIRROR_AXIS_X).mirrored(crate()).build();
+    }
+
+    private static ArenaMap crateMapWithCover() {
+        return ArenaMap.builder(WorldConfig.MIRROR_AXIS_X).mirrored(wall()).mirrored(crate()).build();
+    }
+
+    /** The near crate in either crate map, found by its left edge because the mirror copies it. */
+    private static MapBlock crate(ArenaMap map) {
+        return blockAt(map, 1400f);
+    }
+
+    private static MapBlock wall(ArenaMap map) {
+        return blockAt(map, 1300f);
+    }
+
+    private static MapBlock blockAt(ArenaMap map, float left) {
+        for (MapBlock block : map.blocks()) {
+            if (block.rect().x() == left) {
+                return block;
+            }
+        }
+        throw new AssertionError("no block with left edge " + left + " in " + map.blocks());
     }
 
     /** A live player standing on the ground at {@code x}. */

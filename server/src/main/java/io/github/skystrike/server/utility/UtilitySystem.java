@@ -8,7 +8,9 @@ import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
@@ -93,6 +95,12 @@ public final class UtilitySystem {
      */
     private EffectSink effectSink;
 
+    /**
+     * The per-round destruction state, set by the server. Null in geometry-only tests, where
+     * nothing on the map can be hurt and every query reads the authored map.
+     */
+    private MapDamageState destruction;
+
     private int nextThrownId = 1;
     private int nextZoneId = 1;
     private float dotClock;
@@ -107,6 +115,20 @@ public final class UtilitySystem {
     /** Installs the effect sink. Null detaches; safe to call more than once. */
     public void setEffectSink(EffectSink effectSink) {
         this.effectSink = effectSink;
+    }
+
+    /**
+     * Wires the live destruction state: detonations then damage the breakables they can reach,
+     * and every terrain query here — a throw's release, its flight, fire spread, zone occlusion —
+     * follows the live map. Null detaches.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+    }
+
+    /** The map every query in this class reads: the live one when a destruction state is wired. */
+    private ArenaMap liveMap() {
+        return destruction == null ? arena : destruction.liveMap();
     }
 
     /**
@@ -133,10 +155,10 @@ public final class UtilitySystem {
         if (!insideArena(x, y)) {
             return ThrowResult.RELEASE_OUTSIDE_ARENA;
         }
-        if (ThrowablePhysics.solidAt(arena, x, y) != null) {
+        if (ThrowablePhysics.solidAt(liveMap(), x, y) != null) {
             return ThrowResult.RELEASE_BLOCKED;
         }
-        if (!VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, arena)) {
+        if (!VisionMath.hasLineOfSight(owner.eyeX(), owner.eyeY(), x, y, liveMap())) {
             return ThrowResult.RELEASE_PATH_BLOCKED;
         }
 
@@ -174,7 +196,7 @@ public final class UtilitySystem {
                 continue;
             }
 
-            ThrowablePhysics.Contact contact = ThrowablePhysics.stepInPlace(thrown, dt, arena);
+            ThrowablePhysics.Contact contact = ThrowablePhysics.stepInPlace(thrown, dt, liveMap());
             boolean detonate = switch (definition.detonation()) {
                 case FUSE -> thrown.fuseRemaining <= 0f;
                 case CONTACT -> contact != ThrowablePhysics.Contact.NONE;
@@ -221,8 +243,9 @@ public final class UtilitySystem {
         return zones.size();
     }
 
+    /** The map this system is resolving against: the live one when a destruction state is wired. */
     public ArenaMap arena() {
-        return arena;
+        return liveMap();
     }
 
     public void clear() {
@@ -297,6 +320,22 @@ public final class UtilitySystem {
     }
 
     /**
+     * Raises one effect per block a blast took out, at the face the blast reached, with the
+     * direction the debris would travel: out from the detonation. A block that was only chipped
+     * raises nothing of its own — the explosion's own effect already covers the moment.
+     */
+    private void emitBreaks(float originX, float originY, List<BlockBreak> broke) {
+        for (BlockBreak event : broke) {
+            float dx = event.x() - originX;
+            float dy = event.y() - originY;
+            float angle = Math.abs(dx) < 1e-4f && Math.abs(dy) < 1e-4f
+                ? 0f
+                : Angles.toDegrees((float) Math.atan2(dy, dx));
+            emit(event.effect(), event.x(), event.y(), angle, 1f);
+        }
+    }
+
+    /**
      * The cloud scale for smoke and poison: the zone radius in units of the shared default, so
      * the client's recipe grows its puffs to exactly the radius the snapshot carries.
      */
@@ -322,9 +361,9 @@ public final class UtilitySystem {
             owner.centerX() + direction * UtilityConfig.THROW_OFFSET,
             UtilityConfig.THROWABLE_RADIUS,
             arena.width() - UtilityConfig.THROWABLE_RADIUS);
-        float support = MapQueries.surfaceBelow(arena, x, owner.y + owner.currentHeight());
+        float support = MapQueries.surfaceBelow(liveMap(), x, owner.y + owner.currentHeight());
         float y = support + UtilityConfig.THROWABLE_RADIUS + UtilityConfig.CONTACT_SKIN;
-        if (ThrowablePhysics.solidAt(arena, x, y) != null) {
+        if (ThrowablePhysics.solidAt(liveMap(), x, y) != null) {
             return ThrowResult.PLACEMENT_BLOCKED;
         }
 
@@ -364,8 +403,11 @@ public final class UtilitySystem {
         if (damage == null) {
             return;
         }
+        if (destruction != null) {
+            emitBreaks(blast.x(), blast.y(), ExplosionMath.resolveBlocks(blast, destruction));
+        }
         Player attacker = playerById(players, blast.ownerId());
-        for (ExplosionMath.BlastHit hit : ExplosionMath.resolve(blast, players, arena)) {
+        for (ExplosionMath.BlastHit hit : ExplosionMath.resolve(blast, players, liveMap())) {
             Player target = playerById(players, hit.playerId());
             if (!DamageService.canDamage(attacker, target)) {
                 continue;
@@ -395,8 +437,11 @@ public final class UtilitySystem {
         if (damage == null) {
             return;
         }
+        if (destruction != null) {
+            emitBreaks(blast.x(), blast.y(), DirectionalBlastMath.resolveBlocks(blast, destruction));
+        }
         Player attacker = playerById(players, blast.ownerId());
-        for (DirectionalBlastMath.BlastHit hit : DirectionalBlastMath.resolve(blast, players, arena)) {
+        for (DirectionalBlastMath.BlastHit hit : DirectionalBlastMath.resolve(blast, players, liveMap())) {
             Player target = playerById(players, hit.playerId());
             if (!DamageService.canDamage(attacker, target)) {
                 continue;
@@ -420,7 +465,7 @@ public final class UtilitySystem {
 
     private void applyStun(ThrownUtility thrown, UtilityDefinition definition, Collection<Player> players) {
         for (StunMath.StunHit hit : StunMath.resolve(
-            thrown.x, thrown.y, definition.radius(), players, arena, smokeVolumes)) {
+            thrown.x, thrown.y, definition.radius(), players, liveMap(), smokeVolumes)) {
             Player target = playerById(players, hit.playerId());
             if (target != null) {
                 target.applyStatus(hit.effect().blindSeconds(), hit.effect().slowSeconds());
@@ -440,7 +485,7 @@ public final class UtilitySystem {
             float dx = player.eyeX() - thrown.x;
             float dy = player.eyeY() - thrown.y;
             if (dx * dx + dy * dy <= radiusSq
-                && VisionMath.hasLineOfSight(thrown.x, thrown.y, player.eyeX(), player.eyeY(), arena, smokeVolumes)) {
+                && VisionMath.hasLineOfSight(thrown.x, thrown.y, player.eyeX(), player.eyeY(), liveMap(), smokeVolumes)) {
                 player.applyStatus(definition.durationSeconds(), 0f);
             }
         }
@@ -480,7 +525,7 @@ public final class UtilitySystem {
                 // shared BLAST column (the plan pins effect occlusion to sight, which this column
                 // answers too), so a window that passes a thrown bottle passes its fire as well.
                 if (MapQueries.lineBlocked(
-                        arena, previousX, previousY, zoneX, zoneY, Blocking.BLAST)) {
+                        liveMap(), previousX, previousY, zoneX, zoneY, Blocking.BLAST)) {
                     break;
                 }
                 if (!addZone(new UtilityZone(

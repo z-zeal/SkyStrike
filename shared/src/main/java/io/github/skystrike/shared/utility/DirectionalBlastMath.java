@@ -1,13 +1,20 @@
 package io.github.skystrike.shared.utility;
 
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.map.MapQueries;
+import io.github.skystrike.shared.map.MaterialTable;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Occluded radial damage restricted to a facing cone, used by the placed claymore.
@@ -112,11 +119,74 @@ public final class DirectionalBlastMath {
         return hits;
     }
 
+    /**
+     * Damage one block takes from one directional blast, measured at the block's nearest point to
+     * the detonation and only when that point is inside the cone.
+     *
+     * <p>The cone test happens on the measured point, not the block's centre: a claymore aimed
+     * across a crate's near corner catches that corner, and the far half of the crate being outside
+     * the charge's arc is not a reason for the corner to escape it. Occlusion and falloff are
+     * {@link ExplosionMath}'s, so a crate between a claymore and its target — and a pane that
+     * passes sight — behave exactly as they do for a frag.
+     */
+    public static float damageAtBlock(Blast blast, MapBlock block, ArenaMap map) {
+        Objects.requireNonNull(blast, "blast");
+        Objects.requireNonNull(block, "block");
+        Rect rect = block.rect();
+        float nearX = rect.clampX(blast.x());
+        float nearY = rect.clampY(blast.y());
+        if (!contains(blast, nearX, nearY)) {
+            return 0f;
+        }
+        if (ExplosionMath.occludedExcluding(map, blast.x(), blast.y(), rect, nearX, nearY)) {
+            return 0f;
+        }
+        float distance = distance(blast.x(), blast.y(), nearX, nearY);
+        return ExplosionMath.falloff(blast.maxDamage(), distance, blast.radius());
+    }
+
+    /**
+     * Applies one directional blast to every block the live map can lose, in map order, and
+     * returns what broke.
+     *
+     * <p>Same shape as {@link ExplosionMath#resolveBlocks}: only surfaces the shared table says
+     * accept an explosion's damage are asked, and a wall's permanent kind never enters the loop.
+     */
+    public static List<BlockBreak> resolveBlocks(Blast blast, MapDamageState state) {
+        List<BlockBreak> broke = new ArrayList<>();
+        if (blast == null || state == null) {
+            return broke;
+        }
+        ArenaMap map = state.liveMap();
+        for (MapBlock block : map.blocks()) {
+            if (!MaterialTable.takesDamage(block, DamageSource.BLAST)) {
+                continue;
+            }
+            float damage = damageAtBlock(blast, block, map);
+            if (damage <= 0f) {
+                continue;
+            }
+            Rect rect = block.rect();
+            BlockBreak result = state.damage(
+                block, DamageSource.BLAST, damage, rect.clampX(blast.x()), rect.clampY(blast.y()));
+            if (result != null) {
+                broke.add(result);
+            }
+        }
+        return broke;
+    }
+
     /** Uses the same gentle impulse falloff as an ordinary explosion. */
     public static float impulseAt(Blast blast, float distance) {
         ExplosionMath.Blast radial = new ExplosionMath.Blast(
             blast.x(), blast.y(), blast.radius(), blast.maxDamage(), blast.impulse(),
             blast.ownerId(), blast.weaponWireId());
         return ExplosionMath.impulseAt(radial, distance);
+    }
+
+    private static float distance(float x0, float y0, float x1, float y1) {
+        float dx = x1 - x0;
+        float dy = y1 - y0;
+        return (float) Math.sqrt(dx * dx + dy * dy);
     }
 }

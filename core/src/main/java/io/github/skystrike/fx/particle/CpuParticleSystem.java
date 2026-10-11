@@ -51,7 +51,12 @@ public final class CpuParticleSystem implements Disposable {
         {-1f, 1f}
     };
 
-    private final SdfField sdf;
+    /**
+     * The field casings collide against. Replaced, never mutated, when a re-bake lands: the worker
+     * hands over a field it built off-thread, and a system still sampling the old one would bounce
+     * casings off walls the map no longer has.
+     */
+    private SdfField sdf;
     private final float[] gradientScratch = new float[2];
     private final Color scratchColor = new Color();
 
@@ -66,6 +71,11 @@ public final class CpuParticleSystem implements Disposable {
         }
         this.sdf = sdf;
         setCapacity(capacity);
+    }
+
+    /** Adopts a re-baked field. Called on the render thread when a bake finishes. */
+    public void setSdfField(SdfField next) {
+        this.sdf = next;
     }
 
     /** Resizes the pool, dropping live casings: a tier change is not worth preserving them for. */

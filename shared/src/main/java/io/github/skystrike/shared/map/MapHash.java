@@ -14,7 +14,8 @@ import java.util.Objects;
  * <p>The hash deliberately sorts blocks and spawns before encoding them. Reordering otherwise
  * identical text-map lines must not force an SDF re-bake or make two clients reject the same
  * layout. Kind, material, exact float bits, mirror axis and spawns all participate, so changing
- * any authored map data produces a new identity.
+ * any authored map data produces a new identity — a per-block durability multiplier included, but
+ * only when the map actually authored one (see the block loop below).
  */
 public final class MapHash {
 
@@ -71,6 +72,15 @@ public final class MapHash {
             appendFloatBits(canonical, rect.width());
             canonical.append(' ');
             appendFloatBits(canonical, rect.height());
+            // The per-block durability multiplier is encoded only when the map authored one, so
+            // the shipped arena — every block of it at the default — hashes exactly as it did
+            // before the field existed and keeps the baked SDF asset that names it valid. A
+            // default multiplier is not authored content; the canonical writer omits it too, so
+            // two spellings of the same map still cannot hash differently.
+            if (block.hasAuthoredDurabilityMultiplier()) {
+                canonical.append(' ');
+                appendFloatBits(canonical, block.durabilityMultiplier());
+            }
             canonical.append('\n');
         }
 

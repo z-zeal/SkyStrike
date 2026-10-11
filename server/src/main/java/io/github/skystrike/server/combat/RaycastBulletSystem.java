@@ -1,14 +1,21 @@
 package io.github.skystrike.server.combat;
 
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockRules;
 import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.map.MapQueries;
+import io.github.skystrike.shared.map.MaterialTable;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Geometry;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * The swept path of one round, resolved against terrain and player hitboxes.
@@ -27,6 +34,13 @@ import java.util.Collection;
  * {@link ArenaMap#blockers(Blocking)}, never as a list of kinds: intact glass and one-way
  * platforms are simply absent from that view, which is what lets a round pass through a window
  * without this class knowing what a window is.
+ *
+ * <p>With a {@link MapDamageState} wired, every sweep here reads the <b>live</b> map, so a block
+ * that left the map stops stopping rounds, and the terrain {@link Hit} names the
+ * {@link MapBlock} it met so the impact can take its look and sound from the surface's material.
+ * {@link #damageableCrossings} is the complementary question — what a segment crosses that a
+ * blast, swing or round could change — because a pane is in no blocking view and a damage path
+ * cannot find it in one.
  */
 public final class RaycastBulletSystem {
 
@@ -44,9 +58,23 @@ public final class RaycastBulletSystem {
      * @param x        impact position
      * @param y        impact position
      * @param player   the player hit, or {@code null} for terrain
-     * @param terrain  the solid hit, or {@code null} for a player
+     * @param terrain  the solid's rectangle, or {@code null} for a player
+     * @param block    the solid's block — the surface's material is what the impact looks and
+     *                 sounds like — or {@code null} for a player
      */
-    public record Hit(HitType type, float fraction, float x, float y, Player player, Rect terrain) {
+    public record Hit(
+            HitType type, float fraction, float x, float y, Player player, Rect terrain, MapBlock block) {
+    }
+
+    /**
+     * One block on a round's path that a damage source can act on.
+     *
+     * @param block    the block
+     * @param fraction where the segment enters it, in {@code [0, 1)}
+     * @param x        entry position
+     * @param y        entry position
+     */
+    public record BlockCrossing(MapBlock block, float fraction, float x, float y) {
     }
 
     /**
@@ -63,12 +91,29 @@ public final class RaycastBulletSystem {
 
     private final ArenaMap arena;
 
+    /**
+     * The per-round destruction state, when this raycaster resolves against a live match. Null in
+     * geometry-only use, where the authored map is the whole world; the server wires it, and the
+     * live map it exposes is then what every sweep below reads, so a destroyed block stops
+     * blocking the moment it leaves the map.
+     */
+    private MapDamageState destruction;
+
     public RaycastBulletSystem(ArenaMap arena) {
         this.arena = arena;
     }
 
+    /**
+     * Wires the destruction state whose live map this raycaster resolves against. Null detaches;
+     * safe to call more than once, like every other optional collaborator in the server.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+    }
+
+    /** The map every sweep here reads: the live one when a destruction state is wired. */
     public ArenaMap arena() {
-        return arena;
+        return map();
     }
 
     /**
@@ -92,13 +137,19 @@ public final class RaycastBulletSystem {
             boolean canHitOwner) {
 
         float bestTerrain = Float.MAX_VALUE;
-        Rect hitRect = null;
-        if (arena != null) {
-            for (Rect solid : arena.blockers(Blocking.BULLETS)) {
-                float entry = Geometry.segmentAabbEntry(x0, y0, x1, y1, solid);
+        MapBlock hitBlock = null;
+        ArenaMap map = map();
+        if (map != null) {
+            for (MapBlock block : map.blocks()) {
+                // The column decides, never a kind check: intact glass and a one-way platform are
+                // simply absent from what a round can meet.
+                if (!BlockRules.blocks(block.kind(), Blocking.BULLETS)) {
+                    continue;
+                }
+                float entry = Geometry.segmentAabbEntry(x0, y0, x1, y1, block.rect());
                 if (entry >= 0f && entry < bestTerrain) {
                     bestTerrain = entry;
-                    hitRect = solid;
+                    hitBlock = block;
                 }
             }
         }
@@ -123,13 +174,52 @@ public final class RaycastBulletSystem {
 
         if (hitPlayer != null && bestPlayer <= bestTerrain) {
             return new Hit(HitType.PLAYER, bestPlayer, lerp(x0, x1, bestPlayer),
-                lerp(y0, y1, bestPlayer), hitPlayer, null);
+                lerp(y0, y1, bestPlayer), hitPlayer, null, null);
         }
-        if (hitRect != null) {
+        if (hitBlock != null) {
             return new Hit(HitType.TERRAIN, bestTerrain, lerp(x0, x1, bestTerrain),
-                lerp(y0, y1, bestTerrain), null, hitRect);
+                lerp(y0, y1, bestTerrain), null, hitBlock.rect(), hitBlock);
         }
         return null;
+    }
+
+    /**
+     * Every block this segment crosses that {@code source} can hurt, nearest entry first, limited
+     * to the part of the path strictly before {@code limit} (a fraction of the segment).
+     *
+     * <p>This is the other half of {@link #resolve}: a window is in no blocking view, so a damage
+     * path has to ask what a segment meets in the live map rather than what a line query reports.
+     * {@link MaterialTable#takesDamage} is the filter, so a stone breakable the round cannot chip
+     * is left to the ordinary blocking hit, and every returned block is one a hit could change.
+     *
+     * @param source the damage source about to be applied, which selects the retention column
+     * @param limit  exclusive upper bound on the entry fraction, for a walk bounded by the nearest
+     *               blocking hit; pass {@code 1f} or more to walk the whole segment
+     */
+    public List<BlockCrossing> damageableCrossings(
+            DamageSource source, float x0, float y0, float x1, float y1, float limit) {
+        List<BlockCrossing> crossings = new ArrayList<>();
+        ArenaMap map = map();
+        if (map == null) {
+            return crossings;
+        }
+        for (MapBlock block : map.blocks()) {
+            if (!MaterialTable.takesDamage(block, source)) {
+                continue;
+            }
+            float entry = Geometry.segmentAabbEntry(x0, y0, x1, y1, block.rect());
+            if (entry < 0f || entry >= limit) {
+                continue;
+            }
+            crossings.add(new BlockCrossing(block, entry, lerp(x0, x1, entry), lerp(y0, y1, entry)));
+        }
+        crossings.sort((a, b) -> Float.compare(a.fraction(), b.fraction()));
+        return crossings;
+    }
+
+    /** The authored map, or the live one when a destruction state is wired. Never mutated. */
+    private ArenaMap map() {
+        return destruction == null ? arena : destruction.liveMap();
     }
 
     /**
@@ -204,10 +294,7 @@ public final class RaycastBulletSystem {
      * while sight and blast ask the same segment through their own column.
      */
     public boolean blockedByTerrain(float x0, float y0, float x1, float y1, Blocking purpose) {
-        if (arena == null) {
-            return false;
-        }
-        return MapQueries.lineBlocked(arena, x0, y0, x1, y1, purpose);
+        return MapQueries.lineBlocked(map(), x0, y0, x1, y1, purpose);
     }
 
     private static float lerp(float from, float to, float t) {

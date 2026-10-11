@@ -46,17 +46,24 @@ public enum EffectType {
     /** A round hitting concrete: dust cloud plus small chips. */
     BULLET_IMPACT_CONCRETE(24f),
 
-    /** A round hitting metal: bright sparks plus molten droplets. No surface material yet. */
+    /** A round hitting metal: bright sparks plus molten droplets. */
     BULLET_IMPACT_METAL(24f),
 
-    /** A round hitting wood: brown splinters plus floating dust. No surface material yet. */
+    /** A round hitting wood: brown splinters plus floating dust. */
     BULLET_IMPACT_WOOD(24f),
 
     /** A gun's muzzle flash at the barrel: core disc, gas burst, one-frame light. */
     MUZZLE_FLASH(30f),
 
     /** A spent shell casing ejected from the weapon, simulated on the CPU tier. */
-    SHELL_EJECT(24f);
+    SHELL_EJECT(24f),
+
+    /**
+     * A window or pane letting go: bright slivers plus a brief sparkle, sized to read at the
+     * distance a pane is usually shot from. Raised where the pane was, so the fragments appear in
+     * the aperture the round just opened.
+     */
+    GLASS_SHATTER(28f);
 
     private final float cullRadius;
 

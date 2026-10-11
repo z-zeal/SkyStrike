@@ -501,6 +501,64 @@ run here either; each change carries its own unexecuted acceptance note.
   the user's actual throw was accepted or identify which gate their runtime will hit. The confirmed
   gun-in-hand rendering fallback is separate and fixed above. Milestone-2 map work was already
   complete and was not duplicated.
+- **Map building system, milestone 3 — breakables, glass and the SDF re-bake.** Implemented across
+  nine commits on `arena/55c2317c-skystrike` (`0424577` `765f66d` `99a04b6` for the shared
+  destruction layer, then the shared damage plumbing, the SDF re-bake path, the renderer, the server
+  server tests and this documentation; PR open against `main`). The shared destruction layer is
+  `shared/map/MaterialTable` (one immutable `Profile` per `Material`: durability pool, per-source
+  retention for `BULLET`/`BLAST`/`MELEE`, tint and line colours as `0xRRGGBBAA`, impact effect, and
+  the impact recording derived through the existing `EffectSoundTable`), `DamageSource`/`DamageRule`
+  (`INDESTRUCTIBLE`/`DURABILITY`/`SHATTER`, decided by the kind, never by the material),
+  `MapBlock.durabilityMultiplier` with the authored `durability=<x>` attribute in the version-1 map
+  text (hashed only when non-default, so the shipped arena's hash and SDF asset are unchanged), and
+  `MapDamageState`: the per-round authority that accumulates damage, removes a block from a derived
+  live map when the pool is spent (or on any accepted hit to a `SHATTER` block), bumps the revision,
+  reports `BlockBreak`, and `reset()`s to the authored map. Damage sources are wired end to end: a
+  round's path is walked nearest-first so a shattered pane or an opened breakable lets it fly on
+  through at `CombatConfig.PASS_THROUGH_SPEED_LOSS_FRACTION` (12%) while a chip, a wall, a body or a
+  device spends it; blasts resolve through `ExplosionMath`/`DirectionalBlastMath` at each block's
+  nearest face with self-exclusion by rectangle; a swing measures to the nearest point inside its
+  arc; and `DroneSystem`/`CameraSystem`/`FuelTankSystem` follow the live map like the rest.
+  `GameServer` owns the one `MapDamageState`, wires it into all six systems, and exposes
+  `damageState()` as the per-round reset hook. The client half is the SDF re-bake path: `SdfField
+  .diff` reports the changed texel region, `SdfRebakeWorker` bakes off the frame (one busy flap,
+  newest map wins), and `SdfTexture.patch` uploads only that region and re-supplies the field to the
+  particle systems that hold it. `TerrainRenderer` takes an optional `MapDamageState`, draws material
+  colours from the shared rows and cracks a breakable in proportion to its damage fraction.
+  **No packet, registration or `PROTOCOL_VERSION` change** — protocol stays 13 — because the client
+  is not told about a destroyed block until milestone 4's block event, which is also why nothing
+  requests a re-bake at runtime yet; the shipped arena is still wall-only and cannot lose a block.
+  Tests were written and not executed: `MaterialTableTest`, `MapDamageStateTest`, `SdfRebakeTest`
+  (the determinism gate: two bakes byte-identical, a break's re-bake reproducing exactly, and the
+  changed region reproducing the re-bake when copied), `EffectTypeTest` for the appended
+  `GLASS_SHATTER`, the `BlockRulesTest`/`ArenaMapFormatTest`/`ExplosionMathTest`/
+  `DirectionalBlastMathTest` additions, and the server `BlockDestructionTest`/
+  `UtilityBlockDestructionTest`. Milestone-1/2 work was not redone and milestones 4–6 were not
+  started.
+- **Map building system, milestone 3, shipped-arena fixture range (supersedes the "still wall-only"
+  statements above).** Source-checked; requested by the user so the milestone can be tried in a
+  running build instead of only in authored test rooms. `StandardArenaMap.TEXT` gained one mirrored
+  fixture range high over the centre — `platform wood 1620 1300 220 18`, `glass glass 1660 1318 20
+  180`, `breakable wood 1740 1318 60 60 durability=0.4`, mirrored to x 1160..1380 — so the arena now
+  carries 62 blocks (WALL 56, GLASS 2, BREAKABLE 2, PLATFORM 2; STONE 56, WOOD 4, GLASS 2) and
+  `assets/data/arena.sdf` was re-baked in the same commit (41,576 of 1,500,000 texels changed, header
+  hash `bef76535…6693`), because a shipping-default client refuses a field that does not name the map
+  in play. `ArenaMapFormatTest`'s census, solid list and hash pin; `MapDamageStateTest`'s resting-state
+  test and class note; and an `ExplosionMathTest` case at the range's height (a frag there takes both
+  panes and only chips the crates) were updated, and the "wall-only" wording the change falsified was
+  swept out of nine files in its own commit. A separate commit fixes the ambiguous
+  `hasLineOfSight(null, …)` call a Windows build reported in `VisionMathTest:287` — pre-existing on
+  `main` from the #51 merge — by casting to `ArenaMap`. Exactly the permitted checks were run:
+  `static_check.py` (clean: 419 Java files, 419 declared types), `static_api_check.py` (clean: 520
+  project types from 415 files), `static_audio_check.py` (clean: 13 world entries, 6 weapon events, 1
+  loop, 14 effect types, 30 manifest entries), `synth_sfx.py --check` (clean: 14 sounds agree),
+  `phase3_ballistics.py` (completed), `tools/weapons/generate_weapon_tables.py` (89 gun and 21 melee
+  rows regenerated, no tracked diff), plus the new `tools/scratch/arena_sdf_check.py` — a
+  dependency-free re-implementation of `MapHash`, the `SdfBaker` rasterisation, its 8SSEDT pass,
+  `Math.round`/float32 rounding and the 60-byte version-2 header, validated by reproducing the
+  pre-change asset byte-for-byte before it re-baked the new one, and now reporting the committed asset
+  as the bake of the committed map. No Java was compiled, no test, server, client, game or CI run was
+  performed or observed, and no acceptance box was ticked.
 
 ---
 
@@ -536,10 +594,17 @@ checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`,
 `PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md`,
 `CROSSHAIR_POINTER_ACCEPTANCE.md` and `MAP_BUILDER_ACCEPTANCE.md` — is still unexecuted. The map
 checklist's format/model, rule-aware line-query, movement-column and rendering sources are now
-present, but all desktop validation and its later-milestone items remain pending — the shipped arena
-is wall-only, so no one-way platform, pane, door or breakable can be exercised until a map carrying
-one ships, and `MAP_BUILDER_ACCEPTANCE.md` gained a Rendering section that is likewise unticked; no
-checkbox in any of them may be ticked from source reading alone.**
+present, but all desktop validation and its later-milestone items remain pending — the milestone-3
+fixture range means a one-way platform, a pane and a crate per side can now be met in a runnable
+build, while a door, a saved map file, the editor and a client-side re-bake still cannot, and
+`MAP_BUILDER_ACCEPTANCE.md` gained a Rendering section that is likewise unticked; no checkbox in any
+of them may be ticked from source reading alone.**
+
+The shipped-arena fixture-range increment ran the same permitted set plus the new
+`tools/scratch/arena_sdf_check.py`, which re-implements the bake and the map hash in Python and was
+validated against the pre-change asset before it re-baked the new one; it compiled and executed
+nothing, and §6 above records the detail. The one-line `VisionMathTest` disambiguation in the same
+increment is read from the compiler error a Windows build reported, not from a build run here.
 
 The held-utility rendering correction was checked only with `python3 tools/scratch/static_check.py`
 (clean: 406 Java files, no findings), `python3 tools/scratch/static_api_check.py` (clean: 503
@@ -549,6 +614,25 @@ project types indexed from 402 files), `python3 tools/scratch/static_audio_check
 `python3 tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table diff).
 No Java, test suite, server, game, desktop build or CI was run or observed; no map acceptance item
 was executed.
+
+The map-building milestone-3 increment (breakables, glass, the destruction state and the SDF
+re-bake path) was source-checked with exactly the permitted Python checks: `python3
+tools/scratch/static_check.py` (clean: 419 Java files scanned, 419 declared types, no findings —
+including the module boundaries and the two milestone-2 consumer gates), `python3
+tools/scratch/static_api_check.py` (clean: 520 project types indexed from 415 files),
+`static_audio_check.py` (clean: 13 world entries, 6 weapon events, 1 loop, 14 effect types, 30
+manifest entries), `synth_sfx.py --check` (clean: 14 generated sounds agree), `phase3_ballistics.py`
+(analytical report completed) and `tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee
+rows regenerated with no tracked diff). `static_api_check.py` cannot see an instance call made
+through a field or a variable, so the new cross-module calls were additionally read by hand. A
+one-off analysis script (not one of the standing six checks) re-implemented `SdfBaker` in Python
+from the committed source and reproduced every texel of `assets/data/arena.sdf`, and re-implemented
+`MapHash` to confirm that the shipped asset's header still names the standard arena now that
+`MapBlock` carries a durability multiplier. No Java was compiled, no test, server, client, game or
+desktop build was run or observed, and no `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the
+milestone's tests (`MaterialTableTest`, `MapDamageStateTest`, `SdfRebakeTest`, `BlockDestructionTest`,
+`UtilityBlockDestructionTest`) and its client-side re-bake wiring both await a human with a JDK, and
+the shipped wall-only arena still cannot exercise a pane, a crate or a shatter.
 
 The server-side loadout and utility refusal diagnostics increment was then source-checked with
 exactly the permitted Python checks: `python3 tools/scratch/static_check.py` (clean: 406 Java files,

@@ -44,6 +44,7 @@ import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
@@ -99,6 +100,8 @@ public final class GameServer {
 
     private final BulletSystem bulletSystem;
     private final UtilitySystem utilitySystem;
+    /** Milestone 3: the authoritative per-round destruction state of the arena. */
+    private final MapDamageState damageState;
     /** M7 §8.1: one effect broadcaster behind every combat system's visual events. */
     private final EffectBroadcaster effectBroadcaster;
     private final ShieldSystem shieldSystem;
@@ -125,6 +128,7 @@ public final class GameServer {
         this.config = config;
         this.debugState = new DebugState(debugCommandsEnabled(config));
         this.arena = ArenaMap.standard();
+        this.damageState = MapDamageState.intact(this.arena);
         this.endpoint = new NetworkEndpoint(config.tcpPort(), config.udpPort());
         this.connections = new ConnectionRegistry(config.maxPlayers());
         this.players = new PlayerRegistry();
@@ -141,14 +145,23 @@ public final class GameServer {
         this.effectBroadcaster = new EffectBroadcaster();
         this.bulletSystem.setEffectSink(this.effectBroadcaster);
         this.utilitySystem.setEffectSink(this.effectBroadcaster);
+        // Milestone 3: one destruction state behind every damage path, so a block destroyed by a
+        // round, a blast or a swing is gone for all of them at once.
+        this.bulletSystem.setDestruction(this.damageState);
+        this.utilitySystem.setDestruction(this.damageState);
         this.shieldSystem = new ShieldSystem();
         this.fuelTankSystem = new FuelTankSystem(this.arena);
+        this.fuelTankSystem.setDestruction(this.damageState);
         // Phase 6: the gadget devices. The drone and camera systems own their entity lists and
         // answer Q/E presses; the surveillance service owns the view transitions and needs both
         // to know what the player can cycle to. Rounds hit devices, so the bullet system is
         // wired to them, and their destruction visuals flow through the one broadcaster.
         this.droneSystem = new DroneSystem(this.arena);
         this.cameraSystem = new CameraSystem(this.arena);
+        // A drone and a camera obey the same movement column a body does, so they follow the live
+        // map too: shooting out a crate has to open the flight path as well as the walking one.
+        this.droneSystem.setDestruction(this.damageState);
+        this.cameraSystem.setDestruction(this.damageState);
         this.surveillanceService = new SurveillanceService(this.droneSystem, this.cameraSystem);
         this.droneSystem.setEffectSink(this.effectBroadcaster);
         this.cameraSystem.setEffectSink(this.effectBroadcaster);
@@ -163,9 +176,12 @@ public final class GameServer {
         RecoilService recoilService = new RecoilService();
         FireController fireController = new FireController(new Random(), recoilService);
         fireController.setEffectSink(this.effectBroadcaster);
+        MeleeSystem meleeSystem = new MeleeSystem();
+        meleeSystem.setDestruction(this.damageState);
+        meleeSystem.setEffectSink(this.effectBroadcaster);
         this.loadoutSystem = new LoadoutSystem(
             fireController,
-            new MeleeSystem(),
+            meleeSystem,
             this.bulletSystem,
             this.utilitySystem,
             this.shieldSystem,
@@ -298,8 +314,18 @@ public final class GameServer {
         return endpoint.isStarted();
     }
 
+    /** The authored map: the identity both sides compare, never the post-destruction geometry. */
     public ArenaMap arena() {
         return arena;
+    }
+
+    /**
+     * The authoritative per-round destruction state. The match layer that decides a round has
+     * ended asks this for the reset (build plan §11.2: destruction resets per round); no round
+     * state machine exists yet, so nothing calls {@code reset()} in the running server.
+     */
+    public MapDamageState damageState() {
+        return damageState;
     }
 
     public ConnectionRegistry connections() {
@@ -455,7 +481,8 @@ public final class GameServer {
         for (PlayerSession session : players.all()) {
             Player player = session.player();
             PlayerInput input = session.latestInput();
-            PlayerMotion.stepInPlace(player, player.alive ? input : null, dt, arena, session.noclip());
+            PlayerMotion.stepInPlace(
+                player, player.alive ? input : null, dt, damageState.liveMap(), session.noclip());
             if (!player.alive && input != null) {
                 // Dead players are still acknowledged, so the client's prediction queue drains
                 // instead of banking three seconds of input for the respawn.
@@ -664,7 +691,7 @@ public final class GameServer {
             droneSystem.ownedBy(entry.playerId()),
             cameraSystem.ownedBy(entry.playerId()));
         List<EffectSpawn> visible = effectBroadcaster.cullFor(
-            effectSpawns, recipient, arena, utilitySystem.smokeVolumes());
+            effectSpawns, recipient, damageState.liveMap(), utilitySystem.smokeVolumes());
         if (!visible.isEmpty()) {
             endpoint.sendUnreliable(entry.connection(), new PacketEffectSpawn(tick, visible));
         }

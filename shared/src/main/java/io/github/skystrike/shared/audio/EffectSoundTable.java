@@ -108,6 +108,17 @@ public final class EffectSoundTable {
         "sfx/world/shell-eject.wav", AudioBus.EFFECTS, 0.22f, 0.18f, 350f, 700f, 0.30f, 2,
         SoundPriority.LOW);
 
+    /**
+     * A pane shattering: high slivers, brief, and worth hearing over the shot that caused it.
+     *
+     * <p>Its own recording rather than a borrowed one, because the table's rule is one decision
+     * per effect type and no two types share a path: a window breaking must not sound like a
+     * molotov, which also contains glass but carries a fire whoosh and a different story.
+     */
+    private static final SoundSpec GLASS_SHATTER = SoundSpec.oneShot(
+        "sfx/world/glass-shatter.wav", AudioBus.EFFECTS, 0.52f, 0.10f, 600f, 1600f, 0.35f, 4,
+        SoundPriority.HIGH);
+
     private EffectSoundTable() {
     }
 
@@ -134,6 +145,7 @@ public final class EffectSoundTable {
             case BULLET_IMPACT_WOOD -> IMPACT_WOOD;
             case MUZZLE_FLASH -> SoundSpec.SILENT;
             case SHELL_EJECT -> SHELL_EJECT;
+            case GLASS_SHATTER -> GLASS_SHATTER;
         };
     }
 }

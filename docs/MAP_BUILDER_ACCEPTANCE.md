@@ -13,13 +13,20 @@ drop-through window in `PlayerMotion`, plus the explicit columns in `DroneMotion
 draws every `BlockRenderStyle` and the minimap reads the same block list. Two static gates now
 enforce the milestone's contract, and tests were written for the one-way rules, the movement
 questions and the wire layout.
-None of that changes the shipped wall-only arena's gameplay: it contains no platform, no glass, no
-door and no breakable, so its collision, sight, bullets, bake and picture are the same rectangles
-as before. The work does **not** yet ship an `assets/maps` file, an editor or `MapTool`, material
-damage, or any glass, door or breakable *runtime* behaviour, and no dynamic state exists to draw
-(doors are drawn closed and breakables undamaged because that is all the game knows). All of those
-checks remain unattempted, and the movement box below can only be exercised once a map carrying a
-platform ships.
+Milestone 3 then added the material table and its damage rules, the authored per-block durability
+multiplier, the per-round destruction state, block damage from rounds, blasts and swings, the
+`GLASS_SHATTER` effect, and the runtime SDF re-bake path (worker plus changed-region texture patch),
+with tests written for all of it.
+So that those kinds can be met before the editor exists (milestone 5), the shipped arena now authors
+one mirrored **fixture range** — a timber one-way platform high over the centre of the map carrying
+a pane and a wooden crate (`durability=0.4`) — and `assets/data/arena.sdf` was re-baked in the same
+change, so the boxes about standing on, passing through, shattering, chipping and breaking a pane, a
+crate or a platform are reachable in a running build today. The work does **not** yet ship an
+`assets/maps` file, an editor or `MapTool`, door state, or any *client* destruction state: the
+client is not told that a block is gone until the milestone-4 block event, so nothing in a running
+game requests a re-bake and a destroyed block still renders and still collides until then. Boxes
+that need a door, a saved map file, the editor or a client-side re-bake therefore remain
+unreachable. All of the checks remain unattempted.
 Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
@@ -171,3 +178,65 @@ validation, and every manual box above remains unchecked. The exact checks run w
 - `python3 tools/weapons/generate_weapon_tables.py` — completed with no tracked generated-table diff.
 
 No Java compilation, tests, server/game run, desktop build, CI check or manual acceptance was run.
+
+Milestone 3 (breakables, glass and the SDF re-bake) was source-checked only; it is not map
+validation, and every box above remains unchecked. The exact checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (419 Java files scanned, 419 declared types; no
+  findings).
+- `python3 tools/scratch/static_api_check.py` — clean (520 project types indexed from 415 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1 loop,
+  14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — analytical report completed without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated 89 gun rows and 21 melee rows with
+  no tracked diff.
+
+What those checks do and do not mean. `static_check.py` re-verified the module boundaries and both
+milestone-2 consumer gates (no main source outside `shared/map` names a block kind or switches on
+one; `TerrainRenderer` mentions every declared `BlockRenderStyle`) over the new damage paths, and
+`static_api_check.py` re-resolved the project's declared type surface — but neither can see an
+instance call made through a field or a variable, so the new calls (`RaycastBulletSystem
+.damageableCrossings`, `MapDamageState.damage`, `SdfTexture.patch`, `GpuParticleSystem.setSdfField`,
+`FxPipeline.rebakeSdf`, `MeleeSystem.damageBlocks`) were also read by hand, and only a JDK compile
+can truly confirm them. A one-off analysis script (not one of the standing six checks)
+re-implemented `SdfBaker` in Python from the committed source and reproduced every texel of the
+shipped `assets/data/arena.sdf`, and re-implemented `MapHash` to confirm the asset's header still
+names the standard arena after the per-block durability field landed — a default multiplier is not
+hashed, so the shipped asset needed no re-bake and its hash is unchanged. No Java was compiled, no
+test was executed, and no server, client or game was run: the new `MaterialTableTest`,
+`MapDamageStateTest`,
+`SdfRebakeTest`, `BlockDestructionTest` and `UtilityBlockDestructionTest` additions, and every
+earlier suite, remain unexecuted. Everything a human with a runnable desktop build must do — run the
+Java tests in `shared` and `server`, then walk the boxes above on two clients — remains outstanding.
+
+The shipped-arena fixture range was then source-checked (the arena text, the re-baked
+`assets/data/arena.sdf`, the format/state/blast test updates and the new asset checker). It is not
+map validation, and every box above remains unchecked. The exact checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (419 Java files scanned, 419 declared types; no
+  findings).
+- `python3 tools/scratch/static_api_check.py` — clean (520 project types indexed from 415 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1 loop,
+  14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — analytical report completed without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated 89 gun rows and 21 melee rows with
+  no tracked diff.
+- `python3 tools/scratch/arena_sdf_check.py` — clean: it re-implemented `MapHash`, the `SdfBaker`
+  rasterisation and its 8SSEDT pass, Java's `Math.round` and float32 rounding, and the 60-byte
+  version-2 header in Python; the harness was validated first by reproducing the **pre-change**
+  asset byte-for-byte, then used to re-bake `assets/data/arena.sdf` for the new map text. It now
+  reports the committed asset as the bake of the committed map — header hash
+  `bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693`, 1500 × 1000 texels at 2.0
+  units/texel, 1,500,060 bytes, every texel equal.
+
+What that does and does not mean. The Python bake is an independent second implementation, so a
+texel-level agreement is real evidence for the parts both implementations share (rasterisation
+order, distance transform, header layout, the map hash), but it is not the client: it cannot prove
+that `SdfTexture` uploads the field, that a re-bake patches the right region at runtime, or that
+the field the shipping-default guard accepts is the one drawn. The arena change itself was requested
+so that a running game *can* meet glass, a crate and a one-way platform before the editor ships; the
+manual boxes about shooting, shattering and dropping through them are now within reach, and the boxes
+about a saved map, a door or a client-side re-bake are not. No Java was compiled, no test was
+executed, and no server, client or game was run.

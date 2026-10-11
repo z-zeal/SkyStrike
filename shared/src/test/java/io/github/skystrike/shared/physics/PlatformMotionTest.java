@@ -140,8 +140,9 @@ class PlatformMotionTest {
     @Test
     @DisplayName("crouch+jump on solid ground is still a plain jump on the shipped arena")
     void crouchJumpOnGroundStillJumps() {
-        // The wall-only arena carries no one-way top, so the drop-through branch cannot engage and
-        // crouch+jump keeps the meaning it has had since Phase 1.
+        // The arena's own one-way top is the sky platform 1200 units overhead, so nothing is under
+        // this body's feet: the drop-through branch cannot engage and crouch+jump keeps the meaning
+        // it has had since Phase 1.
         Player player = new Player(1, "Jumper", 0, 500f, WorldConfig.GROUND_HEIGHT);
         player.grounded = true;
         PlayerInput crouchJump = new PlayerInput(1L, 0f, true, true, false, false, false, 0f);

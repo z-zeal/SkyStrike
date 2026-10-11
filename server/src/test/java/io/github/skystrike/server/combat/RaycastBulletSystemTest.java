@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The rule-aware terrain column of the bullet sweep.
  *
- * <p>The shipped arena is wall-only, so every wall answers a bullet the same way and nothing
- * about the shared rule table can be proved against it. These tests therefore author mixed-kind
+ * <p>The shipped arena's mixed fixtures stand together on one platform, so nothing about the
+ * shared rule table can be proved against it in isolation. These tests therefore author mixed-kind
  * maps: a round passes through intact glass and a one-way platform without the raycaster knowing
  * what either is, and stops on a wall, an intact breakable or a closed door — read from the
  * shared {@link Blocking#BULLETS} column rather than from a list of kinds.

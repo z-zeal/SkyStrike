@@ -1,6 +1,14 @@
 package io.github.skystrike.server.combat;
 
+import io.github.skystrike.server.fx.EffectSink;
 import io.github.skystrike.shared.config.WeaponConfig;
+import io.github.skystrike.shared.effect.EffectSpawn;
+import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
+import io.github.skystrike.shared.map.MaterialTable;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.HitZone;
 import io.github.skystrike.shared.model.Player;
@@ -22,11 +30,38 @@ import java.util.Collection;
  * <p>Knockback is applied only when the victim survives the hit. {@link DamageService} zeroes a
  * dead player's velocity, and the dead drop out of the simulation rather than sailing off as
  * ragdolls — that is a later phase's indulgence.
+ *
+ * <p>A swing lands on the map as well as on bodies when a destruction state is wired: the
+ * same arc decides which blocks it covers, the shared table decides which surfaces accept a
+ * melee hit, and a break is reported as the material's own impact. Nothing is repaired.
  */
 public final class MeleeSystem {
 
     /** Position overlap below which direction-to-target is meaningless and the aim is used. */
     private static final float OVERLAP_EPSILON = 1e-4f;
+
+    /**
+     * The per-round destruction state, when a live match is being simulated. Null in the
+     * geometry-only use the combat tests make of this class, where there is nothing to hit but
+     * bodies.
+     */
+    private MapDamageState destruction;
+
+    /** Where a block breaking under the swing is seen. Null in tests; presentation only. */
+    private EffectSink effectSink;
+
+    /**
+     * Wires the live destruction state: a swing then lands on the blocks its arc covers, at
+     * {@link DamageSource#MELEE}'s retention. Null detaches.
+     */
+    public void setDestruction(MapDamageState destruction) {
+        this.destruction = destruction;
+    }
+
+    /** Installs the effect sink. Null detaches; safe to call more than once. */
+    public void setEffectSink(EffectSink effectSink) {
+        this.effectSink = effectSink;
+    }
 
     /**
      * Angular boundary slack. Trigonometry through float30-something degrees does not reproduce
@@ -100,7 +135,42 @@ public final class MeleeSystem {
                 }
             }
         }
+        damageBlocks(attacker, melee);
         return hits;
+    }
+
+    /**
+     * Applies the swing to the blocks its arc covers.
+     *
+     * <p>Range is measured to the block's <b>nearest point</b>, not its centre: a body is measured
+     * at its centre because it is small, while a wall's centre can be far outside a swing that
+     * lands square on its face. The arc is otherwise the whole test, exactly as it is for a body —
+     * occluding blocks and not bodies would make the same swing miss one thing it visibly reaches
+     * and hit another.
+     */
+    private void damageBlocks(Player attacker, MeleeDefinition melee) {
+        if (destruction == null) {
+            return;
+        }
+        float originX = attacker.centerX();
+        float originY = attacker.centerY();
+        for (MapBlock block : destruction.liveMap().blocks()) {
+            if (!MaterialTable.takesDamage(block, DamageSource.MELEE)) {
+                continue;
+            }
+            Rect rect = block.rect();
+            float nearX = rect.clampX(originX);
+            float nearY = rect.clampY(originY);
+            if (!inArc(originX, originY, attacker.aimAngle, nearX, nearY, melee.range())) {
+                continue;
+            }
+            BlockBreak broke =
+                destruction.damage(block, DamageSource.MELEE, melee.damage(), nearX, nearY);
+            if (broke != null && effectSink != null) {
+                effectSink.emit(new EffectSpawn(
+                    broke.effect(), broke.x(), broke.y(), attacker.aimAngle, 1f));
+            }
+        }
     }
 
     /**
