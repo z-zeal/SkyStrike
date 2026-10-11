@@ -148,6 +148,7 @@ public final class PacketGameState implements Packet {
         return "PacketGameState[tick=" + tick
             + ", serverTimeMillis=" + serverTimeMillis
             + ", playerCount=" + playerCount
+            + ", mapRevision=" + mapRevision
             + ", players=" + players.size()
             + ", projectiles=" + projectiles.size()
             + ", gunfireEvents=" + gunfireEvents.size()

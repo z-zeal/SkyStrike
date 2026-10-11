@@ -130,6 +130,37 @@ class MinimapModelTest {
     }
 
     @Test
+    @DisplayName("destruction re-points the terrain without forgetting sightings")
+    void setArenaFollowsDestruction() {
+        Player viewer = player(1, TEAM_A, 400f, 600f, 0f);
+        model.view(input(viewer, List.of(player(2, TEAM_B, 700f, 600f, 0f)), false), T0);
+        assertEquals(2, model.trackedCount(), "the viewer and the lit enemy are remembered");
+
+        MapDamageState damage = MapDamageState.intact(arena);
+        MapBlock crate = arena.blocks().stream()
+            .filter(block -> block.kind() == BlockKind.BREAKABLE)
+            .findFirst()
+            .orElseThrow();
+        MapBlock pane = arena.blocks().stream()
+            .filter(block -> block.kind() == BlockKind.GLASS)
+            .findFirst()
+            .orElseThrow();
+        assertNotNull(damage.damage(crate, DamageSource.BLAST, 1_000f,
+            crate.rect().centerX(), crate.rect().centerY()));
+        assertNotNull(damage.damage(pane, DamageSource.BULLET, 1f,
+            pane.rect().centerX(), pane.rect().centerY()));
+
+        model.setArena(damage.liveMap());
+
+        assertEquals(
+            arena.blocks().size() - 2, model.terrainBoxes().size(),
+            "the destroyed blocks leave the map with the terrain pass");
+        assertEquals(1, model.trackedCount(), "losing a wall is not losing a memory");
+        assertEquals(
+            WorldConfig.ARENA_WIDTH / WorldConfig.ARENA_HEIGHT, model.arenaAspect(), 0.0001f);
+    }
+
+    @Test
     @DisplayName("a body's marker sits at its centre, in normalised arena space")
     void blipsAreNormalisedCentres() {
         Player viewer = player(1, TEAM_A, 400f, 600f, 0f);

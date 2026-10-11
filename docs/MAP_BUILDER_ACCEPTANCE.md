@@ -22,12 +22,14 @@ So that those kinds can be met before the editor exists (milestone 5), the shipp
 one mirrored **fixture range** — a timber one-way platform high over the centre of the map carrying
 a pane and a wooden crate (`durability=0.4`) — and `assets/data/arena.sdf` was re-baked in the same
 change, so the boxes about standing on, passing through, shattering, chipping and breaking a pane, a
-crate or a platform are reachable in a running build today. The work does **not** yet ship an
-`assets/maps` file, an editor or `MapTool`, door state, or any *client* destruction state: the
-client is not told that a block is gone until the milestone-4 block event, so nothing in a running
-game requests a re-bake and a destroyed block still renders and still collides until then. Boxes
-that need a door, a saved map file, the editor or a client-side re-bake therefore remain
-unreachable. All of the checks remain unattempted.
+crate or a platform are reachable in a running build today. The destruction half of milestone 4
+has since landed in source: the protocol-14 block event and join baseline, the client's
+destruction mirror feeding prediction, rendering and the minimap, and the first runtime re-bake
+caller — so a destroyed block should now disappear, stop colliding and stop shadowing on every
+client. The work does **not** yet ship an `assets/maps` file, an editor or `MapTool`, door state,
+per-hit crack sync, or the server-side map-hash join rejection. Boxes that need a door, a saved
+map file or the editor therefore remain unreachable; the destruction boxes are now within reach
+but unattempted, like all the rest.
 Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
@@ -282,3 +284,39 @@ also read by hand. Nothing was compiled, nothing was executed, nothing was obser
 `describeAnnouncesTheCensusMirrorAxisAndHash` test, the two rewritten and three added
 `PlatformMotionTest` cases, and every earlier suite remain unexecuted, and the re-run of the
 fixture range with the startup identity lines visible is outstanding human work.
+
+The destruction half of milestone 4 (protocol 14) was then source-checked only; it is not map
+validation, and every box above remains unchecked. The user's rebuilt run had confirmed the
+server side first — destruction effects firing proves the server destroys blocks end to end —
+and this slice wires the client to that fact: the authored-index identity, the reliably
+broadcast block event, the join baseline against the stated map hash, the snapshot revision,
+and the client's destruction mirror feeding prediction, the terrain pass, the minimap and the
+first runtime SDF re-bake. What the client still cannot show is per-hit cracks (chips do not
+travel — a breakable reads pristine until the hit that opens it), and what the wire still does
+not carry is doors, the server-side map-hash join rejection or a round-reset event. The exact
+checks run after these changes were:
+
+- `python3 tools/scratch/static_check.py` — clean (420 Java files scanned, 420 declared types; no
+  findings, including the module boundaries and the two consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (521 project types indexed from 416 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1
+  loop, 14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — completed with no tracked generated-table
+  diff.
+- `python3 tools/scratch/arena_sdf_check.py` — not run: neither `StandardArenaMap.TEXT` nor
+  `assets/data/arena.sdf` changed this session.
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the session's edits; `static_api_check.py` cannot see calls made through
+fields or variables, so the session's cross-module calls (`MapDamageState.breaks`,
+`authoredIndexOf` and `applyRemoteBreak`, `MinimapModel.setArena`, the `PacketBlockBreak`
+broadcast and join assembly, `ClientSession`'s retained accept and break replay,
+`GameScreen`'s mirror application and `FxPipeline.rebakeSdf`) were also read by hand. Nothing
+was compiled, nothing was executed, nothing was observed: the new `MapDamageStateTest`,
+`NetworkRegistrationTest` and `MinimapModelTest` cases and every earlier suite remain
+unexecuted. Everything a human with a runnable desktop build must do — rebuild both sides,
+confirm the startup identity lines, then shoot the pane and the crate, walk and shoot through
+where they stood, confirm the re-bake and the late joiner, and press S on the platform —
+remains outstanding, and every box above stays unchecked until that run.

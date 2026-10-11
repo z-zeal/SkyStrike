@@ -14,6 +14,7 @@ import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.command.Permission;
+import io.github.skystrike.shared.map.DamageSource;
 import io.github.skystrike.shared.net.c2s.PacketChatRequest;
 import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
@@ -21,6 +22,7 @@ import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
@@ -112,7 +114,12 @@ public final class NetworkRegistration {
         // Phase 6 increment 3 (M10): the gadget device entities carried inside snapshots
         // (append-only)
         DroneEntity.class,
-        CameraEntity.class);
+        CameraEntity.class,
+
+        // Map milestone 4, destruction half (protocol 14): the authoritative block event and
+        // its cause, carried live and replayed in the join payload (append-only)
+        DamageSource.class,
+        PacketBlockBreak.class);
 
     private NetworkRegistration() {
     }

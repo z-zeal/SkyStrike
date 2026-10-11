@@ -49,6 +49,9 @@ import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.hud.MinimapModel;
 import io.github.skystrike.shared.hud.WorldProjection;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.MapBlock;
+import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
@@ -65,10 +68,12 @@ import io.github.skystrike.shared.vision.ObserverSet;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
+import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.settings.Settings;
 import io.github.skystrike.shared.text.ChatChannel;
@@ -100,8 +105,14 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private static final float ZOOM_RATE_PER_SECOND = 1.6f;
 
     private final ArenaMap arena = ArenaMap.standard();
+    /**
+     * The client's mirror of the round's destruction state, fed by the authoritative block
+     * events and the join baseline. Prediction, rendering, the minimap and the SDF re-bake all
+     * read its live map; the authored map above stays the identity both sides compare.
+     */
+    private final MapDamageState damageState = MapDamageState.intact(arena);
     private final GameCamera camera = new GameCamera(arena.width(), arena.height());
-    private final TerrainRenderer terrain = new TerrainRenderer(arena);
+    private final TerrainRenderer terrain = new TerrainRenderer(arena, damageState);
     private final PlayerRenderer playerRenderer = new PlayerRenderer();
     /** Drones, throw cameras, shield arcs and fuel tanks, in the entity layer (roadmap §6.5). */
     private final GadgetRenderer gadgetRenderer = new GadgetRenderer();
@@ -283,6 +294,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setKillListener(this::onKillEvent);
         this.session.setDamageListener(this::onDamageEvent);
         this.session.setEffectListener(this::onEffectSpawn);
+        // The destruction baseline, in join order: the accept first, then whatever broke while
+        // this screen was being built. The connecting screen normally joins before this screen
+        // exists, so the retained accept is pulled; a session that joins later calls back.
+        this.session.setJoinListener(this::onJoinAccept);
+        onJoinAccept(session.joinAccept());
+        this.session.setBlockBreakListener(this::onBlockBreak);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
         this.session.setSessionResetListener(() -> {
@@ -421,6 +438,91 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             MessageSeverity.INFO);
     }
 
+    /**
+     * The map the client plays on: authored geometry minus everything the authority has removed.
+     * Prediction, the grenade preview, the light gate and the audio occlusion all read this, so
+     * a destroyed crate stops colliding everywhere in the same frame it stops rendering.
+     */
+    private ArenaMap liveMap() {
+        return damageState.liveMap();
+    }
+
+    /**
+     * Applies the join's destruction baseline: the break history up to the accept.
+     *
+     * <p>Runs once per join — pulled from the retained accept when this screen is built after
+     * the connecting screen's join, or called back when the session joins later. The state's own
+     * map is checked first: authored indices only name blocks against the map hash the server
+     * stated, and applying a foreign index would remove the wrong block.
+     */
+    private void onJoinAccept(PacketJoinAccept accept) {
+        if (accept == null) {
+            return;
+        }
+        if (accept.mapHashHex == null || !accept.mapHashHex.equals(arena.mapHashHex())) {
+            Gdx.app.error("SkyStrike",
+                "map mismatch: server plays " + accept.mapHashHex
+                    + " but this client parsed " + arena.mapHashHex()
+                    + "; ignoring the destruction baseline");
+            return;
+        }
+        List<MapBlock> restored = damageState.reset();
+        int applied = 0;
+        if (accept.destroyedBlocks != null) {
+            for (PacketBlockBreak record : accept.destroyedBlocks) {
+                if (applyBreakRecord(record) != null) {
+                    applied++;
+                }
+            }
+        }
+        if (!restored.isEmpty() || applied > 0) {
+            onDestructionChanged();
+        }
+        Gdx.app.log("SkyStrike",
+            "destruction baseline: rev " + damageState.revision() + " (" + applied + " applied)");
+        if (damageState.revision() != accept.mapRevision) {
+            Gdx.app.error("SkyStrike",
+                "destruction baseline revision " + accept.mapRevision
+                    + " does not match the applied " + damageState.revision());
+        }
+    }
+
+    /** One authoritative break arrived live. A duplicate or stale record changes nothing. */
+    private void onBlockBreak(PacketBlockBreak packet) {
+        BlockBreak applied = applyBreakRecord(packet);
+        if (applied == null) {
+            return;
+        }
+        onDestructionChanged();
+        Gdx.app.log("SkyStrike",
+            "block " + packet.blockIndex + " destroyed (" + packet.cause
+                + "), destruction rev " + damageState.revision());
+    }
+
+    /**
+     * Feeds one break record to the mirror. Returns the recorded break, or {@code null} when
+     * the record was empty, causeless, out of range or already applied.
+     */
+    private BlockBreak applyBreakRecord(PacketBlockBreak packet) {
+        if (packet == null || packet.cause == null) {
+            return null;
+        }
+        return damageState.applyRemoteBreak(
+            packet.blockIndex, packet.cause, packet.x, packet.y, packet.shattered);
+    }
+
+    /**
+     * Everything downstream of the destruction set, refreshed: the minimap's terrain and marker
+     * gating, and the SDF re-bake for shadows, light occlusion and particle collision. The
+     * terrain pass and the prediction paths read the live map every frame already.
+     */
+    private void onDestructionChanged() {
+        minimapModel.setArena(damageState.liveMap());
+        if (pipeline != null) {
+            pipeline.rebakeSdf(damageState.liveMap());
+        }
+    }
+
     private void onGameStateSnapshot(PacketGameState snapshot) {
         stateBuffer.addSnapshot(snapshot);
         gunAudio.onSnapshot(snapshot);
@@ -429,7 +531,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         if (localId >= 0 && snapshot.players != null) {
             for (Player p : snapshot.players) {
                 if (p.id == localId) {
-                    prediction.reconcile(p, arena);
+                    prediction.reconcile(p, liveMap());
                     loadoutController.onAuthoritativePlayer(p, prediction.predicted());
                     surveillance.onAuthoritativePlayer(p, prediction.predicted());
                     break;
@@ -464,6 +566,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         pauseOverlay.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         if (pipeline == null) {
             pipeline = new FxPipeline(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+            if (damageState.revision() > 0) {
+                // The join baseline landed before the pipeline existed — the connecting screen
+                // joins before this screen is built — so the live field starts re-baked rather
+                // than waiting for the next break.
+                pipeline.rebakeSdf(damageState.liveMap());
+            }
         }
         // Phase 9: audio consumes the very same effect-event queue as the particles.
         pipeline.setEffectListener(effectAudio);
@@ -539,9 +647,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             PacketPlayerInput input = inputSampler.sample(localPlayer, camera, aimAnchor.x(), aimAnchor.y());
             surveillance.stampPacket(input);
             gunAudio.onLocalInput(input, localPlayer, bindings.isFireJustPressed());
-            localPlayer = prediction.predict(input, delta, arena);
+            localPlayer = prediction.predict(input, delta, liveMap());
             // The piloted drone is predicted locally, so the view and the cone stay crisp.
-            surveillance.predictDrone(localPlayer, input, delta, arena);
+            surveillance.predictDrone(localPlayer, input, delta, liveMap());
             session.sendUnreliable(input);
 
             if (debugState.freecam() && consoleDialog.isGameplayActive()) {
@@ -644,7 +752,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         pipeline.syncPlayerLights(
                 localPlayer,
                 remotePlayers,
-                arena,
+                liveMap(),
                 eyes,
                 isPlayerLightOn(),
                 playerLightRadius,
@@ -655,7 +763,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
         pipeline.beginScene();
         terrain.render(camera);
-        trajectoryRenderer.render(camera, localPlayer, arena);
+        trajectoryRenderer.render(camera, localPlayer, liveMap());
         playerRenderer.render(camera, remotePlayers, localPlayer);
         // The piloted drone is drawn from the local prediction so it never lags the view.
         gadgetRenderer.render(camera, remotePlayers, localPlayer, dronesToDraw, cameras);
@@ -1046,10 +1154,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     arena.height(),
                     arena.blocks().size()));
         }
+        PacketGameState latest = session.latestSnapshot();
         lines.add(String.format(
-                "map: %d blocks, hash %.8s",
+                "map: %d blocks, hash %.8s, destruction rev %d (snapshot %d)",
                 arena.blocks().size(),
-                arena.mapHashHex()));
+                arena.mapHashHex(),
+                damageState.revision(),
+                latest == null ? -1 : latest.mapRevision));
         lines.add(minimap == null
             ? "minimap: off (cl_minimap)"
             : String.format(
@@ -1172,7 +1283,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         if (pipeline == null) {
             return false;
         }
-        return !VisionMath.hasLineOfSight(x0, y0, x1, y1, arena, pipeline.smokeVolumes().all());
+        return !VisionMath.hasLineOfSight(x0, y0, x1, y1, liveMap(), pipeline.smokeVolumes().all());
     }
 
     @Override

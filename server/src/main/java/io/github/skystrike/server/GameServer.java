@@ -44,6 +44,7 @@ import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
@@ -59,6 +60,7 @@ import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -123,6 +125,12 @@ public final class GameServer {
 
     /** Reused per tick so the combat systems do not allocate a player list 60 times a second. */
     private final List<Player> playerStates = new ArrayList<>();
+
+    /**
+     * How many of the round's breaks have been broadcast. The destruction state's break history
+     * only grows, so the unwired tail is everything from this index on.
+     */
+    private int breaksBroadcast;
 
     public GameServer(ServerConfig config) {
         this.config = config;
@@ -261,7 +269,8 @@ public final class GameServer {
         router.register(
                 PacketJoinRequest.class,
                 new JoinRequestHandler(
-                    endpoint, connections, players, spawnService, clock, config.tickRateHz(), capabilities));
+                    endpoint, connections, players, spawnService, clock, config.tickRateHz(),
+                    capabilities, damageState));
         router.register(PacketPing.class, new PingHandler(endpoint, clock));
         router.register(PacketLeaveRequest.class, new LeaveRequestHandler(connections, players));
         router.register(PacketPlayerInput.class, new PlayerInputHandler(players));
@@ -516,6 +525,7 @@ public final class GameServer {
 
         // 4. Tell the clients what happened to them.
         dispatchCombatEvents();
+        dispatchBlockBreaks(clock.tick());
 
         if (clock.tick() % ticksPerSnapshot == 0) {
             broadcastSnapshot(clock);
@@ -562,6 +572,38 @@ public final class GameServer {
             endpoint.broadcastReliable(packet);
             System.out.printf("[kill] %s%n", packet.feedLine());
         }
+    }
+
+    /**
+     * Broadcasts the round's new breaks, reliably and in destruction order.
+     *
+     * <p>Every connected client already holds the history up to {@code breaksBroadcast} — the
+     * join payload carried everything older — so the tail from there on is exactly what nobody
+     * has been told. Reliable, like kills: breaks are rare and every client must apply every one.
+     */
+    private void dispatchBlockBreaks(long tick) {
+        List<BlockBreak> breaks = damageState.breaks();
+        if (breaks.size() < breaksBroadcast) {
+            // A round reset emptied the history (no round layer calls it yet, but the state
+            // allows it): the counter follows it down rather than strangling the next round.
+            breaksBroadcast = breaks.size();
+        }
+        for (int index = breaksBroadcast; index < breaks.size(); index++) {
+            BlockBreak broke = breaks.get(index);
+            PacketBlockBreak packet = new PacketBlockBreak(
+                tick,
+                damageState.authoredIndexOf(broke.block()),
+                broke.cause(),
+                broke.x(),
+                broke.y(),
+                broke.shattered(),
+                index + 1);
+            endpoint.broadcastReliable(packet);
+            System.out.printf(
+                "[map] broke block %d (%s at %.0f, %.0f) rev %d%n",
+                packet.blockIndex, broke.cause(), broke.x(), broke.y(), packet.revision);
+        }
+        breaksBroadcast = breaks.size();
     }
 
     private void sendToPlayer(int playerId, Packet packet) {
@@ -648,6 +690,7 @@ public final class GameServer {
 
             PacketGameState snapshot = new PacketGameState(tick, now, totalJoined);
             snapshot.cheatsActive = cheatsActive;
+            snapshot.mapRevision = damageState.revision();
             for (EffectSpawn gunfire : gunfireEvents) {
                 snapshot.gunfireEvents.add(gunfire.copy());
             }

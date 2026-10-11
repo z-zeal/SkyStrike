@@ -233,6 +233,88 @@ class MapDamageStateTest {
         assertThrows(IllegalArgumentException.class, () -> state.remainingDurability(foreign));
     }
 
+    @Test
+    @DisplayName("the authored index names each block's position in the authored list")
+    void authoredIndexOfNamesTheWireIdentity() {
+        MapDamageState state = intactState();
+        List<MapBlock> blocks = state.authoredMap().blocks();
+
+        assertEquals(5, state.blockCount());
+        for (int index = 0; index < blocks.size(); index++) {
+            assertEquals(index, state.authoredIndexOf(blocks.get(index)));
+        }
+        // Authored order is the crate and its reflection, then the pane, then the wall and its
+        // reflection — the same order both sides of the wire build from the same text.
+        assertEquals(0, state.authoredIndexOf(CRATE));
+        assertEquals(2, state.authoredIndexOf(PANE));
+        assertEquals(3, state.authoredIndexOf(WALL));
+
+        MapBlock foreign =
+            new MapBlock(BlockKind.BREAKABLE, Material.WOOD, new Rect(1f, 1f, 10f, 10f));
+        assertThrows(IllegalArgumentException.class, () -> state.authoredIndexOf(foreign));
+    }
+
+    @Test
+    @DisplayName("breaks are recorded in destruction order with their revision")
+    void breaksAreRecordedInDestructionOrder() {
+        MapDamageState state = intactState();
+
+        assertTrue(state.breaks().isEmpty(), "an untouched round has no wire history");
+        state.damage(CRATE, DamageSource.BULLET, 500f, 700f, 450f);
+        state.damage(PANE, DamageSource.BLAST, 60f, 1500f, 340f);
+
+        List<BlockBreak> breaks = state.breaks();
+        assertEquals(2, breaks.size());
+        assertEquals(2, state.revision());
+        assertEquals(CRATE, breaks.get(0).block());
+        assertEquals(DamageSource.BULLET, breaks.get(0).cause());
+        assertEquals(700f, breaks.get(0).x());
+        assertEquals(450f, breaks.get(0).y());
+        assertFalse(breaks.get(0).shattered());
+        assertEquals(PANE, breaks.get(1).block());
+        assertEquals(DamageSource.BLAST, breaks.get(1).cause());
+        assertTrue(breaks.get(1).shattered(), "a pane shatters whatever the accepted source");
+        // Position i is the break that moved the revision from i to i + 1 — the invariant the
+        // server's broadcast diff and the client's lock-step both read.
+        assertEquals(0, state.authoredIndexOf(breaks.get(0).block()));
+        assertEquals(2, state.authoredIndexOf(breaks.get(1).block()));
+    }
+
+    @Test
+    @DisplayName("a mirror fed remote breaks lands on the authority's live map")
+    void remoteBreaksMirrorTheAuthority() {
+        MapDamageState authority = intactState();
+        MapDamageState mirror = MapDamageState.intact(authority.authoredMap());
+
+        authority.damage(CRATE, DamageSource.BULLET, 500f, 700f, 450f);
+        BlockBreak wire = authority.breaks().get(0);
+
+        BlockBreak applied = mirror.applyRemoteBreak(
+            mirror.authoredIndexOf(wire.block()), wire.cause(), wire.x(), wire.y(),
+            wire.shattered());
+
+        assertNotNull(applied, "the first application of a break lands");
+        assertEquals(wire, applied, "the mirror records the packet's own record");
+        assertEquals(authority.revision(), mirror.revision());
+        assertEquals(authority.destroyedBlocks(), mirror.destroyedBlocks());
+        assertTrue(
+            Arrays.equals(authority.liveMap().mapHash(), mirror.liveMap().mapHash()),
+            "the same break against the same authored list is the same live map");
+        assertNull(mirror.damage(CRATE, DamageSource.BULLET, 500f, 700f, 450f),
+            "and the mirror then refuses the block like the authority does");
+
+        assertNull(
+            mirror.applyRemoteBreak(
+                mirror.authoredIndexOf(CRATE), DamageSource.BULLET, 700f, 450f, false),
+            "re-applying a break changes nothing");
+        assertEquals(1, mirror.revision());
+        assertNull(mirror.applyRemoteBreak(-1, DamageSource.BULLET, 0f, 0f, false));
+        assertNull(mirror.applyRemoteBreak(mirror.blockCount(), DamageSource.BULLET, 0f, 0f, false),
+            "wire data outside the authored list is dropped, not thrown");
+        assertThrows(NullPointerException.class,
+            () -> mirror.applyRemoteBreak(1, null, 0f, 0f, false));
+    }
+
     private static MapDamageState intactState() {
         return MapDamageState.intact(ArenaMap.builder(AXIS)
             .mirrored(CRATE)

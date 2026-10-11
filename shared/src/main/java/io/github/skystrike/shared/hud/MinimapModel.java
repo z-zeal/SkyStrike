@@ -158,8 +158,8 @@ public final class MinimapModel {
     /**
      * One frame of minimap.
      *
-     * @param terrain      the arena's static geometry, computed once by the model and handed to
-     *                     every frame as the same immutable list
+     * @param terrain      the arena's geometry as the model currently sees it — recomputed when
+     *                     destruction re-points it, otherwise the same immutable list every frame
      * @param blips        the markers to draw, the viewer's own last so it draws on top
      * @param viewport     the camera's view rectangle, clamped into the arena, or {@code null}
      * @param arenaAspect  arena width over height, so the widget can fit without knowing the map
@@ -225,9 +225,30 @@ public final class MinimapModel {
         // Never zero: a degenerate arena would divide every marker into infinity.
         this.arenaWidth = Math.max(1f, arena.width());
         this.arenaHeight = Math.max(1f, arena.height());
-        // Every block, because this is a picture of the arena and not of what stops a round: a
-        // window or a one-way slab is part of the ground the player sees, and the terrain pass
-        // draws it too. The bullet-blocking compatibility view would quietly drop both.
+        this.terrain = terrainBoxes(arena, arenaWidth, arenaHeight);
+    }
+
+    /**
+     * Re-points the model at a derived map — the live map after destruction — without forgetting
+     * anything.
+     *
+     * <p>A destroyed block leaves the terrain boxes and the marker sight-gating in the same call,
+     * so the map cannot show a wall the terrain pass stopped drawing or hide a marker behind one
+     * that is gone. The remembered sightings stay: losing a wall is not losing the memory of who
+     * was seen through the doorway. Destruction is rare, so recomputing the boxes per break costs
+     * nothing; calling this per frame would rebuild garbage for no reason.
+     */
+    public void setArena(ArenaMap liveMap) {
+        this.arena = Objects.requireNonNull(liveMap, "the minimap is a picture of one arena");
+        this.terrain = terrainBoxes(liveMap, arenaWidth, arenaHeight);
+    }
+
+    /**
+     * Every block as a normalised box, because this is a picture of the arena and not of what
+     * stops a round: a window or a one-way slab is part of the ground the player sees, and the
+     * terrain pass draws it too. The bullet-blocking compatibility view would quietly drop both.
+     */
+    private static List<Box> terrainBoxes(ArenaMap arena, float arenaWidth, float arenaHeight) {
         List<Box> boxes = new ArrayList<>(arena.blocks().size());
         for (MapBlock block : arena.blocks()) {
             Rect solid = block.rect();
@@ -237,7 +258,7 @@ public final class MinimapModel {
                 solid.width() / arenaWidth,
                 solid.height() / arenaHeight));
         }
-        this.terrain = List.copyOf(boxes);
+        return List.copyOf(boxes);
     }
 
     /** The arena's static geometry, in normalised map space. The same list every call. */
