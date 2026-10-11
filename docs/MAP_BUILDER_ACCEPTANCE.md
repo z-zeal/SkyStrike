@@ -1,11 +1,13 @@
 # Map building system — acceptance checklist
 
-**Status: unexecuted, and not yet executable.** Every box below is unchecked. The map building
-system is **planned only** (`docs/MAP_BUILDER_PLAN.md`); no parser, block kind, door, breakable,
-glass pane, one-way platform or editor exists in the tree, so these checks cannot be attempted yet
-and are written as the pass that must run when the milestones land. Nothing in this repository was
-built, launched or observed while writing them: the authoring sandbox has no JDK, so not even the
-`shared` tests that will prove the model could be run here.
+**Status: unexecuted. Every box below is unchecked.** Increment 1 has landed the shared block
+model, rule table and strict version-1 text parser/writer, with the legacy arena loaded through its
+canonical embedded text, a version-2 SDF map-hash guard, and shared tests written for migration,
+round trips and SDF identity. It does **not** yet ship an `assets/maps` file, editor, material
+damage, glass, platform, door or breakable runtime behaviour; those checks remain unattempted.
+Nothing in this repository was
+built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
+be executed here.
 
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
@@ -98,3 +100,18 @@ automated tests for that milestone are green in CI. The CI-side tests are listed
   silent drop of a door.
 - [ ] Repeated breakable destruction in a long match does not grow memory or the SDF uploading cost
   per frame.
+
+## Verification note
+
+No Java, Gradle task, unit test, server, desktop client or checklist item was run in the authoring
+sandbox. The source-only checks run after the increment were:
+
+- `python3 tools/scratch/static_check.py` — clean (including module-boundary checks).
+- `python3 tools/scratch/static_api_check.py` — clean.
+- `python3 tools/scratch/static_audio_check.py` — clean.
+- `python3 tools/scratch/synth_sfx.py --check` — clean.
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated no tracked diff.
+
+Those checks do not compile or execute the new shared tests and do not validate runtime map loading;
+every manual box above remains unchecked.

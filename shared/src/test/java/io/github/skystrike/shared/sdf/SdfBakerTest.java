@@ -3,6 +3,7 @@ package io.github.skystrike.shared.sdf;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.ArenaMapFormat;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -74,12 +75,62 @@ class SdfBakerTest {
     }
 
     @Test
+    void mapHashMatchesOnlyTheMapThatWasBaked() {
+        ArenaMap different = ArenaMapFormat.parse(String.join("\n",
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred wall stone 1490 100 20 20",
+            ""));
+
+        assertTrue(field.matchesMap(arena));
+        assertFalse(field.matchesMap(different));
+    }
+
+    @Test
+    void bakerUsesTheSharedSdfColumnRatherThanBulletSolids() {
+        ArenaMap mixedKinds = ArenaMapFormat.parse(String.join("\n",
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred wall stone 1490 100 20 20",
+            "centred glass glass 1490 200 20 20",
+            "centred door metal 1490 300 20 20",
+            "centred breakable wood 1490 400 20 20",
+            "centred platform energy 1490 500 20 20",
+            ""));
+
+        SdfField mixedField = SdfBaker.bake(mixedKinds, 2.0f);
+
+        assertTrue(mixedField.sample(1500f, 110f) < 0f, "wall must bake");
+        assertTrue(mixedField.sample(1500f, 210f) > 0f, "glass must stay out of the SDF");
+        assertTrue(mixedField.sample(1500f, 310f) > 0f, "door must stay out of the static SDF");
+        assertTrue(mixedField.sample(1500f, 410f) < 0f, "intact breakable must bake");
+        assertTrue(mixedField.sample(1500f, 510f) > 0f, "platform must stay out of the SDF");
+    }
+
+    @Test
+    void oldSdfHeaderVersionIsRefused() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        field.write(out);
+        byte[] bytes = out.toByteArray();
+        bytes[4] = 0;
+        bytes[5] = 0;
+        bytes[6] = 0;
+        bytes[7] = 1;
+
+        IOException exception = assertThrows(
+            IOException.class,
+            () -> SdfField.read(new ByteArrayInputStream(bytes)));
+
+        assertEquals("unsupported SDF version: 1", exception.getMessage());
+    }
+
+    @Test
     void testSerializationRoundtrip() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         field.write(out);
 
         byte[] bytes = out.toByteArray();
-        assertEquals(1500 * 1000 + 28, bytes.length);
+        assertEquals(1500 * 1000 + SdfField.HEADER_BYTES, bytes.length);
 
         ByteArrayInputStream in = new ByteArrayInputStream(bytes);
         SdfField loaded = SdfField.read(in);
@@ -89,6 +140,8 @@ class SdfBakerTest {
         assertEquals(field.texelScale(), loaded.texelScale());
         assertEquals(field.worldWidth(), loaded.worldWidth());
         assertEquals(field.worldHeight(), loaded.worldHeight());
+        assertArrayEquals(field.mapHash(), loaded.mapHash());
+        assertTrue(loaded.matchesMap(arena));
 
         // Assert distance samples match exactly
         assertEquals(field.sample(500f, 600f), loaded.sample(500f, 600f), 0.001f);

@@ -5,8 +5,9 @@ import io.github.skystrike.shared.math.Geometry;
 /**
  * An axis-aligned rectangle given by its bottom-left corner and its size.
  *
- * <p>Y grows upward, matching the renderer and the simulation. Every piece of arena geometry is
- * one of these: the same rectangle stops a bullet, blocks sight and gets drawn.
+ * <p>Y grows upward, matching the renderer and the simulation. A {@link MapBlock} owns a
+ * rectangle; its {@link BlockRules} row, rather than the rectangle itself, decides whether it
+ * blocks bullets or sight and how it is drawn.
  */
 public record Rect(float x, float y, float width, float height) {
 

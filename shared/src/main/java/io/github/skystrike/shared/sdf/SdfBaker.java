@@ -2,6 +2,8 @@ package io.github.skystrike.shared.sdf;
 
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.BlockRules;
+import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.Rect;
 
 /**
@@ -35,9 +37,14 @@ public final class SdfBaker {
         int height = (int) Math.round(map.height() / texelScale);
         int totalTexels = width * height;
 
-        // 1. Rasterize solid rectangles into boolean bitmask
+        // 1. Rasterize only the kinds whose shared rule belongs in the static field. In
+        // particular, closed doors are dynamic occluders and glass/platforms are never SDF solids.
         boolean[] solid = new boolean[totalTexels];
-        for (Rect rect : map.solids()) {
+        for (MapBlock block : map.blocks()) {
+            if (!BlockRules.bakesIntoSdf(block.kind())) {
+                continue;
+            }
+            Rect rect = block.rect();
             int minX = Math.max(0, (int) Math.floor(rect.left() / texelScale));
             int maxX = Math.min(width - 1, (int) Math.ceil(rect.right() / texelScale));
             int minY = Math.max(0, (int) Math.floor(rect.bottom() / texelScale));
@@ -72,7 +79,14 @@ public final class SdfBaker {
             encodedData[i] = (byte) (clamped + 128);
         }
 
-        return new SdfField(width, height, texelScale, map.width(), map.height(), encodedData);
+        return new SdfField(
+            width,
+            height,
+            texelScale,
+            map.width(),
+            map.height(),
+            map.mapHash(),
+            encodedData);
     }
 
     /**
