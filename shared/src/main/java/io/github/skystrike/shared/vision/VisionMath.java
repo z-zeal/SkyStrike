@@ -45,7 +45,9 @@ public final class VisionMath {
         if (map == null) {
             return true;
         }
-        return MapQueries.lineBlocked(map, x0, y0, x1, y1, Blocking.SIGHT);
+        // lineBlocked answers "is the line blocked"; this method answers "is the line clear".
+        // Returning it unnegated inverted every sight, throw, camera and audio check.
+        return !MapQueries.lineBlocked(map, x0, y0, x1, y1, Blocking.SIGHT);
     }
 
     /**
