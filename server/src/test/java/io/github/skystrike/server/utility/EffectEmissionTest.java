@@ -1,6 +1,7 @@
 package io.github.skystrike.server.utility;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.server.combat.BulletSystem;
@@ -214,9 +215,13 @@ class EffectEmissionTest {
     void terrainImpactEmitsConcreteImpact() {
         BulletSystem bullets = new BulletSystem(arena);
         bullets.setEffectSink(sink);
+        // The sidearm's ~23-unit barrel keeps the muzzle above the floor when fired straight
+        // down; a longer barrel would be absorbed by the floor at the muzzle (the per-weapon
+        // guard) and this test would emit nothing at all.
         Player shooter = player(1, 500f, 100f);
         shooter.aimAngle = -90f;
-        bullets.spawn(shooter, WeaponId.IRON_CARBINE, -90f);
+        assertNotNull(bullets.spawn(shooter, WeaponId.IRON_SIDEARM, -90f),
+            "the round must exist for the ground to absorb it");
 
         for (int tick = 0; tick < 10 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(shooter), damage);

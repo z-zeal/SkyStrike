@@ -59,6 +59,11 @@ appeared near the body's centre.
 - [ ] **Clear space for a long barrel:** with a sniper, stand right under a low roof (the tunnel,
   the crate tops) and fire upward. The shot is legitimately absorbed when the barrel itself is in
   the roof; check that this reads as "the barrel is in the wall", not as a broken gun.
+- [ ] **Straight down from the floor:** stand on the ground and aim straight down. A long gun
+  (a rifle or a sniper) fires nothing, because the muzzle is drawn inside the floor and the guard
+  absorbs the shot at it; a pistol's shorter barrel still fires and the round dies on the floor.
+  Neither case may put a round below the floor, and the absorbed shot must not read as a broken
+  gun any more than the low-roof case above does.
 - [ ] **Point-blank shots (known trade-off):** a round now leaves the *barrel tip*, so a body
   closer to the eye than the barrel length is no longer inside the first sweep. With a carbine or
   a sniper, fire at an enemy about 30 units directly ahead and decide whether the resulting miss

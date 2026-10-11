@@ -102,20 +102,24 @@ class BulletSystemTest {
             "the wall is between the eye and the muzzle, so the round never exists");
         assertEquals(0, bullets.count());
 
-        // Turning around and firing away from the wall works normally.
-        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 180f));
+        // Firing due west is not a normal shot either: the same ~46-unit barrel puts the muzzle
+        // at x=1804, inside the mirrored inner pillar (1800..1816, y 300..430). The gap between
+        // that pillar and the wall is 40 units — narrower than the barrel — so the guard absorbs
+        // that shot too. Straight up is the shot with room: only the ceiling is above this nook.
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 90f));
     }
 
     @Test
     @DisplayName("a round cannot tunnel through the 18 unit mid lane")
     void aRoundCannotTunnelThroughTheMidLane() {
         // The mid lane slab is (820, 500) 250x18, so it spans y 500..518 across x 820..1070.
-        // A player standing on the doorway landing below it fires a Cathedral straight up: 1820
-        // u/s is 30.3 units per tick, more than the slab is thick, so only a swept test can catch
-        // it. The shooter sits far enough down that the longest barrel in the game (~62 units) is
-        // still clear of the slab: the muzzle has to stay below the surface the round must hit,
-        // and the swept step has to be the thing that stops it.
-        Player player = shooter(1000f, 360f, 90f);
+        // A player hovering below it at (980, 390) — left of the doorway landing (1000..1120,
+        // 342..360), so the barrel line is clear of it — fires a Cathedral straight up: 1820 u/s
+        // is 30.3 units per tick, more than the slab is thick, so only a swept test can catch it.
+        // The longest barrel in the game (~62 units) ends ~6 units under the slab, and one tick
+        // carries the round past its far face (524.4 > 518). The two assertions below guard that
+        // window, so a longer muzzle fails loudly here instead of silently testing nothing.
+        Player player = shooter(980f, 390f, 90f);
         Projectile round = bullets.spawn(player, WeaponId.CATHEDRAL, 90f);
 
         assertNotNull(round);
@@ -136,8 +140,11 @@ class BulletSystemTest {
     @Test
     @DisplayName("a round that hits a player damages them once and disappears")
     void aRoundHitsAPlayer() {
+        // The carbine's muzzle starts ~46 units ahead of the eye, so the victim has to stand far
+        // enough past it for the round to have flown a real gap when it lands. The crates at
+        // x=820 are what caps this lane's clear run.
         Player player = shooter(400f, 100f, 0f);
-        Player victim = new Player(2, "Victim", 1, 700f, 100f);
+        Player victim = new Player(2, "Victim", 1, 800f, 100f);
 
         assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f));
 
@@ -195,9 +202,12 @@ class BulletSystemTest {
     @Test
     @DisplayName("a round cannot hit the player who fired it on the way out")
     void selfHitGraceProtectsTheShooter() {
-        // Firing straight down puts the muzzle inside your own hitbox.
+        // Firing straight down puts the muzzle inside your own hitbox only while the barrel is
+        // shorter than the eye height above the feet (~42 units). A pistol's ~23 units does it;
+        // a rifle's ~46 or a sniper's ~62 would leave the muzzle in the floor, where the
+        // eye-to-muzzle guard absorbs the shot before it becomes one.
         Player player = shooter(500f, 100f, -90f);
-        Projectile round = bullets.spawn(player, WeaponId.CATHEDRAL, -90f);
+        Projectile round = bullets.spawn(player, WeaponId.IRON_SIDEARM, -90f);
 
         assertNotNull(round);
         assertTrue(round.y > player.y && round.y < player.y + player.currentHeight(),
@@ -212,8 +222,12 @@ class BulletSystemTest {
     @Test
     @DisplayName("rounds stop at terrain and leave the world")
     void roundsAreAbsorbedByTerrain() {
+        // The sidearm's ~23-unit barrel keeps the muzzle above the floor when fired straight
+        // down. A longer barrel would put it inside the floor and the guard would absorb the
+        // shot at the muzzle, which is the wall test's territory, not this one.
         Player player = shooter(500f, 100f, -90f);
-        bullets.spawn(player, WeaponId.IRON_CARBINE, -90f);
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_SIDEARM, -90f),
+            "the round must exist for the ground to absorb it");
 
         for (int tick = 0; tick < 10 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(player), damage);

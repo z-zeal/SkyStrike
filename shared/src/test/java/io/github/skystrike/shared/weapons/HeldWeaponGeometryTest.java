@@ -88,8 +88,11 @@ class HeldWeaponGeometryTest {
         for (MeleeId id : MeleeId.values()) {
             assertTrue(SpriteScales.of(id) > 0f, id + " has no draw scale");
         }
-        assertEquals(SpriteScales.FALLBACK, SpriteScales.ofWireId(-1), EPSILON);
         assertEquals(SpriteScales.FALLBACK, SpriteScales.of((WeaponId) null), EPSILON);
+        // An unknown gun wire id resolves through WeaponId.DEFAULT, not through FALLBACK: the two
+        // coincide only because the reference carbine's scale is 1.0, so assert the path, not the
+        // value — a rescaled carbine must not break a test about fallbacks.
+        assertEquals(SpriteScales.of(WeaponId.DEFAULT), SpriteScales.ofWireId(-1), EPSILON);
         assertEquals(SpriteScales.of(WeaponId.IRON_SIDEARM),
             SpriteScales.ofWireId(WeaponId.IRON_SIDEARM.ordinal()), EPSILON);
         assertEquals(SpriteScales.of(MeleeId.TRENCH_KNUCKLE),
