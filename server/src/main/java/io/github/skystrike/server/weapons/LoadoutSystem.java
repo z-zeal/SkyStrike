@@ -355,7 +355,8 @@ public final class LoadoutSystem {
         }
         UtilitySystem.ThrowResult result = utilitySystem.tryThrowUtility(player, utility);
         if (!result.accepted()) {
-            refuse(session, "utility throw refused: " + result.reason() + throwDiagnostics(player));
+            refuse(session, "utility throw refused: " + result.reason()
+                + throwDiagnostics(player) + utilitySystem.throwGeometry(player));
             return;
         }
         loadout.consumeActiveUtility();
