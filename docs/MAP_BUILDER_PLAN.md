@@ -1,7 +1,7 @@
 # Map building system — plan
 
-**Status: milestone 3's source has landed, its first live run has happened, and milestone 4 is
-next.** The shared
+**Status: milestone 3's source has landed, its first live run has happened, and the destruction
+half of milestone 4 has landed in source.** The shared
 `BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text
 parser/writer, standard-arena migration and SDF map-hash guard landed in PR #47.
 `ArenaMap.standard()` loads the embedded canonical text through that parser; every version-2 SDF
@@ -42,6 +42,19 @@ owns the default ports, the client logs an error and joins that server anyway
 startup (`ArenaMap.describe()`: census, mirror axis, hash), the re-run is pending a human, and
 the known milestone-4 gaps still apply — a shattered pane keeps rendering and keeps colliding in
 the client's authored copy until the block event tells it otherwise.
+
+**Since then the re-run has confirmed the server side and the destruction half of milestone 4
+has landed in source.** The user rebuilt on a current build and saw destruction effects fire
+(`GLASS_SHATTER`, wood debris), which proves the server's destruction path works end to end —
+and reported the deliberate gap as a visual issue: a broken pane or crate keeps rendering and
+keeps blocking the client's player and rounds, because the client is never told. The protocol
+13 → 14 contract below (§8) now carries exactly that: the block's wire identity is its authored
+index, `PacketBlockBreak` is broadcast reliably on the destruction tick, the join accept replays
+the round's break history against the stated map hash, the snapshot carries the revision, and
+the client holds a `MapDamageState` mirror feeding prediction, rendering, the minimap and the
+first `rebakeSdf` caller. Doors, the dynamic occluder array, per-hit crack sync and the
+map-hash join rejection are still milestone-4 remainder; the desktop re-run of the destruction
+slice is pending a human, and no acceptance box has been executed.
 
 ## 1. What exists today
 
@@ -206,9 +219,11 @@ request, newest map wins), `SdfField.diff(SdfField)` as the changed-texel region
 `SdfTexture.patch(SdfField)` for the region upload. The field is held by three parties (the texture,
 which also reaches the visibility, light and debug passes, and the particle systems, which keep the
 `SdfField` object), so the frame that patches the texture re-supplies all of them — the field is
-never mutated under a reader. Nothing requests a bake yet: the trigger is the client's copy of the
-destruction set, which arrives with the milestone-4 block event; the path is pinned by the
-determinism tests in `shared`.
+never mutated under a reader. **Landed:** the play screen's destruction sync is the first caller —
+every applied block event and every non-empty join baseline re-bakes for the client's live map,
+whose hash the re-baked field names, while the load-time cache guard still verifies the shipped
+asset against the authored hash (D9). The path itself is pinned by the determinism tests in
+`shared`.
 
 **D5 — Glass is a movement blocker you can shoot through.** Intact glass stops bodies, not sight
 and not bullets (the window's reason to exist is to look and shoot through it). Any round shatters
@@ -544,26 +559,59 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   what its arc covers; a stone breakable refuses both the round and the blade) and
   `UtilityBlockDestructionTest` pins the blast (one break at the near face, a chip further off, the
   debris event raised before the explosion's own, and a wall as absolute cover).
+- **Destruction wire (implemented, milestone 4's first half):** `MapDamageStateTest` proves the
+  authored index names each block's list position, that breaks are recorded in destruction order
+  with the revision each one moved, that a mirror fed remote breaks lands on the authority's
+  live map and revision (re-application and out-of-range indices change nothing), and that a
+  reset clears the history with the round. `NetworkRegistrationTest` pins the appended
+  `DamageSource`/`PacketBlockBreak` at indices 35–36 with 37 types and protocol 14, and
+  round-trips the event, the join baseline (map hash, revision, break history) and the snapshot
+  revision. `MinimapModelTest` proves destruction re-points the minimap's terrain without
+  forgetting sightings. The server broadcast diff, the join payload assembly and the client's
+  application path are source-read, not suite-covered: no test boots a server or a screen.
 
-## 8. Wire contract (protocol 13 → 14)
+## 8. Wire contract (protocol 13 → 14; the destruction half has landed)
 
-- **Handshake/join:** the server states the map hash and the destruction revision; a client whose
-  map (or SDF) does not match is told so and does not join, instead of silently playing a different
-  arena.
-- **Snapshot:** a `mapRevision` (uint32) rides the game-state packet, and nothing else: the block
-  set itself is static per map and shipped.
-- **Door state:** a small reliable packet — door id, state, opening tick — sent on change and
-  re-sent in the join payload. Append-only registration.
-- **Block events:** destruction/glass-shatter as an event (block id, cause, position for the
-  effect), plus the join payload carrying the current revision's removed/opened sets, so a late
-  joiner is correct without replaying history.
+- **Block identity — decided: the authored index.** `MapBlock` carries no numeric id, and both
+  sides build the identical authored list from the same canonical text, so a block's position in
+  that list (`MapDamageState.authoredIndexOf`) is its stable, compact wire identity; carrying the
+  whole triple was the fallback and was not needed. The identity is only meaningful against the
+  map hash the join accept states — a client whose map differs must not apply indices at all.
+- **Block events (landed):** `PacketBlockBreak` — tick, authored index, `DamageSource` cause,
+  impact position, the shattered flag, revision — broadcast reliably in destruction order on the
+  tick the block dies. Reliable, unlike the effect batches: a lost batch costs a flash, a lost
+  break would strand a wall on one client, and destruction is rare enough that TCP costs nothing.
+  The server diffs `MapDamageState.breaks()` every tick; history position `i` is the break that
+  moved the revision from `i` to `i + 1`.
+- **Join payload (landed):** the accept carries the authored map hash, the destruction revision
+  and the round's break history as the same records the live path carries, so the live path and
+  the late-join path apply identical state through one code path. The client checks the hash
+  first and refuses a foreign index set loudly rather than removing the wrong blocks.
+- **Snapshot (landed):** a `mapRevision` rides the game-state packet, and nothing else: the block
+  set itself is static per map and shipped. It belongs in this slice rather than the door slice
+  because destruction defines the revision — but it is advisory, not a sync mechanism, since
+  unreliable snapshots race reliable breaks; the client reads it for its debug readout and the
+  door slice will give it a corrective use.
+- **Handshake map guard (half landed):** the server states the map hash in the accept and the
+  client verifies it before touching its mirror, which turns the first-live-run stale-process
+  failure into a loud client error. Server-side rejection — the client stating its map or SDF in
+  the join request and being refused on mismatch — is still open, with the door slice.
+- **Door state (open):** a small reliable packet — door id, state, opening tick — sent on change
+  and re-sent in the join payload. Append-only registration.
+- **Per-hit crack sync (open):** breaks travel; chips do not. A breakable shows its cracks only
+  to the server until the hit that opens it — the client draws it pristine, then gone. Crack
+  fractions need their own unreliable channel and are a later increment, not this one.
+- **Round-reset event (open):** no round layer calls `reset()` yet, so no reset travels. When the
+  match layer exists, the reset needs a wire event of its own — a client that is not told the
+  round restarted keeps playing the chewed map.
 - **Anti-cheat stance:** the server decides every door, every break and every shatter; the client
   predicts optimistically with the same shared functions and reconciles. A modified client that
   claims a wall is broken simply walks into a wall: movement, bullets and line of sight are all
   resolved server-side against the authoritative block set. The client can at most make its own
   copy of a door look open for a round trip.
 - `NetworkRegistrationTest`'s counts move with the appended registrations, and the version bump is
-  in the same commit as the first packet — as with protocols 12 and 13.
+  in the same commit as the first packet — as with protocols 12 and 13. Protocol 14 appends
+  `DamageSource` and `PacketBlockBreak` at indices 35–36 (37 types).
 
 ## 9. Milestones
 
@@ -605,9 +653,15 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    the re-bake determinism proof
    (`SdfRebakeTest` plus the server destruction cases) must pass in CI, which no sandbox can check —
    no Java was compiled or run here.
-4. **Doors, with dynamic occluders.** The occluder array in the visibility and light shaders, the
-   door state machine and its collision/bullet/sight wiring, then the packets and the protocol
-   bump. Gate: door tests plus a manual two-client pass (the acceptance document).
+4. **Destruction wire, then doors with dynamic occluders.** The destruction half has landed in
+   source: the protocol 13 → 14 contract (§8) — authored-index identity, the reliably broadcast
+   `PacketBlockBreak`, the join baseline, the snapshot revision — the client's `MapDamageState`
+   mirror feeding prediction, rendering, the minimap and the first `rebakeSdf` caller, and the
+   map-hash check that refuses a foreign index set. Still open in this milestone: the door state
+   machine and its collision/bullet/sight wiring, the occluder array in the visibility and light
+   shaders, the door packet, the server-side map-hash join rejection, per-hit crack sync and the
+   round-reset event. Gate: the destruction tests below plus door tests, and a manual two-client
+   pass (the acceptance document).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
    in a fresh session.

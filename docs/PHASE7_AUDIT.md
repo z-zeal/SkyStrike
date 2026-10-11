@@ -589,6 +589,36 @@ run here either; each change carries its own unexecuted acceptance note.
   construction, with a short map line in the client debug panel and a shared test pinning the line.
   No packet, registration or protocol change; no Java compiled or executed here; the re-run is
   pending a human.
+- **Map building system, milestone 4's destruction half — protocol 14 reaches the client.**
+  Implemented in four code commits on `arena/cb494bfd-skystrike` plus this documentation. The
+  user's rebuilt run had confirmed the server side (destruction effects firing proves the
+  server-side path end to end) and reported the deliberate gap: a broken pane or crate keeps
+  rendering and keeps blocking the client's player and rounds. The fix is plan §8's destruction
+  half and nothing else from milestone 4. The block's wire identity is its authored index — both
+  sides build the identical authored list, so an index names a block without carrying the triple,
+  and only against the map hash the join states. `MapDamageState` gained the ordered break
+  history the server diffs, the public index lookup, and `applyRemoteBreak`, the mirror's only
+  mutation: it records the packet's own break without measuring anything, idempotently, and
+  refuses out-of-range indices instead of throwing. The wire is `PacketBlockBreak` (tick, index,
+  cause, position, shattered flag, revision), broadcast reliably in destruction order on the
+  destruction tick; the join accept carries the authored map hash, the revision and the round's
+  history as the same records the live path carries; the snapshot carries the advisory revision.
+  `PROTOCOL_VERSION` moved 13 → 14 in the same commit as the first packet, with `DamageSource`
+  and `PacketBlockBreak` appended at indices 35–36 (37 types). The client holds a
+  `MapDamageState` mirror: the join baseline resets it after the map-hash check refuses a foreign
+  index set, live breaks feed the same path (breaks arriving before the play screen exists are
+  buffered and replayed after the baseline), and every change re-points the minimap and calls
+  `FxPipeline.rebakeSdf` — the path's first caller. Prediction (predict and reconcile), the
+  piloted drone, the grenade preview, the player-light gate and the audio occlusion all read the
+  live map; the debug map line shows both revisions. Deliberately deferred with the door slice:
+  doors and the occluder array, the server-side map-hash join rejection, per-hit crack sync
+  (chips do not travel — a breakable reads pristine until the hit that opens it) and the
+  round-reset event. Tests were written and not executed: the `MapDamageStateTest` index/history/
+  mirror cases, the `NetworkRegistrationTest` pins and round trips, and the `MinimapModelTest`
+  re-pointing case. No Java was compiled, executed or observed here; the desktop re-run —
+  rebuild both sides, confirm the identity lines, shoot the pane and the crate, walk and shoot
+  through where they stood, confirm the re-bake and the late joiner, press S on the platform —
+  is outstanding human work, and every acceptance box remains unchecked.
 
 ---
 
@@ -694,3 +724,21 @@ local-test port-fallback join was read in `Main.startLocalTest`/`EmbeddedLocalHo
 compiled, executed or observed in this sandbox; the rewritten and added `PlatformMotionTest`
 cases, the new `describeAnnouncesTheCensusMirrorAxisAndHash` test, and every earlier suite
 remain unexecuted, and every `MAP_BUILDER_ACCEPTANCE.md` box remains unchecked.
+
+The milestone-4 destruction increment (protocol 14: the block event, the join baseline, the
+snapshot revision, the client mirror and the first re-bake caller) was source-checked with
+exactly the permitted Python checks: `python3 tools/scratch/static_check.py` (clean: 420 Java
+files scanned, 420 declared types, no findings, including the module boundaries and the two
+milestone-2 consumer gates), `python3 tools/scratch/static_api_check.py` (clean: 521 project
+types indexed from 416 files), `python3 tools/scratch/static_audio_check.py` (clean: 13 world
+entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries), `python3
+tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree), `python3
+tools/scratch/phase3_ballistics.py` (analytical report completed without findings) and `python3
+tools/weapons/generate_weapon_tables.py` (completed with no tracked generated-table diff).
+`python3 tools/scratch/arena_sdf_check.py` was not run: neither `StandardArenaMap.TEXT` nor
+`assets/data/arena.sdf` changed this session. `static_api_check.py` cannot see calls made
+through fields or variables, so the session's cross-module calls were additionally read by
+hand. Nothing was compiled, executed or observed in this sandbox: the new
+`MapDamageStateTest`, `NetworkRegistrationTest` and `MinimapModelTest` cases and every earlier
+suite remain unexecuted, the two-client destruction pass and the late-join check are outstanding
+human work, and every `MAP_BUILDER_ACCEPTANCE.md` box remains unchecked.
