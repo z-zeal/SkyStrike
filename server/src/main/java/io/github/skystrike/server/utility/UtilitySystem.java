@@ -10,7 +10,6 @@ import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.Blocking;
 import io.github.skystrike.shared.map.MapQueries;
-import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.HitZone;
@@ -154,28 +153,6 @@ public final class UtilitySystem {
         thrown.aimAngle = owner.aimAngle;
         active.add(thrown);
         return ThrowResult.ACCEPTED;
-    }
-
-    /**
-     * The release point a throw from {@code owner} would use and the first authored sight blocker
-     * on the eye-to-release segment, for refusal diagnostics only. It never changes a gate: a
-     * terrain refusal is decided from the same two numbers, so naming the blocking rectangle lets
-     * a desktop report match the refusal against the authored map.
-     */
-    public String throwGeometry(Player owner) {
-        if (owner == null) {
-            return "";
-        }
-        float x = ThrowablePhysics.muzzleX(owner.eyeX(), owner.aimAngle);
-        float y = ThrowablePhysics.muzzleY(owner.eyeY(), owner.aimAngle);
-        Rect blocker = MapQueries.firstBlocker(
-            arena, owner.eyeX(), owner.eyeY(), x, y, Blocking.SIGHT);
-        String rect = blocker == null
-            ? "none"
-            : String.format(java.util.Locale.ROOT, "(%.1f,%.1f,%.1f,%.1f)",
-                blocker.x(), blocker.y(), blocker.width(), blocker.height());
-        return String.format(java.util.Locale.ROOT, " release=(%.1f,%.1f) sightBlocker=%s",
-            x, y, rect);
     }
 
     /** Compatibility boolean for callers that only need the success/failure result. */
