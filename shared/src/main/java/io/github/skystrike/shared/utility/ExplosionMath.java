@@ -2,8 +2,9 @@ package io.github.skystrike.shared.utility;
 
 import io.github.skystrike.shared.config.UtilityConfig;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.model.Player;
-import io.github.skystrike.shared.vision.VisionMath;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -16,7 +17,9 @@ import java.util.List;
  * <ul>
  *   <li><b>Terrain blocks damage entirely.</b> Not reduced, not attenuated — a wall between you
  *       and the detonation means zero, even if the grenade landed on the other side of it at
- *       arm's length. Cover is worth taking or it is not worth modelling.</li>
+ *       arm's length. Cover is worth taking or it is not worth modelling. The question is asked
+ *       as the shared {@link Blocking#BLAST} column, which the rule table pins to sight: a
+ *       window you can see and shoot through never stops a blast either.</li>
  *   <li><b>One hit per target per explosion.</b> {@link #resolve} returns at most one
  *       {@link BlastHit} per player by construction, so a blast can never be made to double-dip
  *       by overlapping zones or by being resolved twice in one tick.</li>
@@ -79,7 +82,7 @@ public final class ExplosionMath {
         if (distance >= blast.radius()) {
             return 0f;
         }
-        if (!VisionMath.hasLineOfSight(blast.x(), blast.y(), targetX, targetY, map)) {
+        if (MapQueries.lineBlocked(map, blast.x(), blast.y(), targetX, targetY, Blocking.BLAST)) {
             return 0f;
         }
         return falloff(blast.maxDamage(), distance, blast.radius());
@@ -117,7 +120,7 @@ public final class ExplosionMath {
             if (distance >= blast.radius()) {
                 continue;
             }
-            if (!VisionMath.hasLineOfSight(blast.x(), blast.y(), targetX, targetY, map)) {
+            if (MapQueries.lineBlocked(map, blast.x(), blast.y(), targetX, targetY, Blocking.BLAST)) {
                 continue;
             }
             float damage = falloff(blast.maxDamage(), distance, blast.radius());

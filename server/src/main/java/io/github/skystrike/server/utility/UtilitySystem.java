@@ -8,6 +8,7 @@ import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.map.ArenaMap;
+import io.github.skystrike.shared.map.Blocking;
 import io.github.skystrike.shared.map.MapQueries;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.math.Lerp;
@@ -436,9 +437,12 @@ public final class UtilitySystem {
                     + deterministicJitter(thrown.id, side * index);
                 float zoneX = thrown.x + tangentX * side * distance;
                 float zoneY = thrown.y + tangentY * side * distance;
-                // A surface line cannot jump through a wall or solid platform. Stop this side at
-                // its last clear patch rather than placing fire on the far side of the obstruction.
-                if (MapQueries.lineBlocked(arena, previousX, previousY, zoneX, zoneY)) {
+                // A surface line cannot jump through an obstruction. Stop this side at its last
+                // clear patch rather than placing fire on the far side of it. The question is the
+                // shared BLAST column (the plan pins effect occlusion to sight, which this column
+                // answers too), so a window that passes a thrown bottle passes its fire as well.
+                if (MapQueries.lineBlocked(
+                        arena, previousX, previousY, zoneX, zoneY, Blocking.BLAST)) {
                     break;
                 }
                 if (!addZone(new UtilityZone(
