@@ -14,6 +14,7 @@ import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import io.github.skystrike.shared.weapons.WeaponBallistics;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.ArrayList;
@@ -24,7 +25,7 @@ import java.util.List;
 /**
  * The authoritative life of every round in flight.
  *
- * <p>Spawn at the muzzle, integrate with {@code BallisticsMath}, sweep the tick's path for
+ * <p>Spawn at the drawn muzzle, integrate with {@code BallisticsMath}, sweep the tick's path for
  * impacts, apply damage, retire. Nothing else in the server moves a bullet.
  *
  * <p>Impacts resolve against players, terrain <b>and the Phase 6 gadget devices</b> (drones and
@@ -34,8 +35,10 @@ import java.util.List;
  * <p>Three rules are worth stating out loud:
  * <ul>
  *   <li>A round fired while hugging a wall is <b>absorbed at the muzzle</b>: the eye-to-muzzle
- *       segment is tested at spawn, so the offset that makes the tracer leave the barrel can
- *       never place a round on the far side of geometry.</li>
+ *       segment is tested at spawn, so the barrel length that makes the tracer leave the drawn
+ *       barrel can never place a round on the far side of geometry. The muzzle is the client's
+ *       drawn barrel tip ({@link HeldWeaponGeometry}), not a fixed offset — which is also why a
+ *       long gun needs more clear space in front of the eye before it will fire at all.</li>
  *   <li>A round cannot hit its owner for the first {@value CombatConfig#SELF_HIT_GRACE_SECONDS}
  *       seconds. After that it can, because self-damage is on and flying into your own shot is a
  *       legitimate way to die.</li>
@@ -102,15 +105,18 @@ public final class BulletSystem {
         }
 
         WeaponBallistics ballistics = WeaponBallistics.of(weaponId);
-        float aimRadians = Angles.toRadians(angleDegrees);
-        float directionX = (float) Math.cos(aimRadians);
-        float directionY = (float) Math.sin(aimRadians);
 
         float eyeX = owner.eyeX();
         float eyeY = owner.eyeY();
-        float muzzleX = eyeX + directionX * CombatConfig.MUZZLE_OFFSET;
-        float muzzleY = eyeY + directionY * CombatConfig.MUZZLE_OFFSET;
+        // The round leaves the barrel the client actually draws, which is a different distance
+        // for every weapon (a pistol is ~22 units out, the longest sniper ~62).
+        float muzzleX = HeldWeaponGeometry.muzzleX(weaponId.ordinal(), eyeX, angleDegrees);
+        float muzzleY = HeldWeaponGeometry.muzzleY(weaponId.ordinal(), eyeY, angleDegrees);
 
+        // The barrel is longer than it used to be, so this guard matters more, not less: the
+        // segment the round is born along is tested against the terrain, and a shot fired while
+        // hugging a wall is absorbed at the muzzle instead of appearing on the far side of it.
+        // Note that a longer barrel needs more clear space in front of the eye to exist at all.
         if (raycaster.blockedByTerrain(eyeX, eyeY, muzzleX, muzzleY)) {
             return null;
         }

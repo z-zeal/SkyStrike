@@ -2,13 +2,13 @@ package io.github.skystrike.server.weapons;
 
 import io.github.skystrike.server.fx.EffectSink;
 import io.github.skystrike.shared.combat.SpreadMath;
-import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.WeaponConfig;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.weapons.FireMode;
+import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.Random;
 
@@ -141,16 +141,16 @@ public final class FireController {
     /**
      * The muzzle event (build plan M7 §8.1/§8.3): a flash and a shell casing at the barrel, along
      * the aim. Emitted only when the volley actually produced rounds — a trigger click on cooldown
-     * is silent. The muzzle offset is the same one {@code BulletSystem} spawns rounds at, so the
-     * flash sits where the tracers leave.
+     * is silent. The point is {@link HeldWeaponGeometry}'s per-weapon barrel tip, the same point
+     * {@code BulletSystem} spawns rounds at and the client draws the sprite's barrel to, so the
+     * flash, the shell and the tracer all leave the one muzzle the player can see.
      */
     private void emitMuzzleEffects(Player player, WeaponId weapon) {
         if (effectSink == null) {
             return;
         }
-        float aimRadians = Angles.toRadians(player.aimAngle);
-        float muzzleX = player.eyeX() + (float) Math.cos(aimRadians) * CombatConfig.MUZZLE_OFFSET;
-        float muzzleY = player.eyeY() + (float) Math.sin(aimRadians) * CombatConfig.MUZZLE_OFFSET;
+        float muzzleX = HeldWeaponGeometry.muzzleX(weapon.ordinal(), player.eyeX(), player.aimAngle);
+        float muzzleY = HeldWeaponGeometry.muzzleY(weapon.ordinal(), player.eyeY(), player.aimAngle);
         EffectSpawn muzzle = new EffectSpawn(
             EffectType.MUZZLE_FLASH, muzzleX, muzzleY, player.aimAngle, 1f);
         muzzle.sourcePlayerId = player.id;

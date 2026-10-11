@@ -6,10 +6,10 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
-import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import java.util.List;
 
 /**
@@ -41,9 +41,6 @@ public final class PlayerRenderer implements Disposable {
     private static final Color COLOR_VISOR = new Color(0.10f, 0.90f, 0.95f, 1f);
     private static final Color COLOR_HEALTH_BG = new Color(0.15f, 0.15f, 0.15f, 0.8f);
     private static final Color COLOR_HEALTH_FG = new Color(0.20f, 0.85f, 0.30f, 1f);
-
-    /** Hand offset from the eye along the aim, so the grip sits in front of the body. */
-    private static final float HAND_FORWARD_OFFSET = 4f;
 
     private final ShapeRenderer shapes = new ShapeRenderer();
     private final SpriteBatch batch = new SpriteBatch();
@@ -126,8 +123,8 @@ public final class PlayerRenderer implements Disposable {
         float size = weaponSprites.frameSize(p.weaponId);
         float originX = size * weaponSprites.gripAnchorX(p.weaponId);
         float originY = size * 0.5f;
-        float handX = p.eyeX() + HAND_FORWARD_OFFSET * (float) Math.cos(rad);
-        float handY = p.eyeY() + HAND_FORWARD_OFFSET * (float) Math.sin(rad);
+        float handX = p.eyeX() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.cos(rad);
+        float handY = p.eyeY() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.sin(rad);
 
         batch.draw(
                 texture,
@@ -245,7 +242,9 @@ public final class PlayerRenderer implements Disposable {
         float eyeY = p.eyeY();
         // Aim plus visual recoil: the barrel climbs, the crosshair does not.
         float gunRad = Angles.toRadians(p.renderedGunAngle());
-        float barrelLen = CombatConfig.MUZZLE_OFFSET;
+        // The same per-weapon muzzle the sprite's barrel reaches and the server spawns at, so a
+        // missing sprite still shows a barrel of the right length instead of a pistol-sized one.
+        float barrelLen = HeldWeaponGeometry.muzzleDistance(p.weaponId);
 
         float gunEndX = eyeX + barrelLen * (float) Math.cos(gunRad);
         float gunEndY = eyeY + barrelLen * (float) Math.sin(gunRad);

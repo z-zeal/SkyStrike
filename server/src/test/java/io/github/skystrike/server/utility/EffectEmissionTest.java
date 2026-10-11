@@ -10,7 +10,6 @@ import io.github.skystrike.server.fx.EffectSink;
 import io.github.skystrike.server.weapons.FireController;
 import io.github.skystrike.server.weapons.GunInstance;
 import io.github.skystrike.server.weapons.RecoilService;
-import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.UtilityConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.config.WorldConfig;
@@ -21,6 +20,7 @@ import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.ArrayList;
 import java.util.List;
@@ -267,7 +267,10 @@ class EffectEmissionTest {
         assertEquals(2, sink.emitted.size());
         EffectSpawn flash = sink.emitted.get(0);
         assertEquals(EffectType.MUZZLE_FLASH, flash.type);
-        assertEquals(shooter.eyeX() + CombatConfig.MUZZLE_OFFSET, flash.x, 0.001f);
+        assertEquals(
+            HeldWeaponGeometry.muzzleX(WeaponId.IRON_CARBINE.ordinal(), shooter.eyeX(), 0f),
+            flash.x,
+            0.001f);
         assertEquals(shooter.eyeY(), flash.y, 0.001f);
         assertEquals(0f, flash.angle, 0.001f);
 
