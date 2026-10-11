@@ -18,7 +18,10 @@ import io.github.skystrike.shared.net.Packet;
  */
 public final class PacketBlockBreak implements Packet {
 
-    /** Simulation tick the block was destroyed on, for diagnostics. */
+    /**
+     * Simulation tick the break was reported on, for diagnostics: the destruction tick on the
+     * live path, the join tick for history replayed in the join payload.
+     */
     public long tick;
 
     /**
