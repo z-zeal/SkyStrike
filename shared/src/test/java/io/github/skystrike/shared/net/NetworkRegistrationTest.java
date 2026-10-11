@@ -16,6 +16,7 @@ import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.gadget.SurveillanceView;
+import io.github.skystrike.shared.map.DamageSource;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.GadgetSlot;
@@ -33,6 +34,7 @@ import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
+import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
@@ -95,9 +97,11 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(EffectSpawn.class));
         assertTrue(NetworkRegistration.isSupportType(DroneEntity.class));
         assertTrue(NetworkRegistration.isSupportType(CameraEntity.class));
+        assertTrue(NetworkRegistration.isSupportType(DamageSource.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
         assertFalse(NetworkRegistration.isSupportType(PacketLoadoutUpdate.class));
         assertFalse(NetworkRegistration.isSupportType(PacketEffectSpawn.class));
+        assertFalse(NetworkRegistration.isSupportType(PacketBlockBreak.class));
     }
 
     @Test
@@ -183,8 +187,18 @@ class NetworkRegistrationTest {
         assertEquals(PacketEffectSpawn.class, types.get(32));
         assertEquals(DroneEntity.class, types.get(33));
         assertEquals(CameraEntity.class, types.get(34));
-        assertEquals(35, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(13, NetConfig.PROTOCOL_VERSION);
+        assertTrue(types.size() >= 35, "append only, never replace");
+    }
+
+    @Test
+    @DisplayName("the protocol-14 block event types are appended after the M10 gadget entities")
+    void protocolFourteenBlockEventsAreAppended() {
+        // Registration order is the wire format: these indices can never move again.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(DamageSource.class, types.get(35));
+        assertEquals(PacketBlockBreak.class, types.get(36));
+        assertEquals(37, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(14, NetConfig.PROTOCOL_VERSION);
     }
 
     @Test
@@ -206,6 +220,57 @@ class NetworkRegistrationTest {
         assertEquals(7, decoded.effects.get(0).seed);
         assertEquals(EffectType.MUZZLE_FLASH, decoded.effects.get(1).type);
         assertEquals(0.5f, decoded.effects.get(1).scale, 1e-6f);
+    }
+
+    @Test
+    @DisplayName("a block break survives the wire with its identity, cause and revision intact")
+    void blockBreakPacketsRoundTrip() {
+        PacketBlockBreak decoded = roundTrip(
+            new PacketBlockBreak(4242L, 57, DamageSource.BLAST, 1770f, 1348f, false, 2));
+        assertEquals(4242L, decoded.tick);
+        assertEquals(57, decoded.blockIndex);
+        assertEquals(DamageSource.BLAST, decoded.cause);
+        assertEquals(1770f, decoded.x);
+        assertEquals(1348f, decoded.y);
+        assertFalse(decoded.shattered);
+        assertEquals(2, decoded.revision);
+
+        PacketBlockBreak shattered = roundTrip(
+            new PacketBlockBreak(4243L, 58, DamageSource.BULLET, 1670f, 1400f, true, 3));
+        assertEquals(DamageSource.BULLET, shattered.cause);
+        assertTrue(shattered.shattered);
+        assertEquals(3, shattered.revision);
+    }
+
+    @Test
+    @DisplayName("the join accept carries the map hash, the revision and the break history")
+    void joinAcceptCarriesTheDestructionBaseline() {
+        PacketJoinAccept outbound = new PacketJoinAccept(3, "Nova", 60, 900L);
+        outbound.mapHashHex = "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693";
+        outbound.mapRevision = 2;
+        outbound.destroyedBlocks.add(
+            new PacketBlockBreak(800L, 57, DamageSource.BLAST, 1770f, 1348f, false, 1));
+        outbound.destroyedBlocks.add(
+            new PacketBlockBreak(850L, 58, DamageSource.BULLET, 1670f, 1400f, true, 2));
+
+        PacketJoinAccept accept = roundTrip(outbound);
+        assertEquals(3, accept.playerId);
+        assertEquals("Nova", accept.playerName);
+        assertEquals(
+            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693", accept.mapHashHex);
+        assertEquals(2, accept.mapRevision);
+        assertEquals(2, accept.destroyedBlocks.size());
+        assertEquals(57, accept.destroyedBlocks.get(0).blockIndex);
+        assertEquals(DamageSource.BLAST, accept.destroyedBlocks.get(0).cause);
+        assertEquals(1, accept.destroyedBlocks.get(0).revision);
+        assertEquals(58, accept.destroyedBlocks.get(1).blockIndex);
+        assertTrue(accept.destroyedBlocks.get(1).shattered);
+        assertEquals(2, accept.destroyedBlocks.get(1).revision);
+
+        PacketJoinAccept fresh = roundTrip(new PacketJoinAccept(4, "Rook", 60, 901L));
+        assertEquals("", fresh.mapHashHex, "the field default, before the server states its map");
+        assertEquals(0, fresh.mapRevision);
+        assertTrue(fresh.destroyedBlocks.isEmpty());
     }
 
     @Test
@@ -428,6 +493,7 @@ class NetworkRegistrationTest {
         PacketGameState outbound = new PacketGameState(
             4242L, 99L, 1, List.of(p), List.of(round), List.of(thrown),
             List.of(zone), List.of(drone), List.of(camera));
+        outbound.mapRevision = 3;
         EffectSpawn gunfire = new EffectSpawn(EffectType.MUZZLE_FLASH, 125f, 225f, 30f, 1f);
         gunfire.seed = 321;
         gunfire.sourcePlayerId = 1;
@@ -436,6 +502,7 @@ class NetworkRegistrationTest {
         PacketGameState state = roundTrip(outbound);
         assertEquals(4242L, state.tick);
         assertEquals(99L, state.serverTimeMillis);
+        assertEquals(3, state.mapRevision);
         assertEquals(1, state.playerCount);
         assertEquals(1, state.players.size());
         assertEquals("Nova", state.players.get(0).name);

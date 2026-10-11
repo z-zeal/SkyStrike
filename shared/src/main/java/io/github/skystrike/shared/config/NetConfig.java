@@ -51,8 +51,13 @@ public final class NetConfig {
      * <p>13 — {@code EffectSpawn} gained shooter/weapon metadata, and successful volleys now carry
      * those sound cues in the existing {@code PacketGameState}, independent of projectile state
      * and vision-culled visuals. The packet schema changed; no registration order changed.
+     *
+     * <p>14 — Map milestone 4, destruction half: {@code DamageSource} registered as a payload
+     * type and {@code PacketBlockBreak} appended after {@code CameraEntity}; the snapshot gained
+     * {@code mapRevision}, and the join accept gained the authored map hash, the destruction
+     * revision and the round's break history. No Kryo registration was reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 13;
+    public static final int PROTOCOL_VERSION = 14;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;
