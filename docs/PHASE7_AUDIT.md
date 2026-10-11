@@ -408,10 +408,18 @@ run here either; each change carries its own unexecuted acceptance note.
   fallback. The OS pointer is hidden while the crosshair stands in for it, and restored for every
   modal dialog, a dead local player, and when the match screen is left or disposed.
   `docs/CROSSHAIR_POINTER_ACCEPTANCE.md` is new and unexecuted.
-- **Planned, not built:** the map building system (`docs/MAP_BUILDER_PLAN.md`, with
-  `docs/MAP_BUILDER_ACCEPTANCE.md`): doors, breakables, glass, one-way platforms, materials, the
-  text map format, the SDF re-bake and hash guard, the editor/CLI split, and the protocol 13 → 14
-  additions it will need. No code from it exists in the tree.
+- **Map building system, increment 1 — shared model and text format.** Implemented:
+  `shared/map/{BlockKind,Material,MapBlock,MovementRule,BlockRenderStyle,Blocking,BlockRules}`;
+  `ArenaMap.blocks()` with its legacy `solids()` view derived from the bullet column; and a public
+  symmetry builder. `ArenaMapFormat` is a strict, dependency-free version-1 reader/writer with
+  canonical save → load → save output and source-line errors for malformed headers, unknown
+  verbs/kinds/materials, invalid bounds/sizes, duplicate blocks and wrong symmetry verbs.
+  `ArenaMap.standard()` now loads `StandardArenaMap`'s embedded canonical text, and shared tests
+  preserve the old complete rect set while covering the model rows, format failures and round trip.
+  All current standard blocks are stone walls, so no running collision, sight, bullet, SDF or
+  rendering behaviour changes in this increment; there is no wire or protocol change. Door ids and
+  state, material damage, rule-aware consumers, SDF hash/rebake, an `assets/maps` file, editor/CLI
+  and protocol 14 remain future work. `docs/MAP_BUILDER_ACCEPTANCE.md` remains wholly unexecuted.
 
 ---
 
@@ -424,8 +432,13 @@ test status come only from GitHub Actions.
 The same limit applies to the rebaseline pass at `a293f80`: it re-read the source and ran the
 permitted Python checks (`tools/scratch/static_check.py`, `static_api_check.py`, both clean; the
 module-boundary rules find zero violations), and it did not run the game, the server, Gradle, the
-test suites or any acceptance checklist. **Every runtime checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`, `VISION_AUDIO_DRONE_ACCEPTANCE.md`, the mechanics §11 feel checklist and this pass's
-`PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md` and
-`CROSSHAIR_POINTER_ACCEPTANCE.md` — is still unexecuted, `MAP_BUILDER_ACCEPTANCE.md` cannot be
-executed until its milestones land, and no checkbox in any of them may be ticked from source
-reading alone.**
+test suites or any acceptance checklist. The map-model/format increment likewise ran only
+`tools/scratch/static_check.py`, `static_api_check.py`, `static_audio_check.py`,
+`synth_sfx.py --check` and `phase3_ballistics.py` (all clean), plus the weapon-table generator
+(which left no tracked diff); it did not compile or execute its new shared tests. **Every runtime
+checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`,
+`VISION_AUDIO_DRONE_ACCEPTANCE.md`, the mechanics §11 feel checklist and this pass's
+`PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md`,
+`CROSSHAIR_POINTER_ACCEPTANCE.md` and `MAP_BUILDER_ACCEPTANCE.md` — is still unexecuted. The map
+checklist's format/model source is now present, but all desktop validation and its later-milestone
+items remain pending; no checkbox in any of them may be ticked from source reading alone.**
