@@ -18,9 +18,14 @@ import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 
 /**
- * Half-resolution additive player-light pass. Each active light draws one radius-sized quad into
- * an RGB target; the fragment shader applies radial falloff, SDF occlusion and the local vision
- * gate before its contribution can reach the fog composite.
+ * Half-resolution light pass. Each active light draws one radius-sized quad into an RGB target;
+ * the fragment shader applies radial falloff, SDF occlusion and the local vision gate before its
+ * contribution can reach the fog composite.
+ *
+ * <p>The quads are blended additively, but only into this buffer. The composite reads it as
+ * illumination added to the sight field and multiplied into the scene, so a light brightens the
+ * surfaces it falls on in their own colour rather than laying a bright disc over the frame, and
+ * cannot lift a pixel the observer cannot see.
  */
 public final class LightPass implements Disposable {
 

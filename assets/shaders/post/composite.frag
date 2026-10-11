@@ -26,13 +26,15 @@ void main() {
     vec4 scene = texture2D(u_sceneTexture, v_texCoords);
     float vis = displayVisibility(texture2D(u_visibilityTexture, v_texCoords).r);
 
-    float fog = max(vis, u_ambientFloor);
-    vec3 result = scene.rgb * fog;
-
+    // The light buffer is the illumination the sight field is lit by, not a colour drawn on top
+    // of it: it is added to the field and multiplies the scene with it, so a lit surface brightens
+    // in its own colour instead of washing out into a white disc, and an unlit pixel stays black
+    // however bright the lamp is. The light pass has already rejected pixels outside the sight
+    // field and behind SDF occluders, so the multiply cannot reveal hidden geometry.
+    vec3 illumination = vec3(max(vis, u_ambientFloor));
     if (u_hasLight != 0) {
-        vec4 light = texture2D(u_lightTexture, v_texCoords);
-        result += light.rgb;
+        illumination += texture2D(u_lightTexture, v_texCoords).rgb;
     }
 
-    gl_FragColor = vec4(result, scene.a);
+    gl_FragColor = vec4(scene.rgb * illumination, scene.a);
 }

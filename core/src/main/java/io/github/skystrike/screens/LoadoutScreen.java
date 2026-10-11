@@ -73,6 +73,9 @@ public final class LoadoutScreen extends de.eskalon.commons.screen.ManagedScreen
             // nothing to map: the widget draws nothing and the corner stays with the readouts.
             null,
             // No arena to project into either, so no floating damage numbers here.
+            null,
+            // A menu is not aiming at anything: no pointer, so the crosshair stays at its centre
+            // anchor and the OS arrow is never hidden here.
             null));
     }
 

@@ -33,6 +33,10 @@ import java.util.List;
  * @param worldView         this frame's world-to-screen projection, which only the floating
  *                          damage numbers need, or {@code null} where there is no arena to
  *                          project into (the loadout screen), which draws none
+ * @param pointer           where the OS pointer is this frame, or {@code null} when there is no
+ *                          cursor to follow — a touch device, or the loadout screen. The
+ *                          crosshair is drawn under it when present, and the screen centre is
+ *                          the anchor when it is not
  */
 public record HudFrame(
     Player player,
@@ -46,7 +50,8 @@ public record HudFrame(
     boolean debugPanelVisible,
     List<String> debugLines,
     MinimapModel.View minimap,
-    WorldProjection worldView
+    WorldProjection worldView,
+    PointerPosition pointer
 ) {
 
     public HudFrame {

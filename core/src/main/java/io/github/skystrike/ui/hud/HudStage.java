@@ -1,7 +1,9 @@
 package io.github.skystrike.ui.hud;
 
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -50,6 +52,8 @@ public final class HudStage implements Disposable {
     private static final String CUSTOM_FONT_PATH = "fonts/dialog.ttf";
 
     private final HudTheme theme = new HudTheme();
+    /** Kept for one read: whether a modal dialog owns the keyboard, and so the OS pointer. */
+    private final InputRouter router;
     private final SpriteBatch batch = new SpriteBatch();
     private final ShapeRenderer shapes = new ShapeRenderer();
     private final Matrix4 projection = new Matrix4();
@@ -93,6 +97,15 @@ public final class HudStage implements Disposable {
     private boolean wasAlive = true;
 
     /**
+     * Whether the OS pointer is currently hidden. On a desktop the crosshair is drawn under the
+     * pointer, so leaving the arrow visible would show two cursors: an arrow on top of the
+     * reticle. It is hidden exactly while the crosshair is drawn and no dialog owns input — a
+     * hidden pointer with nothing drawn in its place, or one hidden while the picker is up, would
+     * leave the player pointing at nothing.
+     */
+    private boolean pointerHidden;
+
+    /**
      * @param router        the focus stack the picker takes the keyboard from
      * @param loadoutSender where a picker request goes, normally {@code ClientSession::sendReliable}
      * @param sprites       the held-weapon atlas, owned and disposed by the player renderer
@@ -101,6 +114,7 @@ public final class HudStage implements Disposable {
             InputRouter router,
             Consumer<PacketLoadoutUpdate> loadoutSender,
             WeaponSprites sprites) {
+        this.router = router;
         this.sprites = sprites;
         this.picker = new LoadoutPicker(theme, sprites, router, loadoutSender);
     }
@@ -198,6 +212,7 @@ public final class HudStage implements Disposable {
             return;
         }
         trackRespawn(frame.player());
+        applyPointerCursor(frame);
 
         float scale = theme.scale(screenHeight);
         if (!laidOut) {
@@ -235,6 +250,35 @@ public final class HudStage implements Disposable {
 
         font.setColor(Color.WHITE);
         batch.setColor(Color.WHITE);
+    }
+
+    /**
+     * Hides the OS pointer while the crosshair stands in for it, and gives it back to every state
+     * that needs an arrow: a dead local player (whose crosshair is not drawn), a touch device
+     * (which has no system pointer), and any dialog on the focus stack.
+     */
+    private void applyPointerCursor(HudFrame frame) {
+        PointerPosition pointer = frame.pointer();
+        Player player = frame.player();
+        applyPointerCursor(
+            pointer != null && player != null && player.alive && !router.hasModalFocus());
+    }
+
+    /**
+     * Restores the system pointer. The match screen calls this when it is left or disposed: a
+     * hidden pointer is right for a match and wrong for every menu behind it.
+     */
+    public void releasePointer() {
+        applyPointerCursor(false);
+    }
+
+    private void applyPointerCursor(boolean hide) {
+        if (hide == pointerHidden || Gdx.graphics == null || Gdx.app == null
+            || Gdx.app.getType() != Application.ApplicationType.Desktop) {
+            return;
+        }
+        pointerHidden = hide;
+        Gdx.graphics.setSystemCursor(hide ? Cursor.SystemCursor.None : Cursor.SystemCursor.Arrow);
     }
 
     /** A new life starts on a clean screen: the last death's damage tint does not carry over. */
@@ -279,6 +323,7 @@ public final class HudStage implements Disposable {
 
     @Override
     public void dispose() {
+        releasePointer();
         batch.dispose();
         shapes.dispose();
         if (fontManager != null) {

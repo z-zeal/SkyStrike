@@ -5,7 +5,8 @@ package io.github.skystrike.shared.config;
  *
  * <p>Cross-weapon firing constants (burst spacing, pellet counts, recoil caps) live in
  * {@link WeaponConfig}; per-weapon numbers live with the weapon definitions. Nothing here is a
- * per-weapon value.
+ * per-weapon value — the muzzle point is per weapon and lives in
+ * {@code io.github.skystrike.shared.weapons.HeldWeaponGeometry}.
  */
 public final class CombatConfig {
 
@@ -63,9 +64,6 @@ public final class CombatConfig {
      * geometry in the arena is the 14-unit tunnel roof, so every gun is swept.
      */
     public static final float SWEEP_SPEED_THRESHOLD = 100f;
-
-    /** Distance from the player's eye at which a round is spawned, matching the drawn barrel. */
-    public static final float MUZZLE_OFFSET = 22f;
 
     /** A round cannot hit its owner for this long, so the muzzle is never inside your own hitbox. */
     public static final float SELF_HIT_GRACE_SECONDS = 0.05f;

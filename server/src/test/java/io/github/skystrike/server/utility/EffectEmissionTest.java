@@ -1,6 +1,7 @@
 package io.github.skystrike.server.utility;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.server.combat.BulletSystem;
@@ -10,7 +11,6 @@ import io.github.skystrike.server.fx.EffectSink;
 import io.github.skystrike.server.weapons.FireController;
 import io.github.skystrike.server.weapons.GunInstance;
 import io.github.skystrike.server.weapons.RecoilService;
-import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.UtilityConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.config.WorldConfig;
@@ -21,6 +21,7 @@ import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.weapons.HeldWeaponGeometry;
 import io.github.skystrike.shared.weapons.WeaponId;
 import java.util.ArrayList;
 import java.util.List;
@@ -214,9 +215,13 @@ class EffectEmissionTest {
     void terrainImpactEmitsConcreteImpact() {
         BulletSystem bullets = new BulletSystem(arena);
         bullets.setEffectSink(sink);
+        // The sidearm's ~23-unit barrel keeps the muzzle above the floor when fired straight
+        // down; a longer barrel would be absorbed by the floor at the muzzle (the per-weapon
+        // guard) and this test would emit nothing at all.
         Player shooter = player(1, 500f, 100f);
         shooter.aimAngle = -90f;
-        bullets.spawn(shooter, WeaponId.IRON_CARBINE, -90f);
+        assertNotNull(bullets.spawn(shooter, WeaponId.IRON_SIDEARM, -90f),
+            "the round must exist for the ground to absorb it");
 
         for (int tick = 0; tick < 10 && bullets.count() > 0; tick++) {
             bullets.step(TICK, List.of(shooter), damage);
@@ -267,7 +272,10 @@ class EffectEmissionTest {
         assertEquals(2, sink.emitted.size());
         EffectSpawn flash = sink.emitted.get(0);
         assertEquals(EffectType.MUZZLE_FLASH, flash.type);
-        assertEquals(shooter.eyeX() + CombatConfig.MUZZLE_OFFSET, flash.x, 0.001f);
+        assertEquals(
+            HeldWeaponGeometry.muzzleX(WeaponId.IRON_CARBINE.ordinal(), shooter.eyeX(), 0f),
+            flash.x,
+            0.001f);
         assertEquals(shooter.eyeY(), flash.y, 0.001f);
         assertEquals(0f, flash.angle, 0.001f);
 

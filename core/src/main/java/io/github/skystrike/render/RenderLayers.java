@@ -8,10 +8,11 @@ package io.github.skystrike.render;
  * they happen to be constructed. Renderers declare the layer they belong to; the frame walks
  * {@link #values()} in order.
  *
- * <p>Two rules the ordering encodes, from the effects plan: visibility multiplies the scene and
- * light adds to it, so {@link #FOG} comes after everything in world space and before
- * {@link #POST}; and the HUD draws last of all, after the flashbang whiteout, because being
- * blinded is a gameplay state but being unable to read the chat is a UI failure.
+ * <p>Two rules the ordering encodes, from the effects plan: the fog composite is where the
+ * visibility field and the light buffer become one illumination that multiplies the scene, so
+ * {@link #FOG} comes after everything in world space and before {@link #POST}; and the HUD draws
+ * last of all, after the flashbang whiteout, because being blinded is a gameplay state but being
+ * unable to read the chat is a UI failure.
  */
 public enum RenderLayers {
 

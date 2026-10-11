@@ -11,6 +11,13 @@ verification; source-only sandbox checks do not prove shader compilation or visu
 > units and `r_player_light_intensity` accepts 0–1. The checks below were written for the opt-in
 > version; the "enable" step is now "confirm it is on, and toggle it off to compare".
 
+> **Light unification:** the light buffer is now *illumination* added to the sight field before it
+> multiplies the scene, not a brightness added to the finished frame, and a light's falloff is the
+> sight field's own quadratic (`1 - (d/reach)²`). The player's lamp therefore reads as the same
+> light as the cone and bubble around it instead of a brighter disc sitting on top. See
+> `docs/PLAYER_LIGHT_ACCEPTANCE.md`; the checks below still apply, and every box in both files is
+> still unchecked.
+
 - [ ] **Local silhouette:** In a dark corner, confirm the player light is on by default and the
   local player remains readable while the surrounding scene still follows the vision/fog rules.
   Toggle `/r_player_light off` and confirm the silhouette goes dark with the rest of the scene.

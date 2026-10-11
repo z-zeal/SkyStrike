@@ -29,8 +29,10 @@ void main() {
         discard;
     }
 
-    // A continuous radial profile with a soft zero at the edge of the light's circle.
-    float radial = pow(max(0.0, 1.0 - radialDistance), u_falloff);
+    // The sight field's own distance falloff: the same 1 - (d / reach)^2 curve the visibility
+    // shader gives an observer, so the lamp and the field it lights fall off as one light. The
+    // exponent only tunes how tightly the pool hugs the source (1 is the field's curve itself).
+    float radial = pow(max(0.0, 1.0 - radialDistance * radialDistance), u_falloff);
 
     // Outside the local-body-only exception below, a light may not affect pixels the observer
     // cannot see. The dim peripheral floor must not become a remote-player glow outside the cone;

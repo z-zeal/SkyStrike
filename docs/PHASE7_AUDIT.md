@@ -387,6 +387,32 @@ plus the effects-plan gaps listed in §3.7 (no `GlCaps`, no named
 deliberately not added (M13 decision), so the panel's countdown stays dormant. **None of the
 acceptance checklists for any of this work have been executed** (see §7).
 
+A later pass on top of `c6f220a` (branch `arena/eccbf8f9-skystrike`, presented as one pull request)
+changed three pieces of presentation behaviour and added one plan. Nothing in it was compiled or
+run here either; each change carries its own unexecuted acceptance note.
+
+- **The muzzle is per weapon.** `CombatConfig.MUZZLE_OFFSET` — one 22-unit value for all 89 guns,
+  documented as "matching the drawn barrel" — is gone. `shared/weapons/HeldWeaponGeometry` derives
+  the muzzle point from the generated per-weapon draw scale (`SpriteScales`) and the sprite's
+  drawn barrel, and `BulletSystem.spawn`, `FireController.emitMuzzleEffects` and `PlayerRenderer`'s
+  fallback barrel line all use that one point; the eye-to-muzzle terrain guard is unchanged. No
+  wire change. `docs/MUZZLE_GEOMETRY_ACCEPTANCE.md` is new and unexecuted.
+- **The player light is the sight field's own light.** The composite is now
+  `scene × (max(visibility, ambientFloor) + light)`: the light buffer joins the illumination
+  instead of being added to the finished frame, and the radial profile is the sight field's own
+  quadratic (`Light.SIGHT_FALLOFF = 1`, with `EFFECT_FALLOFF = 2` for emissive effect lights). The
+  `EFFECTS_PLAN` composite rule, the roadmap and the build plan were amended where they pinned the
+  old rule; `docs/PLAYER_LIGHT_ACCEPTANCE.md` is new and unexecuted.
+- **The crosshair is the cursor on desktop.** `HudFrame` carries a `PointerPosition`, and the
+  reticle, the ADS dot and the hit marker draw at it, with the screen centre as the touch and menu
+  fallback. The OS pointer is hidden while the crosshair stands in for it, and restored for every
+  modal dialog, a dead local player, and when the match screen is left or disposed.
+  `docs/CROSSHAIR_POINTER_ACCEPTANCE.md` is new and unexecuted.
+- **Planned, not built:** the map building system (`docs/MAP_BUILDER_PLAN.md`, with
+  `docs/MAP_BUILDER_ACCEPTANCE.md`): doors, breakables, glass, one-way platforms, materials, the
+  text map format, the SDF re-bake and hash guard, the editor/CLI split, and the protocol 13 → 14
+  additions it will need. No code from it exists in the tree.
+
 ---
 
 ## 7. Verification note
@@ -398,7 +424,8 @@ test status come only from GitHub Actions.
 The same limit applies to the rebaseline pass at `a293f80`: it re-read the source and ran the
 permitted Python checks (`tools/scratch/static_check.py`, `static_api_check.py`, both clean; the
 module-boundary rules find zero violations), and it did not run the game, the server, Gradle, the
-test suites or any acceptance checklist. **Every runtime checklist referenced by §6 — M6 through
-M14, `DEBUG_LOCAL_TEST.md`, `VISION_AUDIO_DRONE_ACCEPTANCE.md` and the mechanics §11 feel
-checklist — is still unexecuted, and no checkbox in any of them may be ticked from source reading
-alone.**
+test suites or any acceptance checklist. **Every runtime checklist referenced by §6 — M6 through M14, `DEBUG_LOCAL_TEST.md`, `VISION_AUDIO_DRONE_ACCEPTANCE.md`, the mechanics §11 feel checklist and this pass's
+`PLAYER_LIGHT_ACCEPTANCE.md`, `MUZZLE_GEOMETRY_ACCEPTANCE.md` and
+`CROSSHAIR_POINTER_ACCEPTANCE.md` — is still unexecuted, `MAP_BUILDER_ACCEPTANCE.md` cannot be
+executed until its milestones land, and no checkbox in any of them may be ticked from source
+reading alone.**

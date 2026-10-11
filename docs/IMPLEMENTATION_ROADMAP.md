@@ -171,7 +171,7 @@ SDF soft shadow, minus smoke circles sampled in the **same** pass.
 - Multiple observers combine with **max blending** so cones union rather than double-brighten.
 
 ### 2.3 Composite
-`scene × max(visibility, ambientFloor) + light`. Lights are a Phase 6 concern but wire the slot now.
+`scene × (max(visibility, ambientFloor) + light)`. Lights are a Phase 6 concern but wire the slot now.
 Enemies outside the cone render **pure black**, not dimmed.
 
 ### 2.4 Gameplay-side visibility
@@ -335,8 +335,9 @@ readable on all four test backgrounds.
 - **Lights**: pooled, referenced by **integer handle, never object reference** — handles make leaks impossible
   and let the budget system retire lights. One additive quad per light, SDF-shadowed, animated colour curve.
   Cost scales with lit **area**, not count. Explosion flashes are high-priority and never culled first.
-- **Composite rule**: *visibility multiplies, light adds.* An explosion lights a wall outside your cone, but an
-  explosion behind a wall stays invisible — correct behaviour with zero special cases.
+- **Composite rule**: *the visibility field and the light buffer are one illumination, which multiplies the scene.*
+  An explosion lights a wall outside your cone, but an explosion behind a wall stays invisible — correct
+  behaviour with zero special cases, and the reason the player's lamp reads as the field's own light.
 - **Particles, two tiers**: GPU (non-colliding, vertex-animated) and CPU (collides against the SDF).
 - **Secondary**: decals (bullet holes 10–15 s, grenade scorch 20–30 s sized to radius, rocket 30–40 s),
   shockwave distortion, heat haze, bloom, blindness/aberration/vignette/grain, directional distance-scaled

@@ -10,12 +10,14 @@ import io.github.skystrike.fx.gl.ShaderLibrary;
 import io.github.skystrike.shared.config.VisionConfig;
 
 /**
- * Fog composite pass: {@code scene * max(visibility, ambientFloor) + light}.
+ * Fog composite pass: {@code scene * (max(visibility, ambientFloor) + light)}.
  *
  * <p>Multiplies world-space scene contents by the occluded vision field, leaving non-cone and
- * wall-occluded space in pitch black or faint ambient illumination. A display-only gamma curve
- * lifts the cone's midtones while preserving the peripheral floor and the raw visibility mask used
- * by gameplay-facing queries and additive lights.
+ * wall-occluded space in pitch black or faint ambient illumination. The light buffer joins that
+ * illumination instead of being added to the finished frame, so the lamp at the centre of the
+ * sight field is the same light as the field it sits in. A display-only gamma curve lifts the
+ * cone's midtones while preserving the peripheral floor and the raw visibility mask used by
+ * gameplay-facing queries and the light pass's own gate.
  */
 public final class CompositePass implements Disposable {
 
