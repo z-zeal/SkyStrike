@@ -56,6 +56,10 @@
     "shell-eject": {
       "path": "sfx/world/shell-eject.wav",
       "durationSeconds": 0.3
+    },
+    "glass-shatter": {
+      "path": "sfx/world/glass-shatter.wav",
+      "durationSeconds": 0.35
     }
   },
   "loops": {

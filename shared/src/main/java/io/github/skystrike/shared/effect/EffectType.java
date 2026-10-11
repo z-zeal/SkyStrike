@@ -56,7 +56,14 @@ public enum EffectType {
     MUZZLE_FLASH(30f),
 
     /** A spent shell casing ejected from the weapon, simulated on the CPU tier. */
-    SHELL_EJECT(24f);
+    SHELL_EJECT(24f),
+
+    /**
+     * A window or pane letting go: bright slivers plus a brief sparkle, sized to read at the
+     * distance a pane is usually shot from. Raised where the pane was, so the fragments appear in
+     * the aperture the round just opened.
+     */
+    GLASS_SHATTER(28f);
 
     private final float cullRadius;
 

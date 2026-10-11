@@ -109,6 +109,7 @@ public final class EmitterLibrary {
             case BULLET_IMPACT_WOOD -> bulletImpactWood();
             case MUZZLE_FLASH -> muzzleFlash();
             case SHELL_EJECT -> shellEject();
+            case GLASS_SHATTER -> glassShatter();
         };
     }
 
@@ -635,6 +636,53 @@ public final class EmitterLibrary {
                 .gravity(-900f)
                 .tier(EmitterConfig.Tier.CPU)
                 .restitution(0.45f)
+                .build())),
+            null);
+    }
+
+    /**
+     * A pane letting go: a fast scatter of glass slivers in every direction, a one-frame white
+     * sparkle where the round went through, and a little fine grit that settles afterwards.
+     *
+     * <p>Additive for the shards and the sparkle (breaking glass flashes), alpha for the grit,
+     * and every phase is occlusion-tested like the other impacts: a pane shot from the far side
+     * of a wall must not throw slivers through it.
+     */
+    private static EffectRecipe glassShatter() {
+        return new EffectRecipe(List.of(
+            phase(0.00f, EmitterConfig.builder("glass.shatter.shards")
+                .count(16)
+                .lifetime(0.22f, 0.50f)
+                .size(7f, 2f)
+                .color(GLASS, GLASS_END)
+                .speed(160f, 430f)
+                .gravity(-640f)
+                .drag(0.8f)
+                .turbulence(25f)
+                .occlusionTested(true)
+                .build()),
+            phase(0.00f, EmitterConfig.builder("glass.shatter.sparkle")
+                .count(7)
+                .lifetime(0.06f, 0.16f)
+                .size(4f, 1f)
+                .color(WHITE, GLASS_END)
+                .speed(60f, 200f)
+                .gravity(-300f)
+                .drag(2.5f)
+                .occlusionTested(true)
+                .build()),
+            phase(0.04f, EmitterConfig.builder("glass.shatter.grit")
+                .count(9)
+                .lifetime(0.30f, 0.70f)
+                .size(3f, 1f)
+                .color(GLASS, GLASS_END)
+                .speed(30f, 110f)
+                .spread(200f)
+                .gravity(-700f)
+                .drag(0.4f)
+                .turbulence(15f)
+                .blend(EmitterConfig.Blend.ALPHA)
+                .occlusionTested(true)
                 .build())),
             null);
     }
