@@ -87,8 +87,17 @@ leaves a breakable standing is recorded as a `BlockChip` carrying the authority'
 `PacketBlockDamage` (protocol 17) broadcasts the tail reliably and the join accept carries the
 per-block totals as the crack baseline, and the client's mirror applies totals rather than adding
 them — so a cracked crate now reads cracked on every client that can see it, and a late joiner's
-picture arrives cracked without a re-bake. Still open in the close-out: the round-reset event.
-Every acceptance box remains unexecuted.
+picture arrives cracked without a re-bake. Every acceptance box remains unexecuted.
+
+**Slice C closed the third gap: the round-reset event, and `/mapreset` to run it.** §11.2's decision
+— destruction resets per round — now has its wire: `PacketRoundReset` (protocol 18) goes out from
+one round-reset transaction that puts the authored map and every door back, re-seeds the door diff
+baseline and tells every client before the next tick can reference the restored map. The event says
+"reset" rather than replaying the restored set, because both sides derive that set from the authored
+map with the same call. The match layer that decides a round has ended is still later work, so the
+operator's `/mapreset` (ADMIN) is the hand that runs it today — which is also what makes the reset
+box in the acceptance checklist attemptable in a two-client run. Only the close-out's last piece
+remains: the fixture door that makes the door boxes reachable (slice D).
 
 ## 1. What exists today
 
@@ -208,10 +217,11 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   sprite catalogs remain build-time JSON consumed only by `tools/weapons/generate_weapon_tables.py`,
   so neither `shared` nor the client parses JSON while running.
 - **Wire** — `shared/net/NetworkRegistration` registers packet types in an append-only order and
-  `NetworkRegistrationTest` asserts the counts (13 registration kinds / 35 registered types as of
-  protocol 13). `PROTOCOL_VERSION = 13`. Milestone 3 added **no** packet: destruction is server
-  authority, but the client is not told about it yet, so the block event and the version bump belong
-  to milestone 4 and nothing here changed a registration.
+  `NetworkRegistrationTest` asserts the counts (40 registered types as of protocol 18, the newest
+  protocol's test owning the exact size pin). `PROTOCOL_VERSION = 18`. Milestone 3 added **no**
+  packet — destruction was server authority and the client was not told about it yet — and
+  milestone 4 has since appended the block event, the door state, the chip and the round reset, with
+  the join accept, the join request and the snapshots gaining the fields §8 lists.
 
 Two traps follow directly from that list, and the whole plan is shaped by them:
 
@@ -652,6 +662,13 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   chip per non-lethal carbine hit, the record equal to the authority's accumulated damage and
   short of the pool, the break that follows superseding it, and a mirror fed both landing on the
   authority's fraction and revision.
+- **Round reset (implemented, the close-out's third slice):** `NetworkRegistrationTest` pins the
+  protocol-18 append and round-trips the event; and, in `server/src/test`,
+  `ServerCommandServiceTest` pins the command layer — `/mapreset` hands the round's transaction to
+  the simulation exactly once, answers with the count it was given, and is refused for a caller
+  below ADMIN without ever reaching the simulation. The transaction itself (the state, the door
+  machine, the re-seeded diff baseline and the broadcast) is source-read: no test here boots a
+  server.
 
 ## 8. Wire contract (protocol 13 → 14; the destruction half has landed)
 
@@ -706,11 +723,16 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   fraction follows from the total through the material row both sides read. A hit that takes the
   block out stays a break — the two records are disjoint per hit — and a chip changes no rule view,
   no live map and no SDF, so applying one never re-bakes.
-- **Round-reset event (open):** no round layer calls `reset()` yet, so no reset travels. When the
-  match layer exists, the reset needs a wire event of its own — a client that is not told the
-  round restarted keeps playing the chewed map. The two counters that diff the break and chip
-  histories already follow a reset down (`breaksBroadcast`, `chipsBroadcast`), so the wire event is
-  the only missing piece.
+- **Round-reset event (landed, protocol 18):** `PacketRoundReset` — dispatch tick and the
+  authority's restored count — broadcast reliably when the round layer puts the authored map back,
+  and replayed to a client whose play screen has not registered yet. It states an instruction, not a
+  restored set: the authored map and the door machine are identical on both sides and
+  `MapDamageState.reset()` is the same call on both, so the receiving end cannot misapply it. One
+  server-side transaction owns it — the state, the doors, the door diff baseline and the event —
+  because a client told the walls are back while the server still holds the chewed ones is exactly
+  the desync the event prevents. The break and chip diff counters need no part of it: both follow a
+  history that shrank, which is the case they were written for. `/mapreset` is the operator's hand
+  on the round layer that does not exist yet; the automatic caller is later work.
 - **Anti-cheat stance:** the server decides every door, every break and every shatter; the client
   predicts optimistically with the same shared functions and reconciles. A modified client that
   claims a wall is broken simply walks into a wall: movement, bullets and line of sight are all
@@ -775,10 +797,12 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    `TerrainRenderer` posing doors from the static map while the SDF names the destruction-only
    static map. The close-out has since closed the handshake's server half: the client states its
    map in the join request and the server refuses a mismatch (protocol 16, §8) — and then the crack
-   half: a chip carries the authority's running total, live and on the join baseline (protocol 17).
-   Still open in this milestone: the round-reset event. Gate: the destruction tests below plus the
-   door tests, the join-gate and chip cases, and a manual two-client pass (the acceptance document —
-   whose door boxes also stay unreachable until a door is authored into a playable map).
+   half: a chip carries the authority's running total, live and on the join baseline (protocol 17),
+   and the round's reset now travels as its own event with `/mapreset` as the hand that runs it
+   (protocol 18). Still open in this milestone: the close-out's last piece, a door authored into the
+   shipped arena so the door boxes stop being unreachable (slice D). Gate: the destruction tests
+   below plus the door tests, the join-gate, chip and reset cases, and a manual two-client pass (the
+   acceptance document).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
    in a fresh session.
@@ -804,7 +828,9 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    the authored blocks come back, because a map that has been chewed through stops being the map
    both teams agreed to fight on. The state exposes `MapDamageState.reset()`, the server hands it
    out through `GameServer.damageState()`, and the match layer that decides a round has ended is
-   what calls it — no round state machine exists yet, so in the running server nothing does.
+   what will call it — no round state machine exists yet, so today the operator's `/mapreset` is the
+   hand that runs the server's reset transaction and every client hears about it through
+   `PacketRoundReset` (protocol 18, §8).
 3. **Door access:** manual only, or also "open for the owning team" doors at spawn?
 4. **Reachability strictness:** does a map that fails reachability ship with a warning or fail the
    build? (Recommendation: fail — the M8 gate already treats traversal as a hard requirement.)

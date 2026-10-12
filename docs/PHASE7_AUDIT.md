@@ -688,6 +688,29 @@ run here either; each change carries its own unexecuted acceptance note.
   chip/total/baseline cases in `MapDamageStateTest`, the bullet-path chip case in
   `BlockDestructionTest`, and the registration round trips. No Java was compiled, executed or
   observed here; the close-out's remaining slice — the round-reset event — is still open.
+- **Map building system, milestone 4's close-out, slice C — the round-reset event and `/mapreset`
+  (protocol 18).** Implemented on `arena/b24b8b2c-skystrike`, on top of slice B. Plan §11.2 decided
+  destruction resets per round, but nothing called `reset()` in a running server and nothing told a
+  client when a reset happened, so a client kept playing the chewed map while the server had already
+  put the walls back. `PacketRoundReset` (dispatch tick, the authority's restored count) is appended
+  after `PacketBlockDamage` and broadcast reliably by `GameServer`'s reset transaction — one
+  transaction on purpose: the destruction state and the door machine it owns come back together,
+  the door diff baseline is re-seeded to the state every client just received (else the next press
+  would look like no change and never be broadcast), and the event goes out before the next tick can
+  reference the restored map. The two history counters need no help: both dispatch diffs follow a
+  history that shrank. The event states an instruction rather than the restored set, because the
+  authored map and the door machine are identical on both sides and `reset()` is the same call on
+  both — so nothing per-block travels and the receiving end cannot misapply it; the client runs that
+  same reset and refreshes the minimap and the SDF unconditionally, and the record is replayed
+  across the join window like the others. `/mapreset` (ADMIN, in the shared catalog) is the
+  operator's hand on the round layer that does not exist yet, handled through a new `MapReset`
+  component on `ServerCommandModule.Deps` so the command stays a keyboard rather than a second
+  simulation path — that component is why both `Deps` call sites in `ServerCommandServiceTest` had
+  to grow an argument. `PROTOCOL_VERSION` 17 → 18 in the same commit: `PacketRoundReset` at index 39
+  (40 types), pinned by the newest protocol test. Tests were written and not executed: the shared
+  round trip and pin, and the command-layer cases (transaction handed over once, the answer's count,
+  and the ADMIN gate keeping a refused command away from the simulation). No Java was compiled,
+  executed or observed here.
 
 ---
 
@@ -875,3 +898,26 @@ cross-module calls (`MapDamageState.chips`/`damagedBlocks`/`applyRemoteDamage`, 
 server, client, game or desktop build was run or observed, and no `MAP_BUILDER_ACCEPTANCE.md` box
 was ticked: the crack-state box is now attemptable in a build, but only a human with a desktop and
 two clients can tick it.
+
+The close-out's third slice (protocol 18: `PacketRoundReset` appended at index 39 with 40 types, the
+one server-side reset transaction that puts the map and the doors back and re-seeds the door diff
+baseline, the `MapReset` command seam behind `/mapreset`, and the client's unconditional refresh
+with the join-window replay) was source-checked with exactly the permitted Python checks: `python3
+tools/scratch/static_check.py` (clean: 435 Java files scanned, 435 declared types, no findings —
+including both consumer gates), `python3 tools/scratch/static_api_check.py` (clean: 539 project
+types indexed from 431 files; its arity check caught the `Deps` call sites that had to grow the new
+component before they were fixed), `python3 tools/scratch/static_audio_check.py` (clean: 13 world
+entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries), `python3
+tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree), `python3
+tools/scratch/phase3_ballistics.py` (analytical report completed without findings), `python3
+tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee rows regenerated with no tracked
+diff) and `python3 tools/scratch/arena_sdf_check.py` (clean: the shipped asset still agrees with the
+committed map on header hash, header shape and every texel; neither changed this slice).
+`static_api_check.py` cannot see an instance call made through a field or a variable, so the slice's
+cross-module calls (`GameServer.resetMap` through `MapDamageState.reset` and the door state's own
+reset and revision bump, the re-seeded door baseline, the clock read for the event's tick,
+`ServerCommandModule`'s new `MapReset` component, `ClientSession`'s replay buffer and
+`GameScreen`'s `onRoundReset`) were additionally read by hand. No Java was compiled, no test,
+server, client, game or desktop build was run or observed, and no `MAP_BUILDER_ACCEPTANCE.md` box
+was ticked: the reset box is now attemptable through `/mapreset`, but only a human with a desktop
+and two clients can tick it.
