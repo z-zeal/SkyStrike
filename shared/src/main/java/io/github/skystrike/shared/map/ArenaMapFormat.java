@@ -22,6 +22,7 @@ import java.util.Set;
  * mirrored wall stone 120 200 120 18
  * centred wall stone 0 0 3000 100
  * mirrored breakable wood 700 450 40 20 durability=2.5
+ * centred door metal 1488 100 24 90 id=1 access=ALL
  * </pre>
  *
  * <p>Blank lines and {@code #} comments are ignored. All other lines are strict: malformed
@@ -29,12 +30,26 @@ import java.util.Set;
  * blocks and a rectangle on the wrong side of its symmetry verb fail the entire load with a
  * {@link MapFormatException}.
  *
- * <p>A block line may carry trailing {@code key=value} attributes, and version 1 has exactly one:
- * {@code durability=<multiplier>}, accepted only on a block whose shared rule row accumulates
- * durability ({@link DamageRule#DURABILITY}) — the per-block half of the plan's "durability is the
- * material's pool times the block's multiplier". Everything else is still refused rather than
- * accepted and dropped: door ids and other per-kind attributes wait until their shared model can
- * preserve them, and an unknown key or a multiplier on a permanent block is a load error.
+ * <p>A block line may carry trailing {@code key=value} attributes. Version 1 has three, and each is
+ * accepted only where it means something — an attribute whose block cannot use it is a
+ * contradiction, so it fails the load instead of being ignored:
+ *
+ * <ul>
+ *   <li>{@code durability=<multiplier>} scales the material's pool, on a block whose shared rule
+ *       row accumulates durability ({@link DamageRule#DURABILITY}) — the per-block half of the
+ *       plan's "durability is the material's pool times the block's multiplier".</li>
+ *   <li>{@code id=<n>} names a door ({@link DoorSpec}). It is <b>required</b> on a door line and
+ *       refused on any other kind: a door's id is its wire identity, so a door that could not be
+ *       named on the wire is not a map the game can play.</li>
+ *   <li>{@code access=ALL|TEAM<n>} decides who may open a door, on a door line only, defaulting to
+ *       {@code ALL}.</li>
+ * </ul>
+ *
+ * <p><b>A mirrored door is authored twice.</b> {@code mirrored door ... id=7} authors the door 7 and
+ * its reflection as the door 8 ({@link DoorSpec#reflection()}), because a door is one object with
+ * one id and the two sides of a pair are two doors. A file that walks into that rule — two
+ * {@code mirrored} door lines sharing an id, or a {@code centred} door reusing one — fails to load
+ * with the id named, which is what {@code ArenaMap.Builder} is there to catch.
  */
 public final class ArenaMapFormat {
 
@@ -218,21 +233,26 @@ public final class ArenaMapFormat {
         }
         Rect rect = new Rect(x, y, width, height);
         validateRectInBounds(rect, lineNumber);
-        float multiplier = parseAttributes(tokens, 7, lineNumber, kind);
-        return new MapBlock(kind, material, rect, multiplier);
+        return parseAttributes(tokens, 7, lineNumber, kind, material, rect);
     }
 
     /**
-     * Reads the optional trailing {@code key=value} attributes of a block line.
+     * Reads the optional trailing {@code key=value} attributes of a block line into a block.
      *
-     * <p>Version 1 knows one key. {@code durability} scales the material's durability pool, and it
-     * is accepted only where the shared rule table says there is a pool to scale — a permanent
-     * block carrying one is a contradiction, so it fails the load instead of being ignored. The
-     * attribute is lower-case-insensitive like the rest of the grammar's vocabulary.
+     * <p>Version 1 knows three keys, and each is accepted only where the shared model has somewhere
+     * to keep it: {@code durability} for a kind that accumulates damage, {@code id} and
+     * {@code access} for a door. The vocabulary is case-insensitive like the rest of the grammar.
      */
-    private static float parseAttributes(String[] tokens, int first, int lineNumber, BlockKind kind) {
+    private static MapBlock parseAttributes(
+            String[] tokens, int first, int lineNumber, BlockKind kind, Material material, Rect rect) {
         float multiplier = MapBlock.DEFAULT_DURABILITY_MULTIPLIER;
         boolean sawDurability = false;
+        DoorSpec door = DoorSpec.NONE;
+        boolean sawId = false;
+        boolean sawAccess = false;
+        int doorId = 0;
+        DoorAccess access = DoorAccess.ALL;
+        int accessTeam = 0;
         for (int index = first; index < tokens.length; index++) {
             String attribute = tokens[index];
             int separator = attribute.indexOf('=');
@@ -259,10 +279,64 @@ public final class ArenaMapFormat {
                     }
                     multiplier = parsed;
                 }
+                case "id" -> {
+                    if (sawId) {
+                        throw failure(lineNumber, "duplicate id attribute");
+                    }
+                    sawId = true;
+                    requireDoorKind(kind, lineNumber, "id");
+                    doorId = parsePositiveInt(value, lineNumber, "door id");
+                }
+                case "access" -> {
+                    if (sawAccess) {
+                        throw failure(lineNumber, "duplicate access attribute");
+                    }
+                    sawAccess = true;
+                    requireDoorKind(kind, lineNumber, "access");
+                    String upper = value.toUpperCase(Locale.ROOT);
+                    if (upper.equals("ALL")) {
+                        access = DoorAccess.ALL;
+                        accessTeam = 0;
+                    } else if (upper.startsWith("TEAM")) {
+                        access = DoorAccess.TEAM;
+                        accessTeam = parseNonNegativeInt(
+                            upper.substring("TEAM".length()), lineNumber, "door team index");
+                    } else {
+                        throw failure(lineNumber,
+                            "door access must be ALL or TEAM<n>: '" + value + "'");
+                    }
+                }
                 default -> throw failure(lineNumber, "unknown block attribute '" + key + "'");
             }
         }
-        return multiplier;
+        if (kind == BlockKind.DOOR) {
+            if (!sawId) {
+                throw failure(lineNumber, "a door requires an id=<n> attribute");
+            }
+            door = new DoorSpec(doorId, access, accessTeam);
+        }
+        return new MapBlock(kind, material, rect, multiplier, door);
+    }
+
+    private static void requireDoorKind(BlockKind kind, int lineNumber, String attribute) {
+        if (kind != BlockKind.DOOR) {
+            throw failure(lineNumber,
+                attribute + " is only meaningful on a door, not on a "
+                    + kind.name().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    private static int parsePositiveInt(String token, int lineNumber, String field) {
+        int value;
+        try {
+            value = Integer.parseInt(token);
+        } catch (NumberFormatException exception) {
+            throw failure(lineNumber, field + " must be an integer: '" + token + "'", exception);
+        }
+        if (value <= 0) {
+            throw failure(lineNumber, field + " must be positive: " + value);
+        }
+        return value;
     }
 
     private static BlockKind parseKind(String token, int lineNumber) {
@@ -388,6 +462,12 @@ public final class ArenaMapFormat {
             .append(number(rect.height()));
         if (block.hasAuthoredDurabilityMultiplier()) {
             output.append(" durability=").append(number(block.durabilityMultiplier()));
+        }
+        if (block.door().isDoor()) {
+            output.append(" id=").append(Integer.toString(block.door().id()));
+            if (block.door().access() == DoorAccess.TEAM) {
+                output.append(" access=TEAM").append(Integer.toString(block.door().teamIndex()));
+            }
         }
         output.append('\n');
     }

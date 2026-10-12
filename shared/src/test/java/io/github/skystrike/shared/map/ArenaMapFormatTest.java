@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -107,7 +108,7 @@ class ArenaMapFormatTest {
             "spawn 1 2760 180",
             "mirrored wall stone 100 200 20 20",
             "mirrored glass glass 400 300 20 80",
-            "centred door metal 1490 400 20 90",
+            "centred door metal 1490 400 20 90 id=1",
             "mirrored breakable wood 700 450 40 20",
             "centred platform energy 1400 600 200 18"));
 
@@ -256,6 +257,129 @@ class ArenaMapFormatTest {
             "a default multiplier is not authored content");
         assertFalse(java.util.Arrays.equals(plain.mapHash(), reinforced.mapHash()),
             "a reinforced block is different authored content");
+    }
+
+    @Test
+    @DisplayName("a door's id and access round-trip, and a mirrored pair is two doors")
+    void doorAttributesRoundTripAndMirroredPairTakesTwoIds() {
+        ArenaMap map = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=1",
+            "mirrored door metal 240 100 24 90 id=7 access=TEAM0",
+            "mirrored door metal 700 400 24 90 id=12 access=TEAM1"));
+
+        // Authored order: the centred door, then the mirrored pair's own two blocks (the left block
+        // first, as `mirrored` adds the block before its reflection).
+        assertEquals(DoorSpec.all(1), map.blocks().get(0).door());
+        assertEquals(DoorSpec.team(7, 0), map.blocks().get(1).door());
+        assertEquals("a reflected door is a second door, not the same one mirrored",
+            DoorSpec.team(8, 0), map.blocks().get(2).door());
+        assertEquals(12, map.blocks().get(3).door().id());
+        assertEquals(13, map.blocks().get(4).door().id());
+        assertEquals(5, map.blocks().size());
+
+        assertTrue(map.blocks().get(0).door().allows(0));
+        assertTrue(map.blocks().get(0).door().allows(1), "an ALL door answers to either side");
+        assertTrue(map.blocks().get(1).door().allows(0));
+        assertFalse(map.blocks().get(1).door().allows(1), "a TEAM0 door refuses the other side");
+        assertFalse(map.blocks().get(1).door().allows(2), "and it refuses a neutral");
+
+        String saved = ArenaMapFormat.write(map);
+        assertTrue(saved.contains("centred door metal 1488.0 100.0 24.0 90.0 id=1"), saved);
+        assertTrue(saved.contains("mirrored door metal 240.0 100.0 24.0 90.0 id=7 access=TEAM0"),
+            "a TEAM door is written with the team it answers to: " + saved);
+        assertFalse(saved.contains("access=ALL"), "the default access is not spelled out", saved);
+        assertEquals(map.blocks(), ArenaMapFormat.parse(saved).blocks());
+    }
+
+    @Test
+    @DisplayName("a door's id and access are authored content: they move the map hash")
+    void doorIdentityParticipatesInTheHash() {
+        ArenaMap plain = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=1"));
+        ArenaMap renumbered = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=2"));
+        ArenaMap locked = ArenaMapFormat.parse(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=1 access=TEAM1"));
+
+        assertFalse(java.util.Arrays.equals(plain.mapHash(), renumbered.mapHash()),
+            "the wire identity of a door is authored content");
+        assertFalse(java.util.Arrays.equals(plain.mapHash(), locked.mapHash()),
+            "who may open a door is authored content");
+        // The door block is the only block in either map, and every non-door block of the shipped
+        // arena hashes exactly as it did before the door fields existed — pinned by the canonical
+        // hash assertion below, which the fixture range also has to keep passing.
+    }
+
+    @Test
+    void doorAttributesAreStrict() {
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90"),
+            "a door requires an id=<n> attribute");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred wall stone 1488 100 24 90 id=1"),
+            "id is only meaningful on a door");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred glass glass 1488 100 24 90 access=ALL"),
+            "access is only meaningful on a door");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=0"),
+            "door id must be positive");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=1 access=SOMETIMES"),
+            "door access must be ALL or TEAM<n>");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=1 id=2"),
+            "duplicate id attribute");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=1 access=ALL access=TEAM0"),
+            "duplicate access attribute");
+        assertFormatError(source(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred door metal 1488 100 24 90 id=3",
+            "mirrored door metal 240 100 24 90 id=2"),
+            // The mirrored pair takes ids 2 and 3, so the centred door's 3 is taken.
+            "duplicate door id: 3");
+    }
+
+    @Test
+    @DisplayName("a map may not author more doors than the occluder array can hold")
+    void tooManyDoorsFailsTheLoad() {
+        // Centred doors, one per height, so each is its own block and the only thing the load can
+        // object to is how many of them there are.
+        StringBuilder text = new StringBuilder("skystrike-map 1\nmirror 1500\n");
+        for (int index = 0; index < VisionConfig.MAX_DOOR_OCCLUDERS; index++) {
+            text.append("centred door metal 1488 ").append(100 + index * 100)
+                .append(" 24 90 id=").append(index + 1).append('\n');
+        }
+        ArenaMap atCap = ArenaMapFormat.parse(text.toString());
+        assertEquals(VisionConfig.MAX_DOOR_OCCLUDERS, atCap.blocks().size(),
+            "every door of a map at the cap must have an occluder slot");
+
+        text.append("centred door metal 1488 1700 24 90 id=99\n");
+        assertFormatError(text.toString(), "can occlude");
     }
 
     @Test

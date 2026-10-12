@@ -10,10 +10,16 @@ import java.util.Objects;
  * row for {@link #material()}, and {@link #durabilityMultiplier()} scales that material's
  * durability so two blocks of the same material can still take a different number of hits.
  *
+ * <p>{@link #door()} is the authoring half of a door: the id that names it on the wire and the
+ * access rule that decides who may open it (plan §4, §8). The <i>runtime</i> half — which state a
+ * door is in — belongs to {@link MapDoorState}, for the same reason damage does: it changes
+ * during a round while the map does not.
+ *
  * <p>The multiplier is authored data, not runtime damage: the damage a block has already taken
  * lives in the per-round destruction state, because it changes while the map does not.
  */
-public record MapBlock(BlockKind kind, Material material, Rect rect, float durabilityMultiplier) {
+public record MapBlock(
+        BlockKind kind, Material material, Rect rect, float durabilityMultiplier, DoorSpec door) {
 
     /** The multiplier a block has when the map text does not say otherwise. */
     public static final float DEFAULT_DURABILITY_MULTIPLIER = 1f;
@@ -22,20 +28,41 @@ public record MapBlock(BlockKind kind, Material material, Rect rect, float durab
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(material, "material");
         Objects.requireNonNull(rect, "rect");
+        Objects.requireNonNull(door, "door");
         if (!Float.isFinite(durabilityMultiplier) || durabilityMultiplier <= 0f) {
             throw new IllegalArgumentException(
                 "durability multiplier must be finite and positive: " + durabilityMultiplier);
         }
+        // A door is the one kind whose authored identity is not its geometry, so it is the one kind
+        // that must carry one. Refusing the mismatch here means no later consumer has to ask
+        // whether a DOOR without an id could exist, and no id can ride along on a wall.
+        if (kind == BlockKind.DOOR && !door.isDoor()) {
+            throw new IllegalArgumentException("a DOOR block must carry a door id: " + rect);
+        }
+        if (kind != BlockKind.DOOR && door != DoorSpec.NONE) {
+            throw new IllegalArgumentException(
+                "only a DOOR block may carry a door spec: " + kind + " " + rect);
+        }
     }
 
-    /** A block with the default multiplier: the form every block of every pre-multiplier map has. */
+    /** A block with the default multiplier and no door spec: the pre-door, pre-multiplier form. */
     public MapBlock(BlockKind kind, Material material, Rect rect) {
-        this(kind, material, rect, DEFAULT_DURABILITY_MULTIPLIER);
+        this(kind, material, rect, DEFAULT_DURABILITY_MULTIPLIER, DoorSpec.NONE);
     }
 
-    /** Returns this same block reflected about the given vertical axis. */
+    /** A block with an authored durability multiplier and no door spec. */
+    public MapBlock(BlockKind kind, Material material, Rect rect, float durabilityMultiplier) {
+        this(kind, material, rect, durabilityMultiplier, DoorSpec.NONE);
+    }
+
+    /**
+     * Returns this same block reflected about the given vertical axis.
+     *
+     * <p>A reflected door is a second door (see {@link DoorSpec#reflection()}), so the reflection
+     * carries the next id rather than the same one.
+     */
     public MapBlock mirror(float axis) {
-        return new MapBlock(kind, material, rect.mirror(axis), durabilityMultiplier);
+        return new MapBlock(kind, material, rect.mirror(axis), durabilityMultiplier, door.reflection());
     }
 
     /**

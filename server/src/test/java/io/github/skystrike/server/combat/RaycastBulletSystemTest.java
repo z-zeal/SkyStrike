@@ -13,6 +13,7 @@ import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockKind;
 import io.github.skystrike.shared.map.BlockRules;
 import io.github.skystrike.shared.map.Blocking;
+import io.github.skystrike.shared.map.DoorSpec;
 import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.Material;
 import io.github.skystrike.shared.map.Rect;
@@ -39,9 +40,14 @@ class RaycastBulletSystemTest {
 
     /** One isolated, centred block of a single kind, with nothing else on the probe line. */
     private static ArenaMap singleBlockMap(BlockKind kind) {
-        return ArenaMap.builder(AXIS)
-            .centred(new MapBlock(kind, Material.STONE, CENTRED_RECT))
-            .build();
+        MapBlock block = kind == BlockKind.DOOR
+            // A door carries its wire identity in the authored block, so the door case is the one
+            // that has to author an id rather than taking the plain constructor.
+            ? new MapBlock(
+                kind, Material.STONE, CENTRED_RECT,
+                MapBlock.DEFAULT_DURABILITY_MULTIPLIER, DoorSpec.all(4))
+            : new MapBlock(kind, Material.STONE, CENTRED_RECT);
+        return ArenaMap.builder(AXIS).centred(block).build();
     }
 
     @Test

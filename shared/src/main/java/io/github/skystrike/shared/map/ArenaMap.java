@@ -1,5 +1,6 @@
 package io.github.skystrike.shared.map;
 
+import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,8 +19,9 @@ import java.util.Set;
  * query purpose, {@link #movementBlockers(MovementRule)} does the same for the movement column
  * (which decides which faces stop a body, not whether a line is blocked), and {@link #solids()}
  * remains a compatibility view for existing bullet-blocking callers while those callers migrate to
- * their specific rule columns. The shipped arena contains only wall blocks today, so every view is
- * geometrically identical to the old rect-only map.
+ * their specific rule columns. A door also carries an authored {@link DoorSpec}, which is the one
+ * piece of authored data a block's rectangle cannot express; which doors are currently in the way
+ * is runtime state and belongs to {@link MapDoorState}, not here.
  *
  * <p>Use {@link Builder#mirrored(MapBlock)} or {@link Builder#centred(MapBlock)} to preserve the
  * fairness invariant that every authored block has a reflection about {@link #mirrorAxisX()}.
@@ -256,6 +258,9 @@ public final class ArenaMap {
         private final float mirrorAxisX;
         private final List<MapBlock> blocks = new ArrayList<>();
         private final Set<MapBlock> uniqueBlocks = new HashSet<>();
+        /** Every authored door id, so a door cannot be named twice. */
+        private final Set<Integer> doorIds = new HashSet<>();
+        private int doorCount;
         private final List<SpawnPoint> spawns = new ArrayList<>();
 
         private Builder(float mirrorAxisX) {
@@ -294,14 +299,39 @@ public final class ArenaMap {
             return this;
         }
 
-        /** Builds the immutable map. Format readers additionally validate source line context. */
+        /**
+         * Builds the immutable map. Format readers additionally validate source line context.
+         *
+         * <p>A map may not author more doors than the visibility and light shaders can occlude
+         * (plan D3, {@link VisionConfig#MAX_DOOR_OCCLUDERS}): the occluder array exists precisely
+         * so a closed door shades its own doorway, and a door that fell off the end of it would be
+         * a door that blocks a body and nothing else. Failing the load is the only honest
+         * outcome — a map that only mostly occludes is worse than one that refuses to load.
+         */
         public ArenaMap build() {
+            if (doorCount > VisionConfig.MAX_DOOR_OCCLUDERS) {
+                throw new MapFormatException(
+                    "map authors " + doorCount + " doors, but at most "
+                        + VisionConfig.MAX_DOOR_OCCLUDERS
+                        + " can occlude (VisionConfig.MAX_DOOR_OCCLUDERS)");
+            }
             return new ArenaMap(mirrorAxisX, blocks, spawns);
         }
 
         private void add(MapBlock block) {
             if (!uniqueBlocks.add(block)) {
                 throw new IllegalArgumentException("duplicate map block: " + block);
+            }
+            if (block.door().isDoor()) {
+                // A door's id is its identity on the wire, so two doors sharing one would make the
+                // door-state packet ambiguous. The reflection of a mirrored door takes the next id
+                // (DoorSpec.reflection), which is how this can fail at all: a hand-written file
+                // authoring the same id on two doors, or a mirrored pair whose reflection collides
+                // with the next door authored.
+                if (!doorIds.add(block.door().id())) {
+                    throw new IllegalArgumentException("duplicate door id: " + block.door().id());
+                }
+                doorCount++;
             }
             blocks.add(block);
         }

@@ -38,7 +38,19 @@ class MapQueryPurposeTest {
         "mirrored glass glass 400 300 20 80",
         "mirrored platform energy 700 450 40 18",
         "mirrored breakable wood 900 200 20 20",
-        "centred door metal 1490 500 20 90");
+        "centred door metal 1490 500 20 90 id=1");
+
+    /**
+     * One block of {@code kind} in open air. A door is the only kind whose identity is not its
+     * geometry (its {@link DoorSpec} names it on the wire), so this helper is the one place these
+     * tests author a door id and the plain constructor keeps the other kinds unchanged.
+     */
+    private static MapBlock isolated(BlockKind kind, Material material, Rect rect) {
+        return kind == BlockKind.DOOR
+            ? new MapBlock(
+                kind, material, rect, MapBlock.DEFAULT_DURABILITY_MULTIPLIER, DoorSpec.all(9))
+            : new MapBlock(kind, material, rect);
+    }
 
     /** A probe line through the wall, which blocks every purpose. */
     private static final float WALL_Y = 210f;
@@ -58,7 +70,7 @@ class MapQueryPurposeTest {
             // One isolated, centred block of just this kind, so the probe below can meet nothing
             // else. The material is irrelevant to blocking; only the kind's rule row is read.
             ArenaMap single = ArenaMap.builder(1500f)
-                .centred(new MapBlock(kind, Material.STONE, new Rect(1490f, 400f, 20f, 90f)))
+                .centred(isolated(kind, Material.STONE, new Rect(1490f, 400f, 20f, 90f)))
                 .build();
 
             for (Blocking purpose : Blocking.values()) {
@@ -192,7 +204,7 @@ class MapQueryPurposeTest {
         for (BlockKind kind : BlockKind.values()) {
             // One isolated centred block of just this kind, as in lineQueriesFollowTheSharedRuleTable.
             ArenaMap single = ArenaMap.builder(1500f)
-                .centred(new MapBlock(kind, Material.STONE, new Rect(1490f, 400f, 20f, 90f)))
+                .centred(isolated(kind, Material.STONE, new Rect(1490f, 400f, 20f, 90f)))
                 .build();
 
             boolean stopsBody = BlockRules.movement(kind) == MovementRule.SOLID;
