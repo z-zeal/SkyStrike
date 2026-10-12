@@ -40,7 +40,20 @@ jobs:
         run: ./gradlew server:test --no-daemon
 
       - name: Compile Java for all subprojects
-        run: ./gradlew shared:compileJava server:compileJava core:compileJava --no-daemon
+        run: ./gradlew shared:compileJava server:compileJava core:compileJava tools:compileJava --no-daemon
+
+      # The map gate, wired in milestone 5 slice B. `MapTool check` is the §7 reachability gate over
+      # the map this build ships: it fails when the map's spawns cannot reach each other (plan
+      # §11.4's decision, 2026-10-12) and warns, naming every stance, when a map is merely not
+      # fully reachable — which the shipped arena is, by the ten stances sealed in the milestone-4
+      # fixture door's alcove. `MapTool bake --check` then proves the committed asset is the bake of
+      # that same map, byte for byte, which is the only place a binary a client loads by hash can be
+      # checked without a GPU.
+      - name: Audit the shipped map (MapTool check)
+        run: ./gradlew tools:mapCheck --no-daemon
+
+      - name: Verify the shipped SDF bake (MapTool bake --check)
+        run: ./gradlew tools:mapBakeCheck --no-daemon
 
       - name: Print failing test details
         if: failure()

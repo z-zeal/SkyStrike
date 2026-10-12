@@ -16,6 +16,7 @@ shared verbatim with the client for prediction.
 | `core` | Client: rendering, fog/lighting pipeline, HUD, console/chat dialog, menus, networking and prediction. |
 | `lwjgl3` | Desktop launcher (`lwjgl3:run`). |
 | `android` | Android launcher (needs the Android SDK). |
+| `tools` | Headless map tooling: `MapTool check|bake` and the SDF bake tool. Depends on `shared` only, no LibGDX. |
 
 Dependency direction is enforced by the `checkModuleDependencies` Gradle task and mirrored in
 `tools/scratch/static_check.py`: `shared` must not reference `core` or `server`; `server` must not
@@ -47,11 +48,20 @@ Use the Gradle wrapper:
 ./gradlew lwjgl3:run                  # desktop client
 ./gradlew server:run                  # dedicated server
 ./gradlew lwjgl3:jar                  # runnable desktop jar in lwjgl3/build/libs
+./gradlew tools:mapCheck              # CI's map gate: reachability over the shipped arena
+./gradlew tools:mapBakeCheck          # CI's bake gate: assets/data/arena.sdf is that map's bake
+./gradlew tools:mapTool --args="check maps/arena.map"   # the map CLI itself (§6 of the plan)
 ```
 
 The debug master switch is off by default; enable it with `-Dskystrike.debug=true`, the
 `SKYSTRIKE_DEBUG=1` environment variable, or `--dev` (see `shared/config/DebugFlags`). The desktop
 menu then offers a local test host (`core/LocalHost`).
+
+Maps are audited and baked headlessly: `tools:mapCheck` runs the shared reachability gate over the
+map this build ships (it fails when the map's spawns cannot reach each other and warns, naming every
+stance, when the map is merely not fully reachable), and `tools:mapBakeCheck` re-bakes that map in
+memory and compares it byte-for-byte with `assets/data/arena.sdf`. `MapTool check <file.map>` audits
+any map file, and `MapTool check --strict` asks the stricter reading of §7.
 
 When no JDK is available, `python3 tools/scratch/static_check.py`,
 `static_api_check.py`, `static_audio_check.py`, `synth_sfx.py --check` and

@@ -1,0 +1,50 @@
+// The headless map tooling behind CI's map gate (map plan §6): `MapTool check` audits maps through
+// the shared reachability gate and `MapTool bake` writes or verifies the SDF the client loads.
+//
+// `tools` was a directory of Java sources no Gradle build knew about until this milestone, which is
+// why `SdfBakeTool` had never been compiled by CI. Making it a module is what lets a CI step name a
+// task instead of a shell command, and what keeps the tooling under `checkModuleDependencies`: it
+// depends on `shared` and nothing else, so it cannot reach the client, the server or LibGDX.
+eclipse.project.name = appName + '-tools'
+
+dependencies {
+  implementation project(':shared')
+}
+
+// One task per surface, so a CI step is a task name and cannot drift from the class it runs or the
+// arguments it passes. The working directory is the repository root because every path these tasks
+// take — a map file, the SDF asset — is written in the repository's own terms, not the module's.
+tasks.register('mapTool', JavaExec) {
+  group = 'application'
+  description = 'Runs the map builder CLI: ./gradlew tools:mapTool --args="check maps/arena.map"'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass.set('io.github.skystrike.tools.MapTool')
+  workingDir rootDir
+}
+
+tasks.register('mapCheck', JavaExec) {
+  group = 'verification'
+  description = 'Audits the shipped arena, which is the map CI has to gate §7 reachability for.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass.set('io.github.skystrike.tools.MapTool')
+  workingDir rootDir
+  args 'check'
+}
+
+tasks.register('mapBakeCheck', JavaExec) {
+  group = 'verification'
+  description = 'Re-bakes the shipped arena and compares it byte-for-byte with assets/data/arena.sdf.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass.set('io.github.skystrike.tools.MapTool')
+  workingDir rootDir
+  args 'bake', '--check'
+}
+
+tasks.register('mapBake', JavaExec) {
+  group = 'application'
+  description = 'Writes assets/data/arena.sdf from the shipped arena.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass.set('io.github.skystrike.tools.MapTool')
+  workingDir rootDir
+  args 'bake'
+}
