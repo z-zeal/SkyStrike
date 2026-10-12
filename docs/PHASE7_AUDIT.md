@@ -736,6 +736,35 @@ run here either; each change carries its own unexecuted acceptance note.
   describe, hash and solids pins, the fixture-door pin, and the doorless-map case. No Java was
   compiled, executed or observed here; the close-out's four slices have all landed, and every
   acceptance box remains unchecked.
+- **Map building system, milestone 4's close-out, slice E — the fixture door moved out of the sealed
+  alcove.** The door pair that sat inside the sealed alcove at `x` 1034..1070 (and its mirror at
+  1930..1966, `y` 100..270) has been moved to a reachable position inside the 70-wide mirrored wall
+  at `x` 820..890 — the door now stands at `x` 837..873 and its mirror at 2127..2163, `y` 100..270,
+  centred in that wall so a body can reach the door's own stances from ground level on either side and
+  through the door's upper stances from a jump off the ground below the wall. The map text changed, so
+  `assets/data/arena.sdf` was re-baked in the same commit under the new map hash
+  `ed6b335d...e173e` (still 1500 × 1000 texels at 2.0 units/texel, 1,500,060 bytes) and
+  `arena_sdf_check.py` re-confirmed the committed asset is the bake of the committed map. The door
+  move does **not** eliminate the 10 unreachable stances the CI gate reports for the shipped arena:
+  those stances sit inside the volume the tall wall at `x` 1010..1034 and the shorter one at 1070..1092
+  enclose, and they are blocked by that wall geometry, not by the door — the door is read as an opening
+  by both the Java gate and the Python mirror, so it never blocks anything. They persist at their old
+  positions (`x` 1052.5 @ 100 and `x` 1072.5..1087.5 @ 270, plus mirrors), the test pins that name
+  them by those coordinates still hold, and the test pin that names the fixture alcove by its old `x`
+  range likewise still holds because the unreachable stances have not moved. What the move does
+  accomplish is that the door itself is now reachable: the door's stances at `x` 837.5 (`y` 236, 518,
+  918) are all reachable from both spawns, so a player can walk to the door and press `F`, which is
+  what the §Doors boxes of the acceptance checklist need. The team-refusal box stays unreachable for
+  the same reason it was before — no `TEAM` door is authored. `PROTOCOL_VERSION` stays 18 — no wire
+  change, same as the fixture door slice. Tests were written and not executed: `ArenaMapTest`'s door
+  pin was updated to the new position, `MapAuditTest`'s shipped-arena pins and `ArenaReachabilityTest`'s
+  fixture-alcove pin still hold because the unreachable stances have not moved (the test comment was
+  updated to say so), and the seven permitted Python checks were run clean before the commit (static
+  check 442 files / 442 types, no findings; static API check 552 types from 438 files, no findings;
+  audio 13 world entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries; 14 generated
+  sounds agree; ballistics report clean; 89 guns / 21 melee; arena_sdf `ed6b335d...e173e`, 1500×1000
+  texels @ 2.0, 1,500,060 bytes, the shipped asset is the bake of the committed map). Nothing was
+  compiled, executed or observed: no JDK in this sandbox.
 
 ---
 

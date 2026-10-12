@@ -64,7 +64,7 @@ final class StandardArenaMap {
         "mirrored platform wood 1620 1300 220 18",
         "mirrored glass glass 1660 1318 20 180",
         "mirrored breakable wood 1740 1318 60 60 durability=0.4",
-        "mirrored door metal 1034 100 36 170 id=1 access=ALL",
+        "mirrored door metal 837 100 36 170 id=1 access=ALL",
         "");
 
     private StandardArenaMap() {

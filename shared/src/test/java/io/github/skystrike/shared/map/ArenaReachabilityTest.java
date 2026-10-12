@@ -98,8 +98,8 @@ class ArenaReachabilityTest {
     }
 
     @Test
-    @DisplayName("the shipped arena's spawns reach each other, and the fixture alcove is its only seal")
-    void spawnsReachEachOtherAndOnlyTheFixtureAlcoveIsSealed() {
+    @DisplayName("the shipped arena's spawns reach each other, and only the wall-sealed volume is unreachable")
+    void spawnsReachEachOtherAndOnlyTheWallSealedVolumeIsUnreachable() {
         MapReachability.Report report = MapReachability.check(ArenaMap.standard());
 
         assertEquals(2, report.spawns().size(), "the arena authors two spawns");
@@ -108,12 +108,13 @@ class ArenaReachabilityTest {
 
         List<MapReachability.Stance> sealed = report.unreachableFromEverySpawn();
         assertFalse(sealed.isEmpty(),
-            "the milestone-4 fixture door's alcove is sealed by the wall it is flush against; if"
-                + " nothing is unreachable the fixture has moved and this pin has to move with it: "
-                + report.describe());
+            "the volume between the tall wall at x 1010..1034 and the shorter one at 1070..1092 is sealed "
+                + "by that wall geometry; if nothing is unreachable the map has changed and this pin has to "
+                + "move with it: " + report.describe());
         for (MapReachability.Stance stance : sealed) {
             assertTrue(inFixtureAlcove(stance),
-                "a stance is unreachable outside the fixture alcove, which is a new seal: " + stance);
+                "a stance is unreachable outside the volume between x 1010..1034 and x 1070..1092, which "
+                + "is a new seal: " + stance);
         }
         for (MapReachability.SpawnReport spawn : report.spawns()) {
             assertEquals(sealed.size(), spawn.unreachable().size(),
@@ -273,10 +274,12 @@ class ArenaReachabilityTest {
     }
 
     /**
-     * The milestone-4 fixture alcove: the volume the tall wall at {@code x} 1010..1034, the landing
-     * above it at 342..360, the door panel at 1034..1070 and the shorter wall at 1070..1092 enclose,
-     * with its reflection about the axis. A body's box overhangs a surface by half its width, so the
-     * test spans the alcove's walls by that half-width rather than by their faces.
+     * The volume between the tall wall at {@code x} 1010..1034 and the shorter wall at 1070..1092,
+     * with its reflection about the axis. The milestone-4 fixture door was originally placed inside
+     * this volume (at {@code x} 1034..1070) and has since been moved to a reachable position inside
+     * the crate-stack wall; the volume is sealed by the two walls regardless of where the door is, and
+     * the unreachable stances persist at their original positions. A body's box overhangs a surface by
+     * half its width, so the test spans the volume's walls by that half-width rather than by their faces.
      */
     private static boolean inFixtureAlcove(MapReachability.Stance stance) {
         float half = PlayerConfig.WIDTH / 2f;
