@@ -49,6 +49,22 @@ public final class ServerCommandModule {
         void send(int playerId, Packet packet);
     }
 
+    /**
+     * Puts the round's destruction back and tells every client (plan §11.2; the close-out's
+     * round-reset slice).
+     *
+     * <p>A command is an operator's keyboard, not a second simulation path, so the reset itself —
+     * the destruction state, the door machine it owns, the two broadcast counters and the reliable
+     * event — belongs to the server simulation and is handed in as one call. {@code /mapreset} is
+     * what the missing round layer would call at the end of a round; until that layer exists, an
+     * operator's hand on it is the honest way to exercise the decision.
+     */
+    @FunctionalInterface
+    public interface MapReset {
+        /** @return how many blocks were restored, for the operator's own answer */
+        int reset();
+    }
+
     /** The authoritative services the command set touches. */
     public record Deps(
         PlayerRegistry players,
@@ -59,11 +75,14 @@ public final class ServerCommandModule {
         /** The respawn-time preparation the tick hook applies; commands reuse it verbatim. */
         Consumer<PlayerSession> prepareForLife,
         /** The global (non-per-player) debug state {@code timescale} and {@code dumpstate} read. */
-        DebugState debugState
+        DebugState debugState,
+        /** The round-reset transaction {@code mapreset} runs; see {@link MapReset}. */
+        MapReset mapReset
     ) {
         public Deps {
             if (players == null || respawnService == null || loadoutSystem == null
-                || chat == null || dispatch == null || prepareForLife == null || debugState == null) {
+                || chat == null || dispatch == null || prepareForLife == null || debugState == null
+                || mapReset == null) {
                 throw new IllegalArgumentException("all deps are required");
             }
         }
@@ -124,6 +143,7 @@ public final class ServerCommandModule {
         handlers.put("sethealth", (ctx, args) -> setHealthCommand(deps, ctx, args));
         handlers.put("setteam", (ctx, args) -> setTeamCommand(deps, ctx, args));
         handlers.put("kick", (ctx, args) -> kickCommand(deps, ctx, args));
+        handlers.put("mapreset", (ctx, args) -> mapResetCommand(deps));
         handlers.put("noclip", cheat(deps, "noclip", new SessionFlag() {
             @Override public boolean get(PlayerSession s) { return s.noclip(); }
             @Override public void set(PlayerSession s, boolean v) { s.setNoclip(v); }
@@ -139,6 +159,22 @@ public final class ServerCommandModule {
         handlers.put("timescale", (ctx, args) -> timescaleCommand(deps, args));
         handlers.put("dumpstate", (ctx, args) -> dumpStateCommand(deps));
         return handlers;
+    }
+
+    /**
+     * Hands the round layer's reset to the simulation and reports what it did (plan §11.2).
+     *
+     * <p>The answer is the operator's confirmation, not the announcement: every client is told by
+     * the reliable {@code PacketRoundReset} the reset itself broadcasts, because a player who has
+     * been walking through a hole in the wall needs to know about the wall whether or not they
+     * asked. A count of zero is a success, not a refusal — "reset an untouched map" is exactly what
+     * an operator does to be sure.
+     */
+    private static CommandResult mapResetCommand(Deps deps) {
+        int restored = deps.mapReset().reset();
+        return CommandResult.success(
+            "Map restored: " + restored + " block" + (restored == 1 ? "" : "s")
+                + " back, every door shut.");
     }
 
     private static CommandResult timescaleCommand(Deps deps, Arguments args) {

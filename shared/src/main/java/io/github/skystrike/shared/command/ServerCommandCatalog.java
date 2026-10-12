@@ -108,6 +108,11 @@ public final class ServerCommandCatalog {
                 .arg("player", ArgTypes.PLAYER, "who to kick")
                 .optionalArg("reason", ArgTypes.GREEDY_STRING, "shown before disconnecting")
                 .build(),
+            CommandSpec.builder("mapreset")
+                .description("restore the map's destruction and shut every door, telling all clients")
+                .permission(Permission.ADMIN)
+                .side(CommandSide.SERVER)
+                .build(),
             CommandSpec.builder("noclip")
                 .description("fly through terrain (simulation reads it from milestone M3)")
                 .permission(Permission.ADMIN)

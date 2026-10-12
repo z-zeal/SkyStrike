@@ -68,6 +68,18 @@ on a desktop build for the first time: until now a client drew every standing br
 The reset box still needs the round-reset event, which is the close-out's next slice. Every box
 above remains unchecked.
 
+**Update — the close-out's third slice has landed: the round-reset event, with `/mapreset` to run
+it (protocol 18).** One server-side transaction puts the authored map back, shuts every door,
+re-seeds the door diff baseline and broadcasts `PacketRoundReset` reliably before the next tick can
+reference the restored map; the client answers by running the same `MapDamageState.reset()` the
+server ran, so the event cannot be misapplied and no per-block detail travels. That makes the reset
+box in "Breakables and the SDF" attemptable in a desktop run for the first time: chew the map up
+with two clients (and leave a door open), run `/mapreset` from the server console as an ADMIN, and
+both clients plus a late joiner should agree that the walls, the crates and the doors are back. The
+match layer that decides a round has ended is still later work — the operator command is the hand
+that runs it today — and the door boxes below stay unreachable until the close-out's last slice
+authors a door into the shipped arena. Every box above remains unchecked.
+
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
 `docs/MAP_BUILDER_PLAN.md` §7 and are the first gate; this document is the second.
@@ -446,4 +458,33 @@ Nothing was compiled, nothing was executed, nothing was observed: the new chip c
 `MapDamageStateTest` and `BlockDestructionTest`, the protocol-17 pin and round trips, and every
 earlier suite remain unexecuted, and the two-client crack pass — shoot a crate short of breaking it
 on both clients and watch the cracks match, then have a third client join late — is outstanding
+human work.
+
+The close-out's third slice (protocol 18: the round-reset event, its one server-side transaction,
+the command seam `/mapreset` runs it through, the client's unconditional refresh, and the replayed
+record across the join window) was then source-checked only; it is not map validation, and every
+box above remains unchecked. The exact checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (435 Java files scanned, 435 declared types; no
+  findings, including the module boundaries and both consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (539 project types indexed from 431 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1 loop,
+  14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated 89 gun rows and 21 melee rows with
+  no tracked diff.
+- `python3 tools/scratch/arena_sdf_check.py` — clean: the committed asset is still the bake of the
+  committed map (header hash `bef76535…6693`, every texel equal); neither `StandardArenaMap.TEXT`
+  nor the asset changed this slice.
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the slice's edits; `static_api_check.py` cannot see calls made through fields or
+variables (it did, however, catch the `Deps` arity at both test call sites — the one class of
+mistake it can see), so the slice's cross-module calls (`GameServer.resetMap`'s use of
+`MapDamageState.reset`, `MapDoorState.reset`'s revision bump behind the live map, the re-seeded
+`doorBroadcast` baseline, `loop.clock().tick`, `ClientSession`'s reset replay buffer and
+`GameScreen`'s `onRoundReset` refresh) were also read by hand. Nothing was compiled, nothing was
+executed, nothing was observed: the new round-trip and pin, the command-layer cases and every
+earlier suite remain unexecuted, and the two-client reset pass through `/mapreset` is outstanding
 human work.

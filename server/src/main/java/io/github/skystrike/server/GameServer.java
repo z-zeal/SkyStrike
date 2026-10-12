@@ -67,6 +67,7 @@ import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketDoorState;
+import io.github.skystrike.shared.net.s2c.PacketRoundReset;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -257,7 +258,8 @@ public final class GameServer {
                 this.chatService,
                 this::sendToPlayer,
                 this::prepareForLife,
-                this.debugState),
+                this.debugState,
+                this::resetMap),
             debugCommandsEnabled(config));
 
         registerHandlers();
@@ -685,8 +687,9 @@ public final class GameServer {
     private void dispatchBlockBreaks(long tick) {
         List<BlockBreak> breaks = damageState.breaks();
         if (breaks.size() < breaksBroadcast) {
-            // A round reset emptied the history (no round layer calls it yet, but the state
-            // allows it): the counter follows it down rather than strangling the next round.
+            // A round reset emptied the history (the operator command runs it today; the match
+            // layer is later work): the counter follows it down rather than strangling the next
+            // round's first break.
             breaksBroadcast = breaks.size();
         }
         for (int index = breaksBroadcast; index < breaks.size(); index++) {
@@ -719,8 +722,9 @@ public final class GameServer {
     private void dispatchBlockChips(long tick) {
         List<BlockChip> chips = damageState.chips();
         if (chips.size() < chipsBroadcast) {
-            // A round reset emptied the history (no round layer calls it yet, but the state
-            // allows it): the counter follows it down rather than strangling the next chip.
+            // A round reset emptied the history (the operator command runs it today; the match
+            // layer is later work): the counter follows it down rather than strangling the next
+            // chip.
             chipsBroadcast = chips.size();
         }
         for (int index = chipsBroadcast; index < chips.size(); index++) {
@@ -732,6 +736,37 @@ public final class GameServer {
                 "[map] chipped block %d to %.1f%n", packet.blockIndex, packet.damage);
         }
         chipsBroadcast = chips.size();
+    }
+
+    /**
+     * Puts the round's destruction back and tells every client (plan §11.2; protocol 18).
+     *
+     * <p>This is the round-reset transaction, and it is one transaction on purpose: the destruction
+     * state and the door machine it owns come back together, the door diff baseline is re-seeded so
+     * the next press is a change again, and the reliable event goes out before the next tick can
+     * reference the restored map. A client told the walls are back while the server still holds the
+     * chewed ones — or the other way round — is the desync the event exists to prevent, so half of
+     * this is worse than none of it.
+     *
+     * <p>Nothing runs it on its own: the match layer that decides a round has ended is later work
+     * (§11.2), so today the operator command is the round layer's hand.
+     *
+     * @return how many blocks were restored, for the caller's own answer
+     */
+    private int resetMap() {
+        List<MapBlock> restored = damageState.reset();
+        // The doors are shut again by that same call (they are per-round state, §11.2), so the
+        // broadcast baseline is re-seeded to the state every client just received — without this
+        // the next press would look like no change and never be broadcast.
+        for (int index = 0; index < doorBroadcast.size(); index++) {
+            doorBroadcast.set(index, DoorState.CLOSED);
+        }
+        // The break and chip counters need no help here: both dispatch diffs notice a history that
+        // shrank and follow it down, which is exactly the case they were written for.
+        endpoint.broadcastReliable(new PacketRoundReset(loop.clock().tick(), restored.size()));
+        System.out.printf(
+            "[map] round reset: %d block(s) restored, every door shut%n", restored.size());
+        return restored.size();
     }
 
     private void sendToPlayer(int playerId, Packet packet) {

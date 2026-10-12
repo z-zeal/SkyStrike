@@ -72,6 +72,7 @@ import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
+import io.github.skystrike.shared.net.s2c.PacketRoundReset;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketDoorState;
@@ -320,6 +321,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         onJoinAccept(session.joinAccept());
         this.session.setBlockBreakListener(this::onBlockBreak);
         this.session.setBlockDamageListener(this::onBlockDamage);
+        this.session.setRoundResetListener(this::onRoundReset);
         this.session.setDoorStateListener(this::onDoorState);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
@@ -626,6 +628,27 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         long localSince = estNow - Math.max(0L, packet.tick - packet.sinceTick);
         return damageState.doors().applyRemote(
             packet.doorId, packet.state(), packet.tick, Math.max(0L, localSince));
+    }
+
+    /**
+     * The authority put the round's destruction back (protocol 18).
+     *
+     * <p>The client runs the same {@link MapDamageState#reset()} the server ran rather than applying
+     * a list of restored blocks: the authored map and the door machine are identical on both sides,
+     * so the instruction cannot be misapplied, and a reset that also shuts a door the other client
+     * had open stays one call. The refresh below runs unconditionally, unlike the join baseline's —
+     * a reset shuts doors even when no block was destroyed, the minimap draws them, and this is a
+     * human-paced event where a redundant re-bake request costs nothing a frame can feel.
+     */
+    private void onRoundReset(PacketRoundReset packet) {
+        if (packet == null) {
+            return;
+        }
+        List<MapBlock> restored = damageState.reset();
+        onDestructionChanged();
+        Gdx.app.log("SkyStrike",
+            "round reset (wire tick " + packet.tick + "): " + restored.size()
+                + " block(s) restored here, " + packet.restoredBlocks + " on the authority");
     }
 
     /**
