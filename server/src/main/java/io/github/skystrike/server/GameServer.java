@@ -32,6 +32,7 @@ import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.player.RespawnService;
 import io.github.skystrike.server.player.SpawnService;
 import io.github.skystrike.server.utility.UtilitySystem;
+import io.github.skystrike.server.world.DoorSystem;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
@@ -45,6 +46,7 @@ import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
+
 import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
@@ -108,6 +110,8 @@ public final class GameServer {
     private final EffectBroadcaster effectBroadcaster;
     private final ShieldSystem shieldSystem;
     private final FuelTankSystem fuelTankSystem;
+    /** Map milestone 4: the door authority — presses and the door clock, on the true world. */
+    private final DoorSystem doorSystem;
     /** Phase 6: the drone and camera device systems, and the surveillance view they serve. */
     private final DroneSystem droneSystem;
     private final CameraSystem cameraSystem;
@@ -157,6 +161,10 @@ public final class GameServer {
         // round, a blast or a swing is gone for all of them at once.
         this.bulletSystem.setDestruction(this.damageState);
         this.utilitySystem.setDestruction(this.damageState);
+        // Map milestone 4: one door machine behind the authority's presses and its clock, on the
+        // same destruction state the rounds already share; the machine itself is the shared one
+        // a client predicts with.
+        this.doorSystem = new DoorSystem(this.arena, this.damageState.doors());
         this.shieldSystem = new ShieldSystem();
         this.fuelTankSystem = new FuelTankSystem(this.arena);
         this.fuelTankSystem.setDestruction(this.damageState);
@@ -361,6 +369,11 @@ public final class GameServer {
         return bulletSystem;
     }
 
+    /** Map milestone 4's door authority, exposed the same way the combat systems are. */
+    public DoorSystem doorSystem() {
+        return doorSystem;
+    }
+
     public UtilitySystem utilitySystem() {
         return utilitySystem;
     }
@@ -522,6 +535,36 @@ public final class GameServer {
                 session.clearTrigger();
             }
         }
+
+        // Milestone 4: doors run last in the world step — after bullets, thrown utilities and
+        // the device sweep — so the occupancy they consult is this tick's, and a body moved or
+        // a grenade detonated this tick is never counted where it no longer is. One press is
+        // consumed per player per tick, refused or not (PlayerSession keeps it one-shot, and
+        // the refusal itself is the answer: nothing is banked for a later world).
+        for (PlayerSession session : players.all()) {
+            int usePress = session.consumeUsePress();
+            if (usePress == PacketPlayerInput.NO_USE_PRESS) {
+                continue;
+            }
+            DoorSystem.PressResult result = doorSystem.usePressed(
+                session.player(), playerStates, utilitySystem.active());
+            if (result == null) {
+                continue;
+            }
+            // The warning channel is the sole client-visible voice for a refusal (the client
+            // deliberately never shows its own predicted refusal), uniform over both kinds —
+            // reach/access refusals the prediction could mostly foresee, but occupancy refusals
+            // are unverifiable client-side, so both are announced the same way.
+            switch (result.outcome()) {
+                case REFUSED_ACCESS -> sendToPlayer(session.playerId(), PacketCommandResponse.of(
+                    CommandResult.warning("This door is not yours to open.")));
+                case REFUSED_BLOCKED -> sendToPlayer(session.playerId(), PacketCommandResponse.of(
+                    CommandResult.warning("The doorway is blocked.")));
+                default -> {
+                }
+            }
+        }
+        doorSystem.advance(clock.tick(), playerStates, utilitySystem.active());
 
         // 4. Tell the clients what happened to them.
         dispatchCombatEvents();
