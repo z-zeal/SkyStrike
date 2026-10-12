@@ -74,6 +74,15 @@ door yet (the fixture range stays untouched by decision, so the door boxes in th
 checklist remain unreachable in a running build until one is authored), no acceptance box has
 been executed here either.
 
+**The milestone-4 close-out has opened with the handshake's map guard fully enforced.** Slice A
+lands the server half of §8's half-landed guard: `PacketJoinRequest` states the map the client
+parsed (protocol 16), the server refuses any join whose stated hash is not the map it is running,
+and the refusal carries the server's own hash so the refusal line has both sides of the comparison.
+Nothing is a wildcard — an empty stated hash is an unstated map and is refused with the rest — and
+the client's check of the accept stays the second line of the same gate. Still open in the
+close-out: per-hit crack sync and the round-reset event. The desktop re-run is pending a human, and
+no acceptance box has been executed.
+
 ## 1. What exists today
 
 Every consumer now reads the shared rule table, so authored geometry has one meaning across
@@ -618,6 +627,12 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   revision. `MinimapModelTest` proves destruction re-points the minimap's terrain without
   forgetting sightings. The server broadcast diff, the join payload assembly and the client's
   application path are source-read, not suite-covered: no test boots a server or a screen.
+- **Join map gate (implemented, the close-out's first slice):** `NetworkRegistrationTest` pins the
+  protocol-16 handshake — the request's stated hash round-trips, an unstated one stays empty, the
+  refusal carries the server's map and no other refusal states one — and, in `server/src/test`,
+  `JoinRequestHandlerTest` pins the decision itself: the authored map's own hash is admitted, any
+  other tuple of hex and an unstated map are refused with the server's hash named, and a map that
+  differs only in the order its lines were authored still joins.
 
 ## 8. Wire contract (protocol 13 → 14; the destruction half has landed)
 
@@ -641,12 +656,17 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   because destruction defines the revision — but it is advisory, not a sync mechanism, since
   unreliable snapshots race reliable breaks; the client reads it for its debug readout and the
   door slice will give it a corrective use.
-- **Handshake map guard (half landed):** the server states the map hash in the accept and the
-  client verifies it before touching its mirror, which turns the first-live-run stale-process
-  failure into a loud client error. Server-side rejection — the client stating its map or SDF in
-  the join request and being refused on mismatch — is deliberately deferred past the door slice:
-  it changes the join contract a *second* time for no present-player benefit, because a staged
-  client already fails loudly on the accept. It ships with the milestone's close-out, not here.
+- **Handshake map guard (landed, protocol 16):** both halves now exist. The server states the map
+  hash in the accept and the client verifies it before touching its mirror, which turns the
+  first-live-run stale-process failure into a loud client error; and the client states its own hash
+  in the join request, which the server compares against the map it runs and refuses on mismatch
+  (`REASON_MAP_MISMATCH`), carrying its own hash in the refusal so the player has both lines to
+  compare. An empty stated hash is an unstated map, not a wildcard, and is refused with the rest.
+  The comparison is over hashes, so a map re-authored with its lines shuffled is still the same
+  map — the tolerance the SDF guard keeps too. The decision is one pure function
+  (`JoinRequestHandler.mapRefusal`, covered in `server/src/test`) plus one check in the handler,
+  which logs both hashes because the mismatch that motivated the guard is a host problem whose
+  only evidence is that line.
 - **Door state (landed):** `PacketDoorState` — dispatch tick, authored door id, state ordinal,
   opening tick — broadcast reliably per change immediately after the tick's door step, and
   replayed on the join accept as the every-door baseline; a refused blocked swing earns the
@@ -669,7 +689,10 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   copy of a door look open for a round trip.
 - `NetworkRegistrationTest`'s counts move with the appended registrations, and the version bump is
   in the same commit as the first packet — as with protocols 12 and 13. Protocol 14 appends
-  `DamageSource` and `PacketBlockBreak` at indices 35–36 (37 types).
+  `DamageSource` and `PacketBlockBreak` at indices 35–36 (37 types); protocol 15 appends
+  `PacketDoorState` at 37 (38 types); protocol 16 appends nothing — it changes the shape of
+  `PacketJoinRequest` and `PacketJoinReject` — so the list stays at 38, and the newest protocol
+  test still owns the exact size pin and the version pin.
 
 ## 9. Milestones
 
@@ -721,10 +744,11 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    occupancy and a refused-blocked correction unicast, the protocol-15 `PacketDoorState` wire
    (join baseline included), the `DoorOccluders` array in the visibility and light shaders, and
    `TerrainRenderer` posing doors from the static map while the SDF names the destruction-only
-   static map. Still open in this milestone: the server-side map-hash join rejection, per-hit
-   crack sync and the round-reset event. Gate: the destruction tests below plus door tests, and
-   a manual two-client pass (the acceptance document — whose door boxes also stay unreachable
-   until a door is authored into a playable map).
+   static map. The close-out has since closed the handshake's server half: the client states its
+   map in the join request and the server refuses a mismatch (protocol 16, §8). Still open in this
+   milestone: per-hit crack sync and the round-reset event. Gate: the destruction tests below plus
+   the door tests and the join-gate cases, and a manual two-client pass (the acceptance document —
+   whose door boxes also stay unreachable until a door is authored into a playable map).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
    in a fresh session.

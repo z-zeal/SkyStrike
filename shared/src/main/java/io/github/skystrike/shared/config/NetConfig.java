@@ -66,8 +66,14 @@ public final class NetConfig {
      * precedent; here the ordinal decode is defensive ({@code DoorState#fromOrdinal}) because a
      * door answer that cannot decode fails shut instead of walking a body through a panel. No
      * Kryo registration was reordered or inserted.
+     *
+     * <p>16 — Map milestone 4 close-out, map-hash join gate: {@code PacketJoinRequest} gained the
+     * client's stated map hash and {@code PacketJoinReject} gained the server's, and the server
+     * now refuses a join whose stated map is not the one it is running. No type was appended, so
+     * the registration list stays at 38 — but the request and the reject both changed shape, which
+     * is what the bump is for.
      */
-    public static final int PROTOCOL_VERSION = 15;
+    public static final int PROTOCOL_VERSION = 16;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;
