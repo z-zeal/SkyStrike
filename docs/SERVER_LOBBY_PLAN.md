@@ -358,7 +358,8 @@ tested in a running game before any match layer exists.
 
 ## 14. Open decisions
 
-- **L1 — Topology.** One process with many instances (recommended), or one process per instance?
+- **L1 — Topology. Decided (2026-10-12): one process with many instances.** Option A of §7.1
+  applies, and S0 to S7 proceed as written. The alternative was one process per instance.
 - **L2 — Map voting.** A ban phase in turns (recommended, Rainbow Six style), or a single
   majority vote over the pool?
 - **L3 — Team sizes and max players.** The defaults in §9 are proposals. What should they be?

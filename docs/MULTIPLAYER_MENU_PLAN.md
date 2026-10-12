@@ -10,8 +10,8 @@ executed, with the first real run in CI and on the user's desktop build. Every a
 - `docs/SERVER_LOBBY_PLAN.md` is the **server** design: the split of `GameServer` (its S0), the
   hall and lobby room (S1), teams, loadouts and ready (S2), the map pool and ban phase (S3),
   concurrent instances (S4), the match layer (S5), and return to lobby, reconnect and host
-  migration (S6). Its ten open decisions (L1–L10) are **still open**: the decision prompt last
-  session was skipped, so nothing in it has been answered.
+  migration (S6). Of its ten open decisions, **L1 (one process, many rooms) is decided** (§12); L2–L10 are still
+  open.
 - This plan is the **player-facing layer** on top of that design: the screens, the room model
   a player sees, the browser, the moderation rules, and the order in which everything is built.
   Where a phase here needs a server slice, §11 names it. Where this plan needs a decision the
@@ -74,8 +74,8 @@ server accepts without checking. Options:
   system with its own backend, security obligations and data handling. It is out of scope for
   this plan's phases and would need its own plan.
 
-The plan proceeds on guest names. Anything in §6–§9 that depends on identity says which
-guarantee it gets under guest names and which it would need accounts for.
+The plan proceeds on accounts, as decided (M2 in §12). This section's guest-name options remain as
+the record of what was considered. What accounts require is set out in §12.
 
 ## 4. Navigation and screen flow
 
@@ -571,7 +571,8 @@ mapping to the server plan's slices is in each phase's "Dependencies" line.
 - **Excluded:** the roster contents (P6), host actions (P7).
 - **Files:** `server/.../server/` (join handler, attempt limiter), `shared/.../shared/room/` (the
   attempt limiter model), `core/.../screens/` (prompt and code entry), protocol registrations.
-- **Dependencies:** P2, P3; M2 (guest names) decided.
+- **Dependencies:** P2, P3; M2 decided (accounts). **An accounts plan must exist before this phase
+  starts** (§12, M2 consequence 1).
 - **Steps:** (1) the join packets; (2) the server join handler using the P2 evaluator; (3) the
   attempt limiter; (4) the client prompt and code entry; (5) cancellation.
 - **Tests:** `server/src/test` — each refusal reason in order; wrong password counts; lockout and
@@ -731,19 +732,47 @@ service, accounts and friends, skill-based matchmaking, and in-game invitations 
 
 ## 12. Decisions
 
-These decisions block the phases marked. Each has a recommendation. None is decided.
+**Decided (2026-10-12, by the user):**
 
-- **M1 — Where the public room list comes from.** *Recommended:* each server lists its own rooms
+- **M1 — per-server room list.** Each server lists its own rooms. The browser shows the rooms
+  of the server the player is connected to. There is no registry in v1, and reaching another
+  server is done through Direct connect. Regional servers stay deferred (M9). The P4 decision
+  is taken.
+- **M2 — accounts.** Players log in with an account, not a typed guest name. Consequences,
+  which the phases must respect:
+  1. **P5 cannot start until an accounts plan exists.** That plan is a new piece of work, not
+     part of this one. Until it exists, the guest-name rules in §3, §5.5 and §10 do not apply;
+     they are kept only as the record of what was considered.
+  2. **A login service is new and sits outside the game server.** It is a separate process with
+     its own storage and secrets. The game server accepts session tokens that the login service
+     issues. Who hosts it, and where, is for the accounts plan and the user's infrastructure.
+  3. **Password storage, token issuance and expiry, account recovery, and what personal data the
+     service keeps** are decisions for the accounts plan. None is taken here.
+  4. **Bans become account-keyed**, which is much stronger than the session-and-name key of §10.
+     Friends and invitations to named players become possible; P10's invitations can use
+     accounts.
+  5. **This sandbox cannot host or reach an external login service**, so any account integration
+     test needs the user's infrastructure. The automated tests in §14 can cover the game server's
+     token handling with a stub issuer.
+- **M5 — everyone ready to start.** The host can start only when every member is ready. There is
+  no host override. The start rule in §5.8 and §6 applies as written.
+- **L1 (server plan) — one process, many rooms.** This is the server plan's Option A. Its slices
+  S0 to S7 apply unchanged.
+
+**Still open:** M3, M4, M6, M7, M8, M9, and the nine open decisions L2–L10 in the server plan.
+The recommendations below are unchanged for those.
+
+- **M1 — (decided; see above) Where the public room list comes from.** *Original recommendation:* each server lists its own rooms
   (the browser shows the rooms of the server the player is connected to, and direct connect is the
   way to reach another server). The alternative is a registry service that aggregates many servers.
   Blocks P4.
-- **M2 — Identity.** *Recommended:* guest names with per-session tokens, as §3. Accounts are a
+- **M2 — (decided: accounts; superseded) Identity.** *Original recommendation:* guest names with per-session tokens, as §3. Accounts are a
   separate plan. Blocks P5 onward.
 - **M3 — Host transfer.** *Recommended:* the oldest connected member becomes host, with a notice. The
   alternative: the room closes whenever the host leaves. Blocks P8.
 - **M4 — Avatars.** *Recommended:* a placeholder (initials on a coloured tile). There is no avatar
   system, and adding one needs assets and storage. Blocks P6.
-- **M5 — Starting with unready members.** *Recommended:* the host can start only when everyone is
+- **M5 — (decided; see above) Starting with unready members.** *Original recommendation:* the host can start only when everyone is
   ready. The alternative: the host can start with unready members after a warning. Blocks P7.
 - **M6 — Bans and mid-match joins.** *Recommended:* a ban is per session, plus the name as a weaker
   key; the address is not used as a key (it is shared and changes). Mid-match joins are refused
