@@ -55,7 +55,9 @@ Use the Gradle wrapper:
 
 The debug master switch is off by default; enable it with `-Dskystrike.debug=true`, the
 `SKYSTRIKE_DEBUG=1` environment variable, or `--dev` (see `shared/config/DebugFlags`). The desktop
-menu then offers a local test host (`core/LocalHost`).
+menu then offers a local test host (`core/LocalHost`) and the map editor
+(`core/screens/MapEditorScreen`, plan §6), which places mirrored blocks on a map and writes `.map`
+and `.sdf` files into the user's own directory — never into the repository, and never into a match.
 
 Maps are audited and baked headlessly: `tools:mapCheck` runs the shared reachability gate over the
 map this build ships (it fails when the map's spawns cannot reach each other and warns, naming every

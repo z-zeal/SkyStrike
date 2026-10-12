@@ -8,6 +8,7 @@ import io.github.skystrike.screens.ConnectingScreen;
 import io.github.skystrike.screens.GameScreen;
 import io.github.skystrike.screens.LoadoutScreen;
 import io.github.skystrike.screens.MainMenuScreen;
+import io.github.skystrike.screens.MapEditorScreen;
 import io.github.skystrike.screens.SettingsScreen;
 import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.config.DebugFlags;
@@ -75,7 +76,8 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
             menuHost,
             menuTcp,
             menuUdp,
-            localTestAvailable()));
+            localTestAvailable(),
+            mapEditorAvailable()));
     }
 
     private void menuAction(MainMenuScreen.Request request) {
@@ -87,6 +89,7 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
             case "Settings" -> showMenuSettings();
             case "Play" -> connectToGame(request.connection());
             case MainMenuScreen.LOCAL_TEST_ACTION -> startLocalTest();
+            case MainMenuScreen.MAP_EDITOR_ACTION -> openMapEditor();
             case "Loadout" -> route(new LoadoutScreen(this::showMenu, this::rememberLoadout));
             case "Quit" -> Gdx.app.exit();
             default -> throw new IllegalArgumentException("unknown menu action: " + request.action());
@@ -114,6 +117,30 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
 
     private boolean localTestAvailable() {
         return localHost != null && DebugFlags.enabled();
+    }
+
+    /**
+     * Whether the map editor is offered at all.
+     *
+     * <p>The debug master switch, and nothing else: the editor needs no host, no network and no
+     * match, so a debug build that cannot start a local server can still author a map. With the
+     * switch off the menu does not list the action, which is the gate map plan §6 asks for —
+     * unreachable in a release build rather than hidden in one.
+     */
+    private boolean mapEditorAvailable() {
+        return DebugFlags.enabled();
+    }
+
+    /**
+     * Opens the editor. It is handed the route back to the menu and nothing else: no session, no
+     * socket and no match state, which is what makes "the editor cannot publish" a property of its
+     * constructor rather than a rule it has to remember.
+     */
+    private void openMapEditor() {
+        if (!mapEditorAvailable()) {
+            return;
+        }
+        route(new MapEditorScreen(this::showMenu));
     }
 
     /** Starts the desktop host, then uses the ordinary connection/join screens against loopback. */
