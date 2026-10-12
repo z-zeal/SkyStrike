@@ -17,6 +17,7 @@ import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.DamageSource;
+import io.github.skystrike.shared.map.DoorState;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.GadgetSlot;
@@ -38,6 +39,7 @@ import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
+import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -98,6 +100,8 @@ class NetworkRegistrationTest {
         assertTrue(NetworkRegistration.isSupportType(DroneEntity.class));
         assertTrue(NetworkRegistration.isSupportType(CameraEntity.class));
         assertTrue(NetworkRegistration.isSupportType(DamageSource.class));
+        // DoorState deliberately stays off the registered list: the wire carries its ordinal.
+        assertFalse(NetworkRegistration.registeredTypes().contains(DoorState.class));
         assertFalse(NetworkRegistration.isSupportType(PacketGameState.class));
         assertFalse(NetworkRegistration.isSupportType(PacketLoadoutUpdate.class));
         assertFalse(NetworkRegistration.isSupportType(PacketEffectSpawn.class));
@@ -197,8 +201,44 @@ class NetworkRegistrationTest {
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(DamageSource.class, types.get(35));
         assertEquals(PacketBlockBreak.class, types.get(36));
-        assertEquals(37, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(14, NetConfig.PROTOCOL_VERSION);
+        assertTrue(types.size() >= 37, "append only, never replace");
+    }
+
+    @Test
+    @DisplayName("the protocol-15 door-state packet is appended after the block event types")
+    void protocolFifteenDoorStateIsAppended() {
+        // Registration order is the wire format: this index can never move again.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(PacketDoorState.class, types.get(37));
+        assertEquals(38, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(15, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("a door-state record round-trips with its ordering tick, identity and anchor")
+    void doorStatePacketsRoundTrip() {
+        PacketDoorState decoded = roundTrip(
+            new PacketDoorState(4242L, 7, DoorState.OPENING, 4200L));
+        assertEquals(4242L, decoded.tick);
+        assertEquals(7, decoded.doorId);
+        assertEquals(
+            DoorState.OPENING,
+            decoded.state(),
+            "ordinal carried plain decodes back");
+        assertEquals(4200L, decoded.sinceTick);
+        // The defensive decode: a garbage ordinal fails shut to CLOSED, never an exception.
+        assertEquals(
+            DoorState.CLOSED,
+            DoorState.fromOrdinal(-1));
+        assertEquals(
+            DoorState.CLOSED,
+            DoorState.fromOrdinal(99));
+
+        PacketJoinAccept accept = new PacketJoinAccept(3, "Nova", 60, 900L);
+        accept.doors.add(new PacketDoorState(
+            900L, 1, DoorState.OPEN, 830L));
+        assertEquals(1, roundTrip(accept).doors.size(), "the join baseline rides the accept");
+        assertTrue(roundTrip(new PacketJoinAccept(4, "Rook", 60, 901L)).doors.isEmpty());
     }
 
     @Test
@@ -382,6 +422,15 @@ class NetworkRegistrationTest {
         assertEquals(13L, decodedViewAction.viewActionSeq);
         assertEquals(PacketPlayerInput.NO_VIEW_ACTION, input.viewAction,
             "the plain constructor leaves no view edge riding");
+
+        PacketPlayerInput withUse = new PacketPlayerInput(14L, 0f, false, false, false, false, false, 0f);
+        withUse.usePress = PacketPlayerInput.USE_PRESS;
+        withUse.usePressSeq = 14L;
+        PacketPlayerInput decodedUse = roundTrip(withUse);
+        assertEquals(PacketPlayerInput.USE_PRESS, decodedUse.usePress);
+        assertEquals(14L, decodedUse.usePressSeq);
+        assertEquals(PacketPlayerInput.NO_USE_PRESS, input.usePress,
+            "the plain constructor leaves no use edge riding");
 
         PacketLoadoutUpdate loadout = roundTrip(new PacketLoadoutUpdate(
             WeaponId.CATHEDRAL.ordinal(),

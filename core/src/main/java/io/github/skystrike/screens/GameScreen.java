@@ -73,6 +73,7 @@ import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
@@ -317,6 +318,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setJoinListener(this::onJoinAccept);
         onJoinAccept(session.joinAccept());
         this.session.setBlockBreakListener(this::onBlockBreak);
+        this.session.setDoorStateListener(this::onDoorState);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
         this.session.setSessionResetListener(() -> {
@@ -503,6 +505,18 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         Gdx.app.log("SkyStrike",
             "destruction baseline: rev " + damageState.revision() + " (" + applied + " applied)");
+        // The door baseline rides the same accept: apply it through the same translation as the
+        // live path, so both paths for one record take one route.
+        if (accept.doors != null && !accept.doors.isEmpty()) {
+            int doorsApplied = 0;
+            for (PacketDoorState record : accept.doors) {
+                if (applyDoorRecord(record)) {
+                    doorsApplied++;
+                }
+            }
+            Gdx.app.log("SkyStrike",
+                "door baseline: " + doorsApplied + "/" + accept.doors.size() + " doors stated");
+        }
         if (damageState.revision() != accept.mapRevision) {
             Gdx.app.error("SkyStrike",
                 "destruction baseline revision " + accept.mapRevision
@@ -516,6 +530,22 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
      */
     private long doorClockTick() {
         return Math.max(0L, (long) estimatedServerTick);
+    }
+
+    /**
+     * One authoritative door record arrived live. The mirror applies states, never decides them
+     * — a duplicate, stale or unknown-door record changes nothing by
+     * {@code MapDoorState#applyRemote}'s own rules, including one that would rewind a swing the
+     * client predicted further than the authority did.
+     */
+    private void onDoorState(PacketDoorState packet) {
+        if (packet == null) {
+            return;
+        }
+        if (applyDoorRecord(packet)) {
+            Gdx.app.log("SkyStrike",
+                "door " + packet.doorId + " -> " + packet.state() + " (wire tick " + packet.tick + ")");
+        }
     }
 
     /** One authoritative break arrived live. A duplicate or stale record changes nothing. */
@@ -540,6 +570,25 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         return damageState.applyRemoteBreak(
             packet.blockIndex, packet.cause, packet.x, packet.y, packet.shattered);
+    }
+
+    /**
+     * Translates one door record onto the local door clock and feeds it to the mirror, from
+     * either wire path — the live event or the join baseline; one route for both is what keeps
+     * the two from disagreeing about how far a drawn swing has got.
+     *
+     * <p>The translation: the record's age on the server's clock ({@code tick - sinceTick})
+     * maps straight onto the local estimate ({@code estNow - age}), because the two clocks agree
+     * on durations, never on absolutes. The estimate only ever moves forward, so a record older
+     * than the estimate is clamped rather than handed a negative anchor.
+     *
+     * @return true when the door actually changed state
+     */
+    private boolean applyDoorRecord(PacketDoorState packet) {
+        long estNow = doorClockTick();
+        long localSince = estNow - Math.max(0L, packet.tick - packet.sinceTick);
+        return damageState.doors().applyRemote(
+            packet.doorId, packet.state(), packet.tick, Math.max(0L, localSince));
     }
 
     /**

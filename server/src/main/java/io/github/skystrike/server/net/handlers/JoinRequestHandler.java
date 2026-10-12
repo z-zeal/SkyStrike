@@ -11,9 +11,11 @@ import io.github.skystrike.server.player.SpawnService;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 
@@ -101,6 +103,15 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
                     broke.y(),
                     broke.shattered(),
                     revision));
+            }
+            // The door baseline rides the same accept: every door, even one standing closed —
+            // the joiner then never has to special-case "no record yet means closed".
+            for (MapBlock door : damageState.doors().doors()) {
+                accept.doors.add(new PacketDoorState(
+                    clock.tick(),
+                    door.door().id(),
+                    damageState.doors().stateOf(door),
+                    damageState.doors().sinceTickOf(door)));
             }
         }
         endpoint.sendReliable(connection, accept);

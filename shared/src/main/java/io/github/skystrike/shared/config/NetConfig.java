@@ -56,8 +56,18 @@ public final class NetConfig {
      * type and {@code PacketBlockBreak} appended after {@code CameraEntity}; the snapshot gained
      * {@code mapRevision}, and the join accept gained the authored map hash, the destruction
      * revision and the round's break history. No Kryo registration was reordered or inserted.
+     *
+     * <p>15 — Map milestone 4, door half: {@code PacketDoorState} appended after
+     * {@code PacketBlockBreak} (appended only; 35/36 untouched), the input packet gained the
+     * use-key edge ({@code usePress}/{@code usePressSeq}), and the join accept gained the door
+     * baseline. The door state rides as a plain ordinal — {@code DoorState} stays <i>off</i> the
+     * registered list, the same discipline the destruction half kept for {@code DamageSource}
+     * only in reverse: there the enum is registered because payload enums were already
+     * precedent; here the ordinal decode is defensive ({@code DoorState#fromOrdinal}) because a
+     * door answer that cannot decode fails shut instead of walking a body through a panel. No
+     * Kryo registration was reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 14;
+    public static final int PROTOCOL_VERSION = 15;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;
