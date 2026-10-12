@@ -12,10 +12,12 @@ import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.shared.config.NetConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.BlockChip;
 import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
@@ -117,6 +119,15 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
                     broke.y(),
                     broke.shattered(),
                     revision));
+            }
+            // The crack baseline rides the same accept (protocol 17): the current damage of every
+            // block that is chipped right now, so a joiner's picture lands on the authority's
+            // cracks without replaying the hits that drew them. The totals of the damage state,
+            // not its chip history — the two answer different questions, and a joiner needs the
+            // picture.
+            for (BlockChip chip : damageState.damagedBlocks()) {
+                accept.damagedBlocks.add(new PacketBlockDamage(
+                    clock.tick(), damageState.authoredIndexOf(chip.block()), chip.damage()));
             }
             // The door baseline rides the same accept: every door, even one standing closed —
             // the joiner then never has to special-case "no record yet means closed".

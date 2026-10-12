@@ -72,8 +72,16 @@ public final class NetConfig {
      * now refuses a join whose stated map is not the one it is running. No type was appended, so
      * the registration list stays at 38 — but the request and the reject both changed shape, which
      * is what the bump is for.
+     *
+     * <p>17 — Map milestone 4 close-out, per-hit crack sync: {@code PacketBlockDamage} appended
+     * after {@code PacketDoorState} (appended only; 38 untouched) and the join accept gained the
+     * crack baseline. A chip rides its own packet rather than a field on the break because it
+     * changes nothing a query reads: the receiver moves a crack overlay and leaves every rule
+     * view, the live map and the SDF alone. The damage it carries is the authority's running
+     * total, so the record is idempotent and order-tolerant and no fraction has to travel. No
+     * Kryo registration was reordered or inserted.
      */
-    public static final int PROTOCOL_VERSION = 16;
+    public static final int PROTOCOL_VERSION = 17;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

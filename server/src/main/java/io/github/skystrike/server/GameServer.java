@@ -46,6 +46,7 @@ import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.BlockChip;
 import io.github.skystrike.shared.map.DoorState;
 import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.MapDamageState;
@@ -64,6 +65,7 @@ import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
@@ -144,6 +146,13 @@ public final class GameServer {
      * only grows, so the unwired tail is everything from this index on.
      */
     private int breaksBroadcast;
+
+    /**
+     * The same counter for the round's chips (protocol 17): hits that damaged a block without
+     * taking it out. Kept apart from the break counter because the two histories and their
+     * consumers are different questions — a break changes the map, a chip changes only the picture.
+     */
+    private int chipsBroadcast;
 
     public GameServer(ServerConfig config) {
         this.config = config;
@@ -598,9 +607,12 @@ public final class GameServer {
             doorBroadcast.set(index, current);
         }
 
-        // 4. Tell the clients what happened to them.
+        // 4. Tell the clients what happened to them. Chips follow breaks: a block that broke this
+        //    tick is stated as gone, and one that merely chipped is stated as cracked — the two
+        //    records are disjoint per hit, so the order matters only for the log reading.
         dispatchCombatEvents();
         dispatchBlockBreaks(clock.tick());
+        dispatchBlockChips(clock.tick());
 
         if (clock.tick() % ticksPerSnapshot == 0) {
             broadcastSnapshot(clock);
@@ -693,6 +705,33 @@ public final class GameServer {
                 packet.blockIndex, broke.cause(), broke.x(), broke.y(), packet.revision);
         }
         breaksBroadcast = breaks.size();
+    }
+
+    /**
+     * Broadcasts the round's new chips, reliably and in hit order (protocol 17).
+     *
+     * <p>The same diff the breaks use, over {@link MapDamageState#chips()}: every connected client
+     * already holds the earlier records — a fresh joiner's baseline carried the totals instead —
+     * so the tail from the counter on is exactly what nobody has been told. A chip earns no
+     * re-bake and no minimap refresh, unlike a break: it removes nothing and changes no query, so
+     * the only thing that moves on the other side is a crack overlay's number.
+     */
+    private void dispatchBlockChips(long tick) {
+        List<BlockChip> chips = damageState.chips();
+        if (chips.size() < chipsBroadcast) {
+            // A round reset emptied the history (no round layer calls it yet, but the state
+            // allows it): the counter follows it down rather than strangling the next chip.
+            chipsBroadcast = chips.size();
+        }
+        for (int index = chipsBroadcast; index < chips.size(); index++) {
+            BlockChip chip = chips.get(index);
+            PacketBlockDamage packet = new PacketBlockDamage(
+                tick, damageState.authoredIndexOf(chip.block()), chip.damage());
+            endpoint.broadcastReliable(packet);
+            System.out.printf(
+                "[map] chipped block %d to %.1f%n", packet.blockIndex, packet.damage);
+        }
+        chipsBroadcast = chips.size();
     }
 
     private void sendToPlayer(int playerId, Packet packet) {

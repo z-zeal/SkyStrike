@@ -317,6 +317,67 @@ class MapDamageStateTest {
     }
 
     @Test
+    @DisplayName("a chip records the running total, and a mirror applies it without ever adding")
+    void chipsRecordRunningTotalsThatAMirrorApplies() {
+        MapDamageState authority = intactState();
+        MapDamageState mirror = MapDamageState.intact(authority.authoredMap());
+        MapBlock crate = authority.authoredMap().blocks().get(0);
+        int index = authority.authoredIndexOf(crate);
+
+        assertNull(authority.damage(crate, DamageSource.BULLET, 30f, 700f, 450f));
+        assertEquals(1, authority.chips().size());
+        BlockChip first = authority.chips().get(0);
+        assertEquals(crate, first.block());
+        assertEquals(30f, first.damage(), 1e-4f, "the record carries the total, not the hit's size");
+        assertTrue(mirror.chips().isEmpty(), "the mirror has been told nothing yet");
+
+        // The total reaches a mirror through the index, exactly as a break does, and the picture
+        // the renderer draws follows from it because both sides read the same material row.
+        assertTrue(mirror.applyRemoteDamage(index, first.damage()));
+        assertEquals(30f, mirror.damage(crate), 1e-4f);
+        assertEquals(authority.damageFraction(crate), mirror.damageFraction(crate), 1e-4f);
+
+        // Idempotent and order-tolerant: the same record twice, and an older one after it, change
+        // nothing — the mirrored number can only converge on the authority's, never overshoot it.
+        assertFalse(mirror.applyRemoteDamage(index, first.damage()));
+        assertFalse(mirror.applyRemoteDamage(index, 5f), "an older record cannot un-chip a block");
+        assertEquals(30f, mirror.damage(crate), 1e-4f);
+        assertFalse(mirror.applyRemoteDamage(-1, 10f));
+        assertFalse(mirror.applyRemoteDamage(authority.blockCount(), 10f),
+            "wire data outside the authored list is dropped, not thrown");
+        assertFalse(mirror.applyRemoteDamage(index, Float.NaN), "a NaN total never lands");
+        assertFalse(mirror.applyRemoteDamage(index, 0f), "and neither does a non-positive one");
+
+        assertNull(authority.damage(crate, DamageSource.BULLET, 30f, 700f, 450f));
+        assertEquals(2, authority.chips().size(), "the second non-lethal hit is a second chip");
+        assertEquals(60f, authority.chips().get(1).damage(), 1e-4f);
+        assertEquals(
+            List.of(authority.chips().get(1)),
+            authority.damagedBlocks(),
+            "the baseline is one record per standing damaged block — the totals, not the hits — so"
+                + " the crate's untouched reflection is not in it");
+
+        // The hit that opens the block is a break, not a chip: the two records are disjoint, so
+        // the wire never states both for one hit and a chip is never the last thing said about a
+        // block that is gone.
+        int chipsBeforeBreak = authority.chips().size();
+        assertNotNull(authority.damage(crate, DamageSource.BULLET, 500f, 700f, 450f));
+        assertEquals(chipsBeforeBreak, authority.chips().size());
+
+        // A destroyed block refuses chips on the mirror too, and the reset takes the round's cracks
+        // with the round: the next one must not open with the last one's damage drawn on it.
+        assertNotNull(mirror.applyRemoteBreak(
+            index, DamageSource.BULLET, 700f, 450f, false));
+        assertFalse(mirror.applyRemoteDamage(index, 999f), "a destroyed block is not chipped");
+        authority.reset();
+        assertTrue(authority.chips().isEmpty());
+        assertTrue(authority.damagedBlocks().isEmpty());
+        mirror.reset();
+        assertTrue(mirror.chips().isEmpty());
+        assertEquals(0f, mirror.damage(crate), 1e-4f);
+    }
+
+    @Test
     @DisplayName("an open door leaves the live map exactly as a destroyed block does")
     void anOpenDoorLeavesTheLiveMap() {
         Rect doorRect = new Rect(1488f, 100f, 24f, 90f);

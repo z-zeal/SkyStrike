@@ -58,6 +58,16 @@ event, so the crack-state boxes ("the breakable's crack state matches the number
 taken") and the reset box ("destruction resets … the two clients agree") stay unreachable for now.
 Every box above remains unchecked.
 
+**Update — the close-out's second slice has landed: per-hit crack sync (protocol 17).** A hit that
+leaves a breakable standing now travels as its own record — the authority's accumulated damage for
+that block, not the hit's size — broadcast reliably to every client and replayed to a joiner as a
+per-block crack baseline, so the client's mirror can only converge on the authority's number and
+never overshoot it. That makes the crack-state box ("Bullets stop on walls and on intact
+breakables, and the breakable's crack state matches the number of hits it has taken") attemptable
+on a desktop build for the first time: until now a client drew every standing breakable pristine.
+The reset box still needs the round-reset event, which is the close-out's next slice. Every box
+above remains unchecked.
+
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
 `docs/MAP_BUILDER_PLAN.md` §7 and are the first gate; this document is the second.
@@ -408,3 +418,32 @@ new server test calls) were also read by hand. Nothing was compiled, nothing was
 was observed: the new handshake round trips, the protocol-16 pin, the `mapRefusal` cases and every
 earlier suite remain unexecuted, and the staged-client check that watches the refusal fire is
 outstanding human work.
+
+The close-out's second slice (protocol 17: per-hit crack sync — the chip record carrying the
+authority's running total, the reliable broadcast of the tail, the per-block crack baseline on the
+join accept, and the mirror that applies totals instead of adding them) was then source-checked
+only; it is not map validation, and every box above remains unchecked. The exact checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (434 Java files scanned, 434 declared types; no
+  findings, including the module boundaries and both consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (537 project types indexed from 430 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1 loop,
+  14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated 89 gun rows and 21 melee rows with
+  no tracked diff.
+- `python3 tools/scratch/arena_sdf_check.py` — clean: the committed asset is still the bake of the
+  committed map (header hash `bef76535…6693`, every texel equal); neither `StandardArenaMap.TEXT`
+  nor the asset changed this slice.
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the slice's edits; `static_api_check.py` cannot see calls made through fields or
+variables, so the slice's cross-module calls (`MapDamageState.chips`/`damagedBlocks`/
+`applyRemoteDamage`, the `PacketBlockDamage` broadcast diff and join-baseline assembly,
+`ClientSession`'s chip replay buffer and `GameScreen`'s mirror application) were also read by hand.
+Nothing was compiled, nothing was executed, nothing was observed: the new chip cases in
+`MapDamageStateTest` and `BlockDestructionTest`, the protocol-17 pin and round trips, and every
+earlier suite remain unexecuted, and the two-client crack pass — shoot a crate short of breaking it
+on both clients and watch the cracks match, then have a third client join late — is outstanding
+human work.

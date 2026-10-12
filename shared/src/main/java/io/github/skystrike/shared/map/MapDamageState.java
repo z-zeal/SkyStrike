@@ -61,6 +61,11 @@ public final class MapDamageState {
     private final List<MapBlock> destroyedBlocks = new ArrayList<>();
     /** Every break in destruction order: the server's broadcast queue and the wire history. */
     private final List<BlockBreak> breaks = new ArrayList<>();
+    /**
+     * Every hit that chipped a block rather than taking it out, in hit order: the second broadcast
+     * queue, and the source of the crack baseline a joiner receives.
+     */
+    private final List<BlockChip> chips = new ArrayList<>();
     private int revision;
     /** Authored geometry minus everything destroyed: the map the static SDF is baked from. */
     private ArenaMap staticMap;
@@ -164,6 +169,37 @@ public final class MapDamageState {
     }
 
     /**
+     * Every chip this round, in hit order. Immutable copy.
+     *
+     * <p>The live path's source (the server broadcasts the tail the clients have not seen, exactly
+     * as it does for breaks) and the record of what the picture has been through. Each chip carries
+     * the running total after its hit, so the tail is self-describing: a client that missed earlier
+     * records still arrives at the right number, and a duplicated one changes nothing.
+     */
+    public List<BlockChip> chips() {
+        return List.copyOf(chips);
+    }
+
+    /**
+     * One record per block that is chipped right now, carrying this state's current damage for it —
+     * the join baseline's shape rather than the history's.
+     *
+     * <p>The two are deliberately different questions. The live path needs every hit, because a
+     * client applies them in order as they happen; a joiner needs the picture, which is the total
+     * per block and says nothing about how many hits produced it. Destroyed blocks are left out:
+     * they are not chipped, they are gone, and {@link #destroyedBlocks()} states them.
+     */
+    public List<BlockChip> damagedBlocks() {
+        List<BlockChip> damaged = new ArrayList<>();
+        for (int index = 0; index < damage.length; index++) {
+            if (!destroyed[index] && damage[index] > 0f) {
+                damaged.add(new BlockChip(authoredMap.blocks().get(index), damage[index]));
+            }
+        }
+        return damaged;
+    }
+
+    /**
      * The authored index of {@code block}: its position in {@link #authoredMap()}'s block list.
      *
      * <p>This index is the block's wire identity. Both sides build the identical authored list from
@@ -252,13 +288,18 @@ public final class MapDamageState {
         if (damage[index] >= MaterialTable.durabilityPool(block)) {
             return destroy(index, block, source, x, y, false);
         }
+        // A hit that left the block standing is a chip: the picture changes and nothing else does.
+        // The break above supersedes it — a block that left the map is not chipped, it is gone —
+        // so exactly one of the two records exists per hit, and the broadcast tail never says both.
+        chips.add(new BlockChip(block, damage[index]));
         return null;
     }
 
     /**
      * Applies one authoritative break received over the wire.
      *
-     * <p>The mirror's only mutation besides {@link #reset()}. Nothing is measured here — the
+     * <p>One of the mirror's two remote mutations, the other being {@link #applyRemoteDamage};
+     * {@link #reset()} is the third and the only local one. Nothing is measured here — the
      * authority already decided the cause, the position and whether it shattered, and the client
      * never re-derives any of it (plan D11). The recorded {@link BlockBreak} is the packet's own
      * record, so both sides' {@link #breaks()} lists agree and their revisions stay in lock-step.
@@ -289,8 +330,43 @@ public final class MapDamageState {
     }
 
     /**
-     * Puts the map back for the next round: damage cleared, destroyed blocks restored, every door
-     * shut, the revision back to zero and the live map the authored one again.
+     * Applies one authoritative chip received over the wire (protocol 17).
+     *
+     * <p>This is the mirror's only mutation that changes nothing a query reads: a chip moves the
+     * crack overlay's number and leaves the block in every rule view, in the live map and in the
+     * SDF, which is why it is not a break and why the receiving side never re-bakes. The value is
+     * the authority's running total, so the rule is max-wins rather than accumulation — a stale
+     * record that arrives late, or one that arrives twice, can never chip a block further than the
+     * authority actually did.
+     *
+     * <p>Defensive like {@link #applyRemoteBreak}: an out-of-range index, a block that is already
+     * destroyed and a permanent block all return {@code false} instead of throwing, and a caller
+     * that failed the join-time map-hash check must not call this at all.
+     *
+     * @param authoredIndex the block's position in the authored list, per {@link #authoredIndexOf}
+     * @param total the authority's accumulated damage for the block, after the hit
+     * @return true when this record moved the block's damage forward
+     */
+    public boolean applyRemoteDamage(int authoredIndex, float total) {
+        if (authoredIndex < 0 || authoredIndex >= damage.length) {
+            return false;
+        }
+        if (destroyed[authoredIndex]) {
+            return false;
+        }
+        if (!(total > damage[authoredIndex])) {
+            // Also the NaN and non-positive cases: a record that does not move the total forward is
+            // not applied, so the mirrored number can only ever converge on the authority's.
+            return false;
+        }
+        damage[authoredIndex] = total;
+        return true;
+    }
+
+    /**
+     * Puts the map back for the next round: damage cleared — the chips with it, or the next round
+     * would open with the last round's cracks drawn on every block — destroyed blocks restored,
+     * every door shut, the revision back to zero and the live map the authored one again.
      *
      * <p>Doors reset with the destruction for the plan's §11.2 reason: a round that repaired the
      * blocks but left the doors as the last round left them would be fought on an arena neither team
@@ -301,6 +377,7 @@ public final class MapDamageState {
     public List<MapBlock> reset() {
         List<MapBlock> restored = List.copyOf(destroyedBlocks);
         destroyedBlocks.clear();
+        chips.clear();
         Arrays.fill(damage, 0f);
         Arrays.fill(destroyed, false);
         revision = 0;

@@ -70,6 +70,7 @@ import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
@@ -318,6 +319,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setJoinListener(this::onJoinAccept);
         onJoinAccept(session.joinAccept());
         this.session.setBlockBreakListener(this::onBlockBreak);
+        this.session.setBlockDamageListener(this::onBlockDamage);
         this.session.setDoorStateListener(this::onDoorState);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
@@ -508,6 +510,19 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         Gdx.app.log("SkyStrike",
             "destruction baseline: rev " + damageState.revision() + " (" + applied + " applied)");
+        // The crack baseline rides the same accept, through the same mirror call as the live path
+        // (protocol 17): the totals per standing block, so the picture lands cracked without a
+        // re-bake — a chip changes no geometry, which is exactly why it needs no refresh below.
+        if (accept.damagedBlocks != null && !accept.damagedBlocks.isEmpty()) {
+            int chipped = 0;
+            for (PacketBlockDamage record : accept.damagedBlocks) {
+                if (damageState.applyRemoteDamage(record.blockIndex, record.damage)) {
+                    chipped++;
+                }
+            }
+            Gdx.app.log("SkyStrike",
+                "crack baseline: " + chipped + "/" + accept.damagedBlocks.size() + " applied");
+        }
         // The door baseline rides the same accept: apply it through the same translation as the
         // live path, so both paths for one record take one route.
         if (accept.doors != null && !accept.doors.isEmpty()) {
@@ -561,6 +576,25 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         Gdx.app.log("SkyStrike",
             "block " + packet.blockIndex + " destroyed (" + packet.cause
                 + "), destruction rev " + damageState.revision());
+    }
+
+    /**
+     * One authoritative chip arrived live (protocol 17): the authority's accumulated damage for a
+     * block that is still standing.
+     *
+     * <p>Nothing downstream of the destruction set is refreshed — a chip removes no block and
+     * changes no query — so the only thing this moves is the crack overlay's number, which the
+     * terrain pass reads from the same mirror every frame.
+     */
+    private void onBlockDamage(PacketBlockDamage packet) {
+        if (packet == null) {
+            return;
+        }
+        if (damageState.applyRemoteDamage(packet.blockIndex, packet.damage)) {
+            Gdx.app.log("SkyStrike",
+                "block " + packet.blockIndex + " chipped to " + packet.damage
+                    + " (wire tick " + packet.tick + ")");
+        }
     }
 
     /**
