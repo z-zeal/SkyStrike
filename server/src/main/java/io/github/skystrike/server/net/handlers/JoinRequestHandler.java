@@ -10,6 +10,7 @@ import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.player.SpawnService;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.MapDamageState;
@@ -24,6 +25,9 @@ import io.github.skystrike.shared.net.s2c.PacketJoinReject;
  *
  * <p>Every rejection path closes the connection, so a refused client cannot sit on a socket and
  * retry in a loop.
+ *
+ * <p>Since protocol 16 the handshake also carries the map gate: the client states the map it
+ * parsed and this handler refuses a join that states anything else (see {@link #mapRefusal}).
  */
 public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest> {
 
@@ -60,6 +64,16 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
         if (packet.protocolVersion != NetConfig.PROTOCOL_VERSION) {
             reject(connection, PacketJoinReject.REASON_PROTOCOL_MISMATCH);
             return;
+        }
+        if (damageState != null) {
+            PacketJoinReject refusal = mapRefusal(packet.mapHashHex, damageState.authoredMap());
+            if (refusal != null) {
+                System.out.printf(
+                    "[map] join refused connection=%d: client states %s, server plays %s%n",
+                    connection.getID(), packet.mapHashHex, refusal.serverMapHashHex);
+                reject(connection, refusal);
+                return;
+            }
         }
         if (connections.hasJoined(connection)) {
             reject(connection, PacketJoinReject.REASON_ALREADY_JOINED);
@@ -129,9 +143,46 @@ public final class JoinRequestHandler implements PacketHandler<PacketJoinRequest
             connections.count(), connections.maxPlayers());
     }
 
+    /**
+     * The join-time map gate (protocol 16): the client states the map it parsed and the server
+     * refuses anything but the map it is running.
+     *
+     * <p>This check has to be a refusal rather than a correction. Everything else about a join can
+     * be answered — a name is trimmed, a team is assigned, a loadout is replaced — but the map
+     * decides what a wall is, and the destruction baseline that follows names blocks by authored
+     * index, an identity that only means anything when both sides parsed the same list. A client
+     * on a different map would apply every index to the wrong block, silently, for the whole
+     * match. The accept still states the server's hash as well, so the client's own check stays
+     * the second line of the same gate rather than a rule this side alone keeps.
+     *
+     * <p>The comparison is the hash, not the text: {@code ArenaMap} sorts before hashing, so two
+     * maps that differ only in the order their lines were authored agree, which is the same
+     * tolerance the SDF guard keeps.
+     *
+     * @param declaredHash the client's stated map hash, in hex; empty when it stated none
+     * @param authored the map this server is running
+     * @return {@code null} when the join may proceed, otherwise the refusal to send
+     */
+    static PacketJoinReject mapRefusal(String declaredHash, ArenaMap authored) {
+        String expected = authored.mapHashHex();
+        if (expected.equals(declaredHash)) {
+            return null;
+        }
+        return new PacketJoinReject(PacketJoinReject.REASON_MAP_MISMATCH, expected);
+    }
+
     private void reject(Connection connection, String reason) {
-        endpoint.sendReliable(connection, new PacketJoinReject(reason));
-        System.out.printf("[net] reject connection=%d reason=%s%n", connection.getID(), reason);
+        reject(connection, new PacketJoinReject(reason));
+    }
+
+    private void reject(Connection connection, PacketJoinReject refusal) {
+        endpoint.sendReliable(connection, refusal);
+        System.out.printf(
+            "[net] reject connection=%d reason=%s%s%n",
+            connection.getID(),
+            refusal.reason,
+            refusal.serverMapHashHex == null || refusal.serverMapHashHex.isBlank()
+                ? "" : " (server plays " + refusal.serverMapHashHex + ")");
         connection.close();
     }
 }

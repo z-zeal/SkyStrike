@@ -1,6 +1,7 @@
 package io.github.skystrike.net;
 
 import io.github.skystrike.shared.config.NetConfig;
+import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.net.Packet;
 import io.github.skystrike.shared.net.c2s.PacketCommandRequest;
 import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
@@ -48,6 +49,18 @@ public final class ClientSession {
 
     private final NetworkClient client = new NetworkClient();
     private final String playerName;
+
+    /**
+     * The map this client plays on, as the join request states it (protocol 16). The shipped
+     * arena is the only map until the shipped-maps milestone moves it into a file, and both sides
+     * load it through the same {@code ArenaMap.standard()} parse, so its hash is the one honest
+     * declaration of identity this side has. Read at connect time rather than cached in a field:
+     * {@code ArenaMap.standard()} holds the parsed map, so this is a hex render of a cached hash,
+     * and a retry after a refused join reads it again through the same path the server compared.
+     */
+    private static String localMapHashHex() {
+        return ArenaMap.standard().mapHashHex();
+    }
 
     private ConnectionState state = ConnectionState.OFFLINE;
     private String statusDetail = "";
@@ -267,7 +280,8 @@ public final class ClientSession {
             case CONNECTED -> {
                 state = ConnectionState.JOINING;
                 statusDetail = "";
-                client.sendReliable(new PacketJoinRequest(NetConfig.PROTOCOL_VERSION, playerName));
+                client.sendReliable(new PacketJoinRequest(
+                    NetConfig.PROTOCOL_VERSION, playerName, localMapHashHex()));
             }
             case DISCONNECTED -> {
                 // JoinReject is followed by a server close. Preserve the authoritative reason
@@ -305,8 +319,16 @@ public final class ClientSession {
             }
         } else if (payload instanceof PacketJoinReject reject) {
             state = ConnectionState.FAILED;
-            joinRejectReason = reject.reason == null || reject.reason.isBlank()
+            String reason = reject.reason == null || reject.reason.isBlank()
                 ? "server rejected the join request" : reject.reason;
+            // A map refusal is the one answer the player has to act on, and acting on it is a
+            // comparison: the packet states the server's map, and this side states its own. The
+            // server's own line is what the client's startup identity log also prints.
+            if (reject.serverMapHashHex != null && !reject.serverMapHashHex.isBlank()) {
+                reason += " (server plays " + reject.serverMapHashHex
+                    + ", this client parsed " + localMapHashHex() + ")";
+            }
+            joinRejectReason = reason;
             statusDetail = joinRejectReason;
             resetSessionState();
         } else if (payload instanceof PacketGameState snapshot) {

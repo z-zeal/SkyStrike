@@ -474,7 +474,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
      * <p>Runs once per join — pulled from the retained accept when this screen is built after
      * the connecting screen's join, or called back when the session joins later. The state's own
      * map is checked first: authored indices only name blocks against the map hash the server
-     * stated, and applying a foreign index would remove the wrong block.
+     * stated, and applying a foreign index would remove the wrong block. Since protocol 16 the
+     * server refuses a mismatched join outright, so this check is the second line of one gate
+     * rather than the only one — it costs a string compare and it also covers the case the
+     * server cannot see, a map that changed under an already-running authority.
      */
     private void onJoinAccept(PacketJoinAccept accept) {
         if (accept == null) {

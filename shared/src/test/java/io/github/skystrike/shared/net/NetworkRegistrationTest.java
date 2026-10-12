@@ -207,11 +207,47 @@ class NetworkRegistrationTest {
     @Test
     @DisplayName("the protocol-15 door-state packet is appended after the block event types")
     void protocolFifteenDoorStateIsAppended() {
-        // Registration order is the wire format: this index can never move again.
+        // Registration order is the wire format: this index can never move again. The version pin
+        // belongs to the newest protocol's test, so this one only asserts the protocol can never
+        // come back down.
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(PacketDoorState.class, types.get(37));
         assertEquals(38, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(15, NetConfig.PROTOCOL_VERSION);
+        assertTrue(NetConfig.PROTOCOL_VERSION >= 15);
+    }
+
+    @Test
+    @DisplayName("the protocol-16 join map gate changed the handshake without appending a type")
+    void protocolSixteenJoinMapHashIsPinned() {
+        // The one bump so far that adds no registration: the join request and the join reject both
+        // changed shape instead, which is why the pin asserts a size that stayed put and a version
+        // that moved with it.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(38, types.size(), "the join gate appends nothing");
+        assertEquals(PacketDoorState.class, types.get(37));
+        assertEquals(16, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("a join request states the map it parsed, and a map refusal states the server's")
+    void theJoinHandshakeCarriesBothSidesOfTheMapIdentity() {
+        PacketJoinRequest stated = roundTrip(new PacketJoinRequest(
+            7, "Nova", "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693"));
+        assertEquals(
+            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693",
+            stated.mapHashHex);
+
+        PacketJoinRequest silent = roundTrip(new PacketJoinRequest(7, "Nova"));
+        assertEquals("", silent.mapHashHex, "an unstated map is empty, never a wildcard");
+
+        PacketJoinReject refused = roundTrip(new PacketJoinReject(
+            PacketJoinReject.REASON_MAP_MISMATCH, stated.mapHashHex));
+        assertEquals(PacketJoinReject.REASON_MAP_MISMATCH, refused.reason);
+        assertEquals(stated.mapHashHex, refused.serverMapHashHex);
+
+        PacketJoinReject full = roundTrip(
+            new PacketJoinReject(PacketJoinReject.REASON_SERVER_FULL));
+        assertEquals("", full.serverMapHashHex, "only a map refusal names a map");
     }
 
     @Test
@@ -376,6 +412,7 @@ class NetworkRegistrationTest {
         PacketJoinRequest join = roundTrip(new PacketJoinRequest(7, "Nova"));
         assertEquals(7, join.protocolVersion);
         assertEquals("Nova", join.playerName);
+        assertEquals("", join.mapHashHex, "the two-argument form states no map");
 
         PacketPing ping = roundTrip(new PacketPing(1234L));
         assertEquals(1234L, ping.clientTimeMillis);
