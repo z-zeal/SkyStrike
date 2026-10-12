@@ -591,6 +591,24 @@ the game modules and the only one that reaches `shared` and nothing else — wit
 validation is not re-implemented: every map reaching the audit has already been through
 `ArenaMap.Builder`, which the parser, the editor's draft and the tests all use.
 
+*Landed as slice C.* The in-game surface is `MapEditorScreen`, and it is a view in the sense this
+section means: a canvas with the game's own `TerrainRenderer` on it, over a `MapDraft`, with the
+palette's entries the only shapes it can place. The verb it places with is `mirrored` — a tap clear
+of the mirror axis authors a pair and a tap on the axis authors one centred block, because that is
+what the format's two verbs mean — and a duplicate is refused at the tap rather than at the save,
+since the twin is what usually collides. Validation is `MapAudit.check` over the draft written and
+parsed back, i.e. over what a session would load rather than the in-memory list, and it marks
+`Result.pocket()` on the canvas. Save goes through `ArenaMapFormat`'s writer and proves itself by
+parsing its own text back first, and Bake is `MapAudit.bake` — the same call `MapTool bake` makes,
+so the screen and the CLI cannot bake two different files. Files land in the user's own directory
+(`Gdx.files.external(".skystrike/maps/")`, `local("maps/")` as the fallback) under a name reduced
+to letters, digits, `-` and `_`, so authoring cannot write into the repository and cannot name a
+path. The screen names no block kind, which is why §9's consumer gate needed no exemption for it:
+the kind-naming table is `MapPalette`, inside the map package. The entry point is a debug-only main
+menu action, built only while `DebugFlags.enabled()` — absent from a release build rather than
+hidden in one — and the screen's constructor is handed the route back to the menu and nothing else,
+so it has no session, no socket and no match state to publish with.
+
 ## 7. Tests (all in `shared/src/test`, no GPU)
 
 - **Symmetry:** every shipped map loads, and for every block its reflection about `mirrorAxisX()`
@@ -853,8 +871,14 @@ landed, and the close-out's last slice needed no wire change)
    (§6), `MapTool check|bake` exists with CI running `tools:mapCheck` and `tools:mapBakeCheck`, and
    §11.4 is decided — a map whose spawns cannot reach each other fails CI, a map that is merely not
    fully reachable warns with the sealed pocket named, and §7's strict reading stays available as
-   `check --strict`. `MapAuditTest` was written and not executed, like everything else here. What
-   remains of this milestone is slice C, the screen.
+   `check --strict`. `MapAuditTest` was written and not executed, like everything else here.
+   **Slice C has landed too**, which finishes the milestone's source: `MapPalette` (the presets and
+   tap geometry, in the map package so the §9 kind gate needs no exemption) and
+   `MapEditorScreen` behind the debug switch, entered from a main-menu action that a release build
+   does not have, over a `MapDraft`, with the shared gate's pocket marked on the canvas, saving and
+   baking into the user's own directory through the canonical writer and the one bake. Everything
+   here is written and not executed — this environment has no JDK — and no acceptance box is
+   ticked.
 6. **Shipped maps.** The arena moves to `assets/maps/arena.map`; additional maps become possible,
    with the map list a server setting.
 

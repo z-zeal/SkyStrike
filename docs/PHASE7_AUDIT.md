@@ -1109,3 +1109,111 @@ was compiled, no test, server, client, game or desktop build was run or observed
 `MAP_BUILDER_ACCEPTANCE.md` box was ticked**: the CI steps and the CLI have never executed, so
 their first run in CI is also the first execution of `MapTool` and of the Java bake against the
 committed bytes (the python mirror already reports that asset as the bake of that map).
+
+**Map milestone 5, slice C (the in-game map editor)** — implemented in source on
+`arena/78110530-skystrike`, on top of slice B, with nothing deferred out of the slice and no wire
+change (`PROTOCOL_VERSION` stays 18). Slices A and B built the question — what a map is, and what a
+map is worth — and this slice is the surface an author answers it on: a screen that places,
+mirrors and deletes blocks over a `MapDraft`, draws the game's own picture of them, runs the §7
+gate over what a session would actually load, and writes the canonical text and its bake into the
+user's own directory. It cannot publish into a match, and that is arranged structurally rather than
+by a rule it has to remember.
+
+**The kind problem, and where it was solved.** The editor is the first surface outside the map
+model that has to know what a block kind *is*: something has to say "this button places a ledge."
+The plan's §9 consumer gate, added in slice A, forbids consumers from naming block kinds outside
+the map package — so there were two honest options: carve an exemption into the gate for this one
+client file, or put the authoring table inside the package where kinds may be named anyway. The
+slice took the second, because it is the smaller change: the gate stays exactly as tight as slice A
+made it, for every file in the project, and `core` still names no kind. The new
+`shared/.../map/MapPalette` holds one preset per kind — a ledge (wall, stone, 120 × 18), a pillar
+(wall, stone, 24 × 260), a platform (platform, wood, 220 × 18), a pane (glass, glass, 20 × 180), a
+crate (breakable, wood, 60 × 60) and a door (door, metal, 36 × 170), the six shapes the shipped
+arena itself authors — plus the three rules a tap follows. The rectangle's centre snaps to
+`MapReachability.COLUMN_PITCH`, the reachability gate's own column pitch, so two taps meant to abut
+do abut and the gate never has to look between two stances; the rectangle is pushed back inside the
+arena, because `ArenaMapFormat.parseBlock` and `validateRectInBounds` reject a block the tap would
+otherwise place half outside it, and an author should not meet that error at save time; and a
+rectangle that would straddle the mirror axis without being symmetric about it is re-centred onto
+the axis, because a draft can hold only a mirrored pair or one self-reflective block — a third
+state does not exist to place. `Preset.door()` is what keeps the screen kind-free: the editor asks
+whether a preset needs a door id instead of comparing its kind, and the record refuses
+`door != (kind == BlockKind.DOOR)` while it is still inside the package where the kind may be
+named. `MapPalette.nextDoorId(blocks)` allots the next free id, so a mirrored door is two authored
+doors with consecutive ids — `DoorSpec.reflection()` is `id + 1`, which is what makes that pair one
+doorway in play. `MapPaletteTest` (written and not executed) pins every kind placeable and labelled
+once and exactly one door preset among them; a map built from one tap per preset — a centred floor
+plus one mirrored pair each, 13 blocks, door ids 1 and 2 — round-tripping through
+`ArenaMapFormat.write`/`parse` and not failing `MapAudit.check`; the tap geometry (snapping,
+clamping against a wall at the arena edge, and centring a straddling tap); and the door-id
+sequence, including that a door preset without an id and a crate with one are both refused.
+
+**The screen.** `core/.../screens/MapEditorScreen` is a view over `MapDraft` and nothing else:
+`MapPalette` decides what a tap places and where, `MapDraft` holds the verbs — so a block cannot
+lose its twin — and `MapAudit` answers what the map is worth and produces the one bake. Placement
+goes through `MapDraft.mirrored`/`centred`, i.e. through the same two verbs the file format uses, so
+"place a mirrored pair" is not a mode the screen maintains but the act of placing; a tap on the
+mirror axis is authored centred instead, because its reflection would be itself. A duplicate — the
+placed block already present, or its twin already present — is refused at the gesture, since the
+twin is what usually collides and `ArenaMapFormat.validateBlocks` would make it a load error the
+author met at save time instead. Delete works the same way in reverse: it removes the block under
+the tap through `MapDraft.remove`, and that verb takes the twin with it. The picture is the game's
+own `TerrainRenderer`, rebuilt from `MapDraft.build()` when the draft changes, so what an author
+sees is what a match draws rather than a second rendering of the same rectangles; a draft mid-edit
+that does not build is reported once in the status line and the last map that *was* a map stays on
+screen, rather than the same complaint being re-printed every frame. Validate runs the gate over the
+map a fresh session would get — the draft written and parsed back, not the in-memory block list —
+reports through `MapAudit.Result.lines()` so a CI log and the status area cannot disagree, adds the
+note that the strict reading of §7 fails this map when the two readings differ, and marks
+`Result.pocket()` on the canvas in red through its own `ShapeRenderer`, which is the one thing the
+screen draws that the game does not. Save writes `draft.toText()` only after parsing it back, so the
+editor offers to save exactly what the loader accepts, and Bake writes `MapAudit.bake`'s bytes —
+the same call `MapTool bake` makes. Both go to `Gdx.files.external(".skystrike/maps/")` with
+`local("maps/")` as the fallback, and the name is reduced to letters, digits, `-` and `_`, so a
+typed name can never be a path and a map an author writes can never land in the repository.
+
+**The entry point.** `MainMenuScreen` gained `MAP_EDITOR_ACTION = "Map editor"` and a
+`mapEditorAvailable` flag through a second constructor — the old six-argument constructor still
+works and means "no editor", so nothing else had to change — and `buildMenuActions` splices the
+debug-only actions into the standard list instead of maintaining a second list. `Main` resolves the
+flag from `DebugFlags.enabled()` alone (the editor needs no host, no socket and no match, so a debug
+build that cannot start a local server can still author a map) and routes
+`new MapEditorScreen(this::showMenu)`. That constructor is the whole safety property: it takes the
+route back to the menu and nothing else — no session, no `GameClient`, no match state — so "the
+editor cannot publish" is a fact about its type, not a rule it has to remember, and the screen has
+no way to reach a running match even if a future edit wanted one. With the debug switch off, the
+menu is `STANDARD_ACTIONS` and nothing else: the action is absent rather than hidden or disabled.
+`MainMenuScreen`'s header note says the same thing to the author's face — debug build only, a map
+cannot reach a match from here. §11.3 remains open: the gate reads a door as an opening, so a
+`TEAM` door would make every number here a lower bound, and no `TEAM` door is authored anywhere yet.
+
+**What was hand-read.** `static_api_check.py` resolves project calls only where the callee is
+written as a type or inside the generated tables, so instance calls made through a field or a
+variable are invisible to it. The slice's cross-module calls were therefore read against their
+declarations: `MapPalette` → `MapReachability.COLUMN_PITCH`,
+`MapBlock.DEFAULT_DURABILITY_MULTIPLIER`, `DoorSpec.all(int)`, `ArenaMap.builder` and
+`Builder.mirrored`/`centred`/`spawn`/`build` through `MapDraft`; `MapEditorScreen` →
+`MapDraft.of/empty/mirrored/centred/spawn/remove/clear/blocks/spawns/mirrorAxisX/`
+`authoredLineCount/toText/build`, `ArenaMapFormat.parse`,
+`ArenaMap.blocks/spawns/mapHashHex`, `MapAudit.check/bake`, `MapPalette.presets/tapRect/isCentred/
+nextDoorId`, `MapPalette.Preset.label/kind/material/width/height/door/block`, `DoorSpec.NONE/all`,
+`TerrainRenderer(ArenaMap)`/`layer`/`dispose`, `GameCamera.resize/pan/centreOn/zoomBy/x/y/raw`,
+`Gdx.files.external/local/isExternalStorageAvailable`, `FileHandle.writeString/writeBytes/path`, and
+the Scene2D `TextButton`/`TextField`/`Label`/`Table`/`ShapeRenderer` names the screen uses. None of
+this is a compile result: there is no JDK in this sandbox.
+
+**Checks and the missing execution.** The slice was source-checked with exactly the permitted Python
+checks: `python3 tools/scratch/static_check.py` (clean: 445 Java files scanned, 445 declared types,
+no findings — including both consumer gates), `python3 tools/scratch/static_api_check.py` (clean:
+558 project types indexed from 441 files), `python3 tools/scratch/static_audio_check.py` (clean: 13
+world entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries), `python3
+tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree), `python3
+tools/scratch/phase3_ballistics.py` (analytical report completed without findings), `python3
+tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee rows regenerated with no tracked
+diff) and `python3 tools/scratch/arena_sdf_check.py` (clean: 64 blocks, map hash `686c9165…a597`,
+1500 × 1000 texels at 2.0 units/texel, 1,500,060 bytes, the shipped asset still the bake of the
+committed map — no map text changed in this slice, so nothing had to be re-baked). No Java was
+compiled, no test, server, client or desktop build was run or observed, and **no
+`MAP_BUILDER_ACCEPTANCE.md` box was ticked**: the editor has never opened, so its taps, its overlay,
+its file paths and its save-then-load agreement are exactly as unexecuted as `MapTool` was in slice
+B — this sandbox has no JDK.
