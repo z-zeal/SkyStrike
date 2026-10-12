@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.config.DoorConfig;
 import io.github.skystrike.shared.config.WorldConfig;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -313,6 +314,88 @@ class MapDamageStateTest {
             "wire data outside the authored list is dropped, not thrown");
         assertThrows(NullPointerException.class,
             () -> mirror.applyRemoteBreak(1, null, 0f, 0f, false));
+    }
+
+    @Test
+    @DisplayName("an open door leaves the live map exactly as a destroyed block does")
+    void anOpenDoorLeavesTheLiveMap() {
+        Rect doorRect = new Rect(1488f, 100f, 24f, 90f);
+        MapBlock door = new MapBlock(
+            BlockKind.DOOR, Material.METAL, doorRect, MapBlock.DEFAULT_DURABILITY_MULTIPLIER,
+            DoorSpec.all(1));
+        MapDamageState state = MapDamageState.intact(ArenaMap.builder(AXIS).centred(door).build());
+        MapBlock applied = state.authoredMap().blocks().get(0);
+
+        assertTrue(state.liveMap().movementBlockers(MovementRule.SOLID).contains(doorRect));
+        assertTrue(
+            MapQueries.lineBlocked(state.liveMap(), 1300f, 145f, 1700f, 145f, Blocking.BULLETS));
+
+        state.doors().requestUse(applied, 0, MapDoorState.CLEAR);
+        state.doors().advance(DoorConfig.SWING_TICKS, MapDoorState.CLEAR);
+
+        ArenaMap live = state.liveMap();
+        assertFalse(live.blocks().contains(applied));
+        for (Blocking purpose : Blocking.values()) {
+            assertFalse(live.blockers(purpose).contains(doorRect), purpose.toString());
+        }
+        assertFalse(live.movementBlockers(MovementRule.SOLID).contains(doorRect));
+        assertFalse(
+            MapQueries.lineBlocked(live, 1300f, 145f, 1700f, 145f, Blocking.SIGHT),
+            "an open door blocks nothing");
+        assertTrue(
+            MapQueries.lineBlocked(
+                state.authoredMap(), 1300f, 145f, 1700f, 145f, Blocking.SIGHT),
+            "and the authored map the other side agreed to is untouched");
+        assertEquals(0, state.revision(), "a door is not a break, however it moves");
+
+        // The bake map is the destruction-only map: a door is never in the static field, so a door
+        // opening or closing must not change what a re-bake would produce.
+        assertSame(state.authoredMap(), state.staticMap());
+    }
+
+    @Test
+    @DisplayName("a door reopening after a break keeps both in the one live map")
+    void doorsAndBreaksShareTheLiveMap() {
+        Rect doorRect = new Rect(1488f, 100f, 24f, 90f);
+        MapBlock door = new MapBlock(
+            BlockKind.DOOR, Material.METAL, doorRect, MapBlock.DEFAULT_DURABILITY_MULTIPLIER,
+            DoorSpec.all(1));
+        MapDamageState state = MapDamageState.intact(ArenaMap.builder(AXIS)
+            .centred(door)
+            .mirrored(CRATE)
+            .build());
+        MapBlock doorBlock = state.authoredMap().blocks().get(0);
+
+        state.doors().requestUse(doorBlock, 0, MapDoorState.CLEAR);
+        state.doors().advance(DoorConfig.SWING_TICKS, MapDoorState.CLEAR);
+        assertFalse(state.liveMap().blocks().contains(doorBlock));
+
+        // A break while the door is open must keep leaving the door out — the live map is rebuilt
+        // from both inputs, not from whichever one moved last.
+        assertNotNull(state.damage(CRATE, DamageSource.BULLET, 500f, 700f, 450f));
+        assertFalse(state.liveMap().blocks().contains(doorBlock));
+        assertFalse(state.liveMap().blocks().contains(CRATE));
+        assertTrue(state.liveMap().blocks().contains(state.authoredMap().blocks().get(2)),
+            "the crate's own reflection survived, as destruction is per block");
+    }
+
+    @Test
+    void aRoundResetShutsEveryDoorAgain() {
+        Rect doorRect = new Rect(1488f, 100f, 24f, 90f);
+        MapBlock door = new MapBlock(
+            BlockKind.DOOR, Material.METAL, doorRect, MapBlock.DEFAULT_DURABILITY_MULTIPLIER,
+            DoorSpec.all(1));
+        MapDamageState state = MapDamageState.intact(ArenaMap.builder(AXIS).centred(door).build());
+        MapBlock doorBlock = state.authoredMap().blocks().get(0);
+        state.doors().requestUse(doorBlock, 0, MapDoorState.CLEAR);
+        state.doors().advance(DoorConfig.SWING_TICKS, MapDoorState.CLEAR);
+        assertFalse(state.liveMap().blocks().contains(doorBlock));
+
+        state.reset();
+
+        assertTrue(state.liveMap().blocks().contains(doorBlock), "the door is shut again");
+        assertSame(state.authoredMap(), state.liveMap());
+        assertSame(state.authoredMap(), state.staticMap());
     }
 
     private static MapDamageState intactState() {

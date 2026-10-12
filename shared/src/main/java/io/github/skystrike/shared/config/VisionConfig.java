@@ -1,7 +1,8 @@
 package io.github.skystrike.shared.config;
 
 /**
- * Cone reach and angle, falloff shape, peripheral floor, ambient floor and smoke parameters (mechanics §3, effects §4–§6).
+ * Cone reach and angle, falloff shape, peripheral floor, ambient floor, smoke parameters
+ * (mechanics §3, effects §4–§6) and the door occluder array (map plan D3).
  *
  * <p>Shared between the shader pipeline and {@link io.github.skystrike.shared.vision.VisionMath}.
  * The CPU and GPU implementations must evaluate the identical mathematical rules so players are
@@ -121,6 +122,21 @@ public final class VisionConfig {
     // --- Smoke volumes (effects §6.2, mechanics §3) ----------------------------------------------
     /** Maximum number of concurrent smoke volumes uploaded to the visibility shader uniform array. */
     public static final int MAX_SMOKE_VOLUMES = 8;
+
+    // --- Dynamic door occluders (plan D3) -------------------------------------------------------
+    /**
+     * Size of the door-occluder array the visibility and light shaders are given: 16 rectangles,
+     * the same bounded-array pattern the smoke circles use.
+     *
+     * <p>A door is deliberately not baked into the SDF (D3): it changes every few seconds, and a
+     * re-bake per door would be a hitch per door. So a closed door occludes through this array
+     * instead, and the array has to be big enough for every door a map can author — which makes
+     * this number a <b>load-time limit</b>, not a runtime eviction policy:
+     * {@code ArenaMap.Builder} rejects a map with more doors than this, because silently failing to
+     * occlude the door that did not fit is exactly the kind of disagreement between the picture and
+     * the collision this plan exists to prevent.
+     */
+    public static final int MAX_DOOR_OCCLUDERS = 16;
 
     /** Default radius for a smoke volume in world units. */
     public static final float DEFAULT_SMOKE_RADIUS = 250f;

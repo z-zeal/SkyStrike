@@ -15,7 +15,8 @@ import java.util.Objects;
  * identical text-map lines must not force an SDF re-bake or make two clients reject the same
  * layout. Kind, material, exact float bits, mirror axis and spawns all participate, so changing
  * any authored map data produces a new identity — a per-block durability multiplier included, but
- * only when the map actually authored one (see the block loop below).
+ * only when the map actually authored one, and a door's id, access and team included only for a
+ * door block (see the block loop below).
  */
 public final class MapHash {
 
@@ -33,7 +34,11 @@ public final class MapHash {
         .thenComparingInt(block -> Float.floatToIntBits(block.rect().x()))
         .thenComparingInt(block -> Float.floatToIntBits(block.rect().y()))
         .thenComparingInt(block -> Float.floatToIntBits(block.rect().width()))
-        .thenComparingInt(block -> Float.floatToIntBits(block.rect().height()));
+        .thenComparingInt(block -> Float.floatToIntBits(block.rect().height()))
+        // Doors are the one kind whose identity is not their geometry, so two door blocks may
+        // share a rectangle while being different doors. Ordering by id keeps the hash a function
+        // of the contents rather than of the line order they were authored in.
+        .thenComparingInt(block -> block.door().id());
 
     private MapHash() {
     }
@@ -80,6 +85,15 @@ public final class MapHash {
             if (block.hasAuthoredDurabilityMultiplier()) {
                 canonical.append(' ');
                 appendFloatBits(canonical, block.durabilityMultiplier());
+            }
+            // A door's id, access and team are authored content exactly as its rectangle is: two
+            // maps whose doors differ must not share an identity. Encoded only for a real door, so
+            // every block of a map without doors hashes precisely as it did before doors existed —
+            // the shipped arena included, whose baked SDF asset names its hash.
+            if (block.door().isDoor()) {
+                canonical.append(" door ").append(block.door().id())
+                    .append(' ').append(block.door().access().ordinal())
+                    .append(' ').append(block.door().teamIndex());
             }
             canonical.append('\n');
         }

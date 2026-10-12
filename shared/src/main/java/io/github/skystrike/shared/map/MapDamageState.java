@@ -11,11 +11,11 @@ import java.util.Objects;
  * The authoritative per-round destruction state of one map.
  *
  * <p>An {@link ArenaMap} is authored geometry and never changes. This is the other half of the
- * picture: what has been chipped and what has been removed since the round started. The server owns
- * the authority — the shared damage paths (bullets, blasts, melee) mutate it through {@link #damage}
- * — and the client holds a mirror fed by the authoritative block events through
- * {@link #applyRemoteBreak}, never by measuring damage itself. Every consumer that cares whether a
- * block is still standing reads {@link #liveMap()}.
+ * picture: what has been chipped, what has been removed and which doors stand open since the round
+ * started. The server owns the authority — the shared damage paths (bullets, blasts, melee) mutate
+ * it through {@link #damage}, and {@link #doors()} moves the doors — and the client holds a mirror
+ * fed by the authoritative block and door events, never by measuring anything itself. Every consumer
+ * that cares what the map looks like right now reads {@link #liveMap()}, which leaves out both.
  *
  * <p><b>The live map is derived, never authored.</b> {@link #liveMap()} is an ordinary immutable
  * {@link ArenaMap} built from the surviving blocks, so the rule views a query already reads are the
@@ -23,21 +23,30 @@ import java.util.Objects;
  * the same call that removed it, which is what the plan's "in the same tick" asks for. The views are
  * rebuilt per destruction — microseconds, against an event that happens a handful of times a round.
  *
+ * <p><b>Doors are the second thing a round changes.</b> The per-round {@link MapDoorState} this
+ * state owns decides which doors are in the way, and an open door leaves the live map exactly as a
+ * destroyed block does: the same movement, sight and bullet views stop seeing it, with no second
+ * query path for a consumer to remember. The two are kept apart where it matters — {@link
+ * #staticMap()} is what the static SDF is baked from, and a door is never in it (a door moves, and a
+ * baked field cannot; see {@link BlockRules#bakesIntoSdf}) — and joined where it counts, in one
+ * {@link #liveMap()} that no consumer can read half of.
+ *
  * <p><b>Revision, not identity.</b> {@link #revision()} counts the blocks destroyed since the round
  * started. The authored map's {@link MapHash} stays the identity both sides compare, and the
- * revision says how much of that map is still there; {@link #liveMap()}'s own hash describes the
- * surviving contents, which is what a re-baked SDF names, and differs from the authored hash the
- * moment something is destroyed.
+ * revision says how much of that map is still there; a derived map's own hash describes its
+ * surviving contents and differs from the authored hash the moment something is destroyed. Doors
+ * move that hash too, which is why the SDF is baked from {@link #staticMap()} and never from
+ * {@link #liveMap()}: the field has to name a map that a door opening or closing did not change.
  *
  * <p><b>Permanence costs nothing.</b> A block whose rule row is {@link DamageRule#INDESTRUCTIBLE} is
  * never recorded, never chipped and never removed: {@link #damage} refuses it before it measures
- * anything, so the walls, doors and platforms a map is mostly made of cost nothing — no damage
- * taken, {@code liveMap()} is the authored map itself and the revision stays zero until something
- * the map did author as destructible is hit.
+ * anything, so the walls, doors and one-way platforms a map is mostly made of cost nothing — no
+ * damage taken, {@link #staticMap()} is the authored map itself, and the revision stays zero until
+ * something the map did author as destructible is hit.
  *
- * <p><b>Damage is per round.</b> {@link #reset()} puts the authored map back and returns the
- * revision to zero, because a map chewed through in one round is not the map both teams agreed to
- * fight on. Nothing is ever repaired mid-round.
+ * <p><b>Damage and doors are per round.</b> {@link #reset()} puts the authored map back, shuts
+ * every door and returns the revision to zero, because a map chewed through in one round is not the
+ * map both teams agreed to fight on. Nothing is ever repaired mid-round.
  *
  * <p><b>Threading.</b> Mutation belongs to the authority's tick thread. Publishing the state to
  * another thread (the client's SDF re-bake worker) through a thread-safe hand-off is enough, because
@@ -53,7 +62,14 @@ public final class MapDamageState {
     /** Every break in destruction order: the server's broadcast queue and the wire history. */
     private final List<BlockBreak> breaks = new ArrayList<>();
     private int revision;
+    /** Authored geometry minus everything destroyed: the map the static SDF is baked from. */
+    private ArenaMap staticMap;
+    /** {@link #staticMap()} minus the doors that are open, rebuilt when either input changes. */
     private ArenaMap liveMap;
+    /** The door revision {@link #liveMap} was built at; {@code -1} when it must be rebuilt. */
+    private long doorsInLiveMap = -1L;
+    /** The per-round state of the map's doors. They change what the live map is. */
+    private final MapDoorState doors;
 
     private MapDamageState(ArenaMap authoredMap) {
         this.authoredMap = authoredMap;
@@ -64,7 +80,9 @@ public final class MapDamageState {
         }
         this.damage = new float[blocks.size()];
         this.destroyed = new boolean[blocks.size()];
+        this.staticMap = authoredMap;
         this.liveMap = authoredMap;
+        this.doors = MapDoorState.closed(authoredMap);
     }
 
     /** An untouched state for {@code authoredMap}: nothing chipped, nothing removed. */
@@ -78,10 +96,43 @@ public final class MapDamageState {
     }
 
     /**
-     * The map as it stands: authored geometry minus everything destroyed. Never null, and never the
-     * authored instance once something has been removed.
+     * The per-round state of this map's doors: which of them are in the way, and the machine that
+     * moves them.
+     *
+     * <p>Mutable through its own API and owned here, because an open door changes what the live map
+     * is — and the live map is derived in one place, so a door state anywhere else would be a second
+     * answer to "what does this map look like right now".
+     */
+    public MapDoorState doors() {
+        return doors;
+    }
+
+    /**
+     * The map the static SDF is baked from: authored geometry minus everything destroyed.
+     *
+     * <p>Not {@link #liveMap()}, and the difference is exactly the doors: a door is never baked into
+     * the field ({@link BlockRules#bakesIntoSdf} refuses it, because a door moves every few seconds
+     * and a re-bake per door would be a hitch per door), so a bake must not see them change. A
+     * caller that draws the field and a caller that draws the map read two different questions.
+     */
+    public ArenaMap staticMap() {
+        return staticMap;
+    }
+
+    /**
+     * The map as it stands: authored geometry minus everything destroyed and every door that is
+     * open. Never null, and never the authored instance once something has changed.
+     *
+     * <p>Rebuilt when either input changes rather than per query — a break does it eagerly, and a
+     * door change is noticed by comparing the door state's revision, so no caller can read a map
+     * that is one door behind.
      */
     public ArenaMap liveMap() {
+        long doorRevision = doors.revision();
+        if (doorsInLiveMap != doorRevision) {
+            liveMap = staticMap.without(doors.openDoors());
+            doorsInLiveMap = doorRevision;
+        }
         return liveMap;
     }
 
@@ -238,8 +289,12 @@ public final class MapDamageState {
     }
 
     /**
-     * Puts every block back for the next round: damage cleared, destroyed blocks restored, the
-     * revision back to zero and the live map the authored one again.
+     * Puts the map back for the next round: damage cleared, destroyed blocks restored, every door
+     * shut, the revision back to zero and the live map the authored one again.
+     *
+     * <p>Doors reset with the destruction for the plan's §11.2 reason: a round that repaired the
+     * blocks but left the doors as the last round left them would be fought on an arena neither team
+     * spawned into.
      *
      * @return the blocks that had been destroyed, in the order they went
      */
@@ -249,7 +304,9 @@ public final class MapDamageState {
         Arrays.fill(damage, 0f);
         Arrays.fill(destroyed, false);
         revision = 0;
-        liveMap = authoredMap;
+        staticMap = authoredMap;
+        doors.reset();
+        doorsInLiveMap = -1L;
         return restored;
     }
 
@@ -260,7 +317,9 @@ public final class MapDamageState {
         BlockBreak broke = new BlockBreak(block, source, x, y, shattered);
         breaks.add(broke);
         revision++;
-        liveMap = authoredMap.without(destroyedBlocks);
+        staticMap = authoredMap.without(destroyedBlocks);
+        // The live map is rebuilt on the next read, against a door revision this invalidates.
+        doorsInLiveMap = -1L;
         return broke;
     }
 

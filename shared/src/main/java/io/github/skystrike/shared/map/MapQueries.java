@@ -15,6 +15,10 @@ import java.util.List;
  * count. The five-argument forms are the sight convenience, kept so existing callers keep their
  * meaning.
  *
+ * <p>{@link #doorAt} is the same shape of question one level up: which <i>object</i> the player
+ * means, rather than whether a line is blocked. The use key has to resolve to one door on both
+ * sides, so the nearest-first rule lives here, beside the queries it is built from.
+ *
  * <p>Movement questions are separate, because the movement column answers a different question:
  * a kind's {@link MovementRule} says which faces stop a body, not whether a line is blocked.
  * {@link #overlapsMovementBlocker} and {@link #surfaceBelow} therefore read
@@ -155,6 +159,48 @@ public final class MapQueries {
             }
         }
         return best;
+    }
+
+    /**
+     * The nearest authored door whose rectangle is within {@code reach} of a point, or {@code null}
+     * when none is.
+     *
+     * <p>This is the use key's question (plan §4: "the nearest door within reach"). Distance is
+     * measured to the rectangle's nearest point rather than to its centre, so a standing-height door
+     * is reachable from anywhere along its height and a player standing at its foot is not told to
+     * step closer. Ties go to the earlier authored block: the client predicting a press and the
+     * server resolving one must not be able to pick two different doors for one press, and the only
+     * way that is free is if neither has a choice.
+     *
+     * <p>Reads the authored block list, not {@link ArenaMap#blockers(Blocking)}: a door's rectangle
+     * is the same in every view, and which doors are currently in the way is runtime state
+     * ({@link MapDoorState}) that this query deliberately does not consult — a player must be able to
+     * shut a door that is standing open, which an "only blocking doors are reachable" rule would
+     * forbid.
+     */
+    public static MapBlock doorAt(ArenaMap map, float x, float y, float reach) {
+        if (map == null || reach < 0f) {
+            return null;
+        }
+        MapBlock nearest = null;
+        float reachSquared = reach * reach;
+        float nearestSquared = Float.MAX_VALUE;
+        for (MapBlock block : map.blocks()) {
+            if (!block.door().isDoor()) {
+                continue;
+            }
+            Rect rect = block.rect();
+            float dx = x - rect.clampX(x);
+            float dy = y - rect.clampY(y);
+            float squared = dx * dx + dy * dy;
+            // Strictly nearer: an exact tie keeps the block authored earlier, which is the rule the
+            // two sides have to share rather than a preference.
+            if (squared <= reachSquared && squared < nearestSquared) {
+                nearest = block;
+                nearestSquared = squared;
+            }
+        }
+        return nearest;
     }
 
     /** Every bullet-blocking solid overlapping the given box, in map order (legacy view). */

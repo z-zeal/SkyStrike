@@ -54,6 +54,51 @@ class MapQueriesTest {
     }
 
     @Test
+    @DisplayName("doorAt resolves the nearest door within reach, and only within reach")
+    void doorAtFindsTheNearestDoorInReach() {
+        ArenaMap doors = ArenaMap.builder(WorldConfig.MIRROR_AXIS_X)
+            .mirrored(door(1, new Rect(700f, 450f, 24f, 90f)))
+            .mirrored(door(3, new Rect(800f, 450f, 24f, 90f)))
+            .build();
+
+        assertEquals(
+            new Rect(700f, 450f, 24f, 90f),
+            MapQueries.doorAt(doors, 680f, 460f, 40f).rect(),
+            "the door 20 units away, not the one beyond it");
+        assertEquals(
+            new Rect(800f, 450f, 24f, 90f),
+            MapQueries.doorAt(doors, 820f, 460f, 100f).rect(),
+            "the nearest of two doors in reach");
+        assertNull(MapQueries.doorAt(doors, 500f, 460f, 100f), "nothing within reach");
+        assertNull(MapQueries.doorAt(doors, 680f, 460f, 0f), "a zero reach reaches nothing");
+
+        // Exactly between two doors, the earlier authored block answers: the client predicting a
+        // press and the server resolving it must not be able to choose differently.
+        ArenaMap tie = ArenaMap.builder(WorldConfig.MIRROR_AXIS_X)
+            .mirrored(door(1, new Rect(700f, 450f, 24f, 90f)))
+            .mirrored(door(3, new Rect(976f, 450f, 24f, 90f)))
+            .build();
+        assertEquals(1, MapQueries.doorAt(tie, 850f, 460f, 200f).door().id());
+    }
+
+    @Test
+    void doorAtReadsTheAuthoredList() {
+        ArenaMap doors = ArenaMap.builder(WorldConfig.MIRROR_AXIS_X)
+            .mirrored(door(1, new Rect(700f, 450f, 24f, 90f)))
+            .build();
+
+        // A live map has already left an open door out, so the query is given a map that still
+        // holds it — shutting a door that is standing open is exactly what the key is for.
+        assertNotNull(MapQueries.doorAt(doors, 680f, 460f, 40f));
+        assertNull(MapQueries.doorAt(null, 680f, 460f, 40f));
+    }
+
+    private static MapBlock door(int id, Rect rect) {
+        return new MapBlock(BlockKind.DOOR, Material.METAL, rect,
+            MapBlock.DEFAULT_DURABILITY_MULTIPLIER, DoorSpec.all(id));
+    }
+
+    @Test
     void overlapDetectsTheRoomFloor() {
         assertTrue(MapQueries.overlapsSolid(map, new Rect(1490f, 285f, 20f, 20f)));
         assertFalse(MapQueries.overlapsSolid(map, new Rect(1490f, 320f, 20f, 20f)));
