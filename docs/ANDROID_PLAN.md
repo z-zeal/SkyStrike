@@ -455,39 +455,39 @@ Following `docs/EFFECTS_PLAN.md` §3.1, mobile fragment shaders must not overflo
 
 ---
 
-## 6. Decisions to take before the slices that depend on them
+## 6. Decisions
 
-Each decision has a recommended answer. None is assumed silently.
+**Decided (2026-10-13, by the user):**
 
-- **AN1 — Left movement stick mode and on-foot vertical actions.**
-  - *(a) Recommended:* Floating-origin horizontal left stick (`moveX`) + dedicated right-side
-    buttons for **Jump**, **Jetpack** (hold) and **Crouch/Drop** (with the left stick automatically
-    becoming a full 2D flight stick while piloting a drone). Prevents accidental one-way platform
-    drop-through (`PlayerMotion`'s fresh-crouch rule) and accidental jetpack fuel burn.
-  - *(b)* 2D left stick on foot as well (push up to jump/jetpack, pull down to crouch/drop) in
-    addition to the buttons.
-  - *(c)* Fixed-origin left stick + dedicated Jump, Jetpack and Crouch buttons.
-- **AN2 — Right-thumb Aim and Fire scheme.**
-  - *(a) Recommended:* Ship **Scheme A** (Right Aim Stick that retains its angle on release +
-    dedicated **Fire** and **ADS** buttons + optional outer-ring auto-fire) and **Scheme B**
-    (Twin-stick Aim-and-Fire with release-to-throw / inner cancel zone) as a user setting in
-    `Settings`, defaulting to Scheme A.
-  - *(b)* Ship Scheme A only.
-  - *(c)* Ship Scheme B (twin-stick aim-and-fire) only.
-  - *(d)* Ship Scheme C (relative touchpad / virtual cursor) as the default.
-- **AN3 — ADS (Aim Down Sights) behaviour on touch.**
-  - *(a) Recommended:* **Toggle by default on touch** (tap `ADS` to scope in, tap again to exit;
-    switchable to **Hold** in Settings), so two-thumb players can aim, stay scoped and fire without
-    requiring a three-finger claw grip.
-  - *(b)* **Hold only** on touch.
-- **AN4 — HUD layout on phones and tablets.**
-  - *(a) Recommended:* **Responsive touch layout (`TouchHudLayout`)**: move `LoadoutBar` (Slots 1–5
-    + Q/E) to **bottom-center** as direct `>= 48 dp` touch buttons, move `HealthFuelBars` to
-    **top-center** on phones (and above the left stick on tablets) so neither thumb covers vitals or
-    slots, add a top utility bar (`Chat`, `Quick Chat`, `Loadout`, `Pause`), and keep the desktop
-    layout unchanged on desktop.
-  - *(b)* Keep `HealthFuelBars` and `LoadoutBar` in their desktop bottom-left and bottom-right
-    corners underneath the translucent touch sticks.
+- **AN1 — Left movement stick mode and on-foot vertical actions. Decided (2026-10-13): option (a),
+  floating-origin horizontal left stick + dedicated Jump, Jetpack and Crouch/Drop buttons.**
+  The left stick drives horizontal `moveX` (`[-1, 1]`) on foot and automatically becomes a full 2D
+  flight stick while piloting a drone (`SurveillanceView.DRONE`), while on-foot Jump, Jetpack (hold)
+  and Crouch / one-way platform drop-through use dedicated right-side buttons. Options (b), a 2D
+  left stick on foot, and (c), a fixed-origin left stick, were the alternatives (fixed stick origin
+  can still be offered as a toggle in Settings).
+- **AN2 — Right-thumb Aim and Fire scheme. Decided (2026-10-13): option (a), ship both Scheme A
+  (Right Aim Stick that retains its angle on release + dedicated Fire and ADS buttons, with
+  optional outer-ring auto-fire) and Scheme B (Twin-stick Aim-and-Fire with release-to-throw and an
+  inner cancel zone) as a user setting in `Settings`, defaulting to Scheme A.** Options (b) Scheme
+  A only, (c) Scheme B only, and (d) Scheme C (relative touchpad / virtual cursor) were the
+  alternatives.
+- **AN3 — ADS (Aim Down Sights) behaviour on touch. Decided (2026-10-13): option (a), Toggle by
+  default on touch, switchable to Hold in `Settings`.** Tapping `ADS` scopes in (`adsAlpha → 1`,
+  `VisionConfig.REACH_ADS = 1024`, `150 u` camera pan) and tapping again returns to hip-fire, so
+  two-thumb players can stay scoped while aiming and firing without a three-finger claw grip.
+  Option (b), Hold only, was the alternative.
+- **AN4 — HUD layout on phones and tablets. Decided (2026-10-13): option (a), responsive touch
+  layout (`TouchHudLayout`).** On touch devices, `LoadoutBar` (Slots 1–5 + Q/E) moves to
+  **bottom-center** as direct `>= 48 dp` touch buttons, `HealthFuelBars` moves out from under the
+  left thumb (**top-center** on phones, above the left stick on tablets), a top utility bar (`Chat`,
+  `Quick Chat`, `Loadout`, `Pause`) is added, and the desktop HUD layout stays unchanged on
+  desktop. Option (b), keeping the desktop corner layout underneath the translucent touch sticks,
+  was the alternative.
+
+**Still open:** AN5, AN6, AN7 and AN8. Each has a recommendation below, and none is assumed
+silently.
+
 - **AN5 — Screen orientation and display cutouts (`AndroidManifest.xml`).**
   - *(a) Recommended:* `android:screenOrientation="sensorLandscape"` with `shortEdges` display-cutout
     mode and `SafeAreaInsets` applied to all HUD/menu margins.
@@ -564,7 +564,7 @@ AN-7 Shaders, Tiers & Lifecycle ◄── AN-6 Mobile Chat & QuickChat ◄──
     scheme, ADS toggle/hold, floating stick, button scale/opacity, left-handed flip)
   - Tests in `shared/src/test/java/io/github/skystrike/shared/`: `input/TouchControlModelTest.java`,
     `hud/TouchHudLayoutTest.java`, `hud/CrosshairMathTest.java`, `settings/SettingsTest.java`.
-- **Dependencies:** AN-1; decisions AN1, AN2, AN3, AN4.
+- **Dependencies:** AN-1; decisions AN1–AN4 (decided 2026-10-13).
 - **Gate:** Unit tests pin multi-pointer isolation (left thumb never alters `aimAngle`, button tap
   never alters either stick, releasing right stick retains `aimAngle`, modal focus resets all
   pointers, `SurveillanceView.DRONE` maps left stick Y to `jump`/`crouch`, phone vs tablet layout
