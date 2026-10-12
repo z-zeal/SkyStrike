@@ -293,9 +293,9 @@ class NetworkRegistrationTest {
     @DisplayName("a join request states the map it parsed, and a map refusal states the server's")
     void theJoinHandshakeCarriesBothSidesOfTheMapIdentity() {
         PacketJoinRequest stated = roundTrip(new PacketJoinRequest(
-            7, "Nova", "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693"));
+            7, "Nova", "686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597"));
         assertEquals(
-            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693",
+            "686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597",
             stated.mapHashHex);
 
         PacketJoinRequest silent = roundTrip(new PacketJoinRequest(7, "Nova"));
@@ -383,7 +383,7 @@ class NetworkRegistrationTest {
     @DisplayName("the join accept carries the map hash, the revision and the break history")
     void joinAcceptCarriesTheDestructionBaseline() {
         PacketJoinAccept outbound = new PacketJoinAccept(3, "Nova", 60, 900L);
-        outbound.mapHashHex = "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693";
+        outbound.mapHashHex = "686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597";
         outbound.mapRevision = 2;
         outbound.destroyedBlocks.add(
             new PacketBlockBreak(800L, 57, DamageSource.BLAST, 1770f, 1348f, false, 1));
@@ -394,7 +394,7 @@ class NetworkRegistrationTest {
         assertEquals(3, accept.playerId);
         assertEquals("Nova", accept.playerName);
         assertEquals(
-            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693", accept.mapHashHex);
+            "686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597", accept.mapHashHex);
         assertEquals(2, accept.mapRevision);
         assertEquals(2, accept.destroyedBlocks.size());
         assertEquals(57, accept.destroyedBlocks.get(0).blockIndex);

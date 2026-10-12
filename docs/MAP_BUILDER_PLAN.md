@@ -1,7 +1,7 @@
 # Map building system — plan
 
-**Status: milestone 3's source has landed, its first live run has happened, and the destruction
-half of milestone 4 has landed in source.** The shared
+**Status: milestone 3's source has landed, its first live run has happened, and milestone 4 has
+landed in source — the close-out's last slice, the fixture door, closed it.** The shared
 `BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text
 parser/writer, standard-arena migration and SDF map-hash guard landed in PR #47.
 `ArenaMap.standard()` loads the embedded canonical text through that parser; every version-2 SDF
@@ -67,12 +67,12 @@ utilities, warnings through the console-response channel and a corrective record
 blocked swing, `advance` re-armed by the tick), the protocol-15 door packet and join baseline,
 the `DoorOccluders` uniform array in both the visibility and light shaders, and
 `TerrainRenderer` drawing every door from the static map posed by the machine's swing fraction
-while the SDF keeps naming the destruction-only static map. Still milestone-4 remainder by
-choice: per-hit crack sync, the round-reset wire event and the server-side map-hash join
-rejection. The desktop re-run is pending a human — and because the shipped arena authors no
-door yet (the fixture range stays untouched by decision, so the door boxes in the acceptance
-checklist remain unreachable in a running build until one is authored), no acceptance box has
-been executed here either.
+while the SDF keeps naming the destruction-only static map. Still milestone-4 remainder at that
+point: per-hit crack sync, the round-reset wire event and the server-side map-hash join rejection
+— all three have since landed (the close-out ¶s below). The desktop re-run is pending a human, and
+at that slice's landing the shipped arena authored no door yet, so the door boxes in the
+acceptance checklist had nothing in a running build to open; the fixture door that fixes that
+came with the close-out's last slice.
 
 **The milestone-4 close-out has opened with the handshake's map guard fully enforced.** Slice A
 lands the server half of §8's half-landed guard: `PacketJoinRequest` states the map the client
@@ -96,8 +96,21 @@ baseline and tells every client before the next tick can reference the restored 
 "reset" rather than replaying the restored set, because both sides derive that set from the authored
 map with the same call. The match layer that decides a round has ended is still later work, so the
 operator's `/mapreset` (ADMIN) is the hand that runs it today — which is also what makes the reset
-box in the acceptance checklist attemptable in a two-client run. Only the close-out's last piece
-remains: the fixture door that makes the door boxes reachable (slice D).
+box in the acceptance checklist attemptable in a two-client run.
+
+**The close-out's last slice has landed: the fixture door.** The shipped arena authors one mirrored
+metal door — ids 1 and 2, both `ALL` — sealing the ground lane between the tall wall at
+`x` 1010..1034 and the shorter one at 1070..1092 (the pair stands at 1034..1070 and 1930..1966,
+`y` 100..270, and a shut panel is 170 tall against a jump rise of about 110, so it seals the gap to
+movement and not only to sight). The whole Doors section of the acceptance checklist now has a
+doorway a running build can walk up to and press `F` at; the one box it still cannot reach is team
+refusal, because no `TEAM` door is authored — a mirrored pair shares one access by construction, and
+per-side ownership would mean authoring two separate lines with their own ids. No protocol change
+came with it: doors have been stateful and broadcast since protocol 15. The map's identity did
+move, so `assets/data/arena.sdf` was re-baked in the same commit, the identity pins followed, and
+`tools/scratch/arena_sdf_check.py` learned the door half of the format grammar so it can still
+prove the committed bytes are the bake of the committed map. Milestone 4 is complete in source; the
+desktop re-run is pending a human, and no acceptance box has been executed.
 
 ## 1. What exists today
 
@@ -141,7 +154,12 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   baked into the SDF (the crate; the pane and the platform are not, exactly as the table says). The
   height is deliberate: `y ≈ 1300` is above every lane the existing tests use, so nothing that was
   pinned before this range existed moved, and `ArenaMapFormatTest` now pins the fixture census
-  instead of the wall-only one.
+  instead of the wall-only one. The close-out then authored a second fixture — the door pair the
+  status ¶s above describe — one mirrored metal door with ids 1 and 2, both `ALL`, in the ground
+  lane between the tall wall at `x` 1010..1034 and the shorter one at 1070..1092. It is authored data
+  under the same contract (mirrored by the builder, moved through, blocked and shot at through the
+  shared columns) and it is *not* baked: a door is a dynamic occluder, so that re-bake left every
+  texel of `assets/data/arena.sdf` unchanged and moved only the header's map hash.
 - **`shared/map/ArenaMapFormat`** — a dependency-free, strict line parser/writer. It rejects a
   malformed header, unknown verbs/kinds/materials, non-positive or out-of-bounds blocks,
   duplicate blocks and wrong symmetry verbs rather than exposing a partial map.
@@ -200,8 +218,9 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   runtime **re-bake path** (D4) now exists: a change asks `FxPipeline.rebakeSdf(liveMap)`, an
   `SdfRebakeWorker` bakes off the frame (one bake at a time, newest map wins), and the next frame
   patches only the texels `SdfField.diff` reports and re-supplies the new field to the particle
-  systems that hold it. Nothing calls it yet — the client learns of a destroyed block in milestone
-  4. The shipped `assets/data/arena.sdf` was re-baked by this milestone, for the one reason that the
+  systems that hold it. The client asks for it when the destruction mirror changes (milestone 4's
+  block event) and again when the protocol-18 round reset puts the authored map back. The shipped
+  `assets/data/arena.sdf` was re-baked by this milestone, for the one reason that the
   map itself changed: the fixture range below. The per-block durability multiplier did *not* move
   the hash — it is hashed only when the map authors one — so the re-bake is entirely the new
   geometry, and `tools/scratch/arena_sdf_check.py` proves the committed bytes are the bake of the
@@ -526,18 +545,23 @@ in-game the bake happens on a worker at the change and patches the texture. The 
 re-bakes and logs, and a shipping build refuses. The server never bakes — it does not draw — but it
 holds the authoritative block set, which is what the hash describes.
 
-**Implemented as far as milestone 3 can go.** The in-game half exists as
+**Implemented, and the trigger has landed too.** The in-game half exists as
 `FxPipeline.rebakeSdf(ArenaMap)` → `SdfRebakeWorker` → `SdfTexture.patch` +
 `GpuParticleSystem.setSdfField`, with `SdfField.diff` naming the changed texel region and
 `SdfField.matchesMap` still the only staleness guard: every bake names the map it was made from, and
 the worker's request carries the live map, so a stale field can only come from a caller that passes
-the wrong map. What is missing is the *trigger*: the client's authoritative removed set rides the
-protocol-14 block event, so no live client asks for a bake yet. `MapTool bake` is milestone 5's CLI.
+the wrong map. Milestone 4's destruction half supplied the *trigger* it was waiting for — the
+client's authoritative removed set rides the protocol-14 block event and `GameScreen` asks
+`rebakeSdf(damageState.staticMap())` when that set changes — and the protocol-18 round reset asks
+for the same refresh when the authored map comes back. `MapTool bake` is milestone 5's CLI.
 The shipped `assets/data/arena.sdf` was re-baked in the same commit as the map text it names: the
 fixture range below is authored geometry, the crate is baked into the field while the pane and the
 platform are not, and `tools/scratch/arena_sdf_check.py` re-implements `MapHash`/`SdfBaker` to
 prove the committed bytes are that bake — the only way this sandbox can verify a binary the client
-loads by hash.
+loads by hash. The close-out re-baked it once more, in the commit that authored the fixture door: a
+door is not baked geometry, so the field is unchanged texel for texel and only the header's hash
+moved, and the checker learned the door half of the grammar (`id=`, `access=`, duplicate ids,
+`DoorSpec.reflection()`'s next-id rule) so it can still prove that.
 
 ## 6. The editor
 
@@ -670,7 +694,8 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   machine, the re-seeded diff baseline and the broadcast) is source-read: no test here boots a
   server.
 
-## 8. Wire contract (protocol 13 → 14; the destruction half has landed)
+## 8. Wire contract (protocol 13 → 18; destruction, doors, cracks and the round reset have
+landed, and the close-out's last slice needed no wire change)
 
 - **Block identity — decided: the authored index.** `MapBlock` carries no numeric id, and both
   sides build the identical authored list from the same canonical text, so a block's position in
@@ -742,8 +767,10 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   in the same commit as the first packet — as with protocols 12 and 13. Protocol 14 appends
   `DamageSource` and `PacketBlockBreak` at indices 35–36 (37 types); protocol 15 appends
   `PacketDoorState` at 37 (38 types); protocol 16 appends nothing — it changes the shape of
-  `PacketJoinRequest` and `PacketJoinReject` — so the list stays at 38, and the newest protocol
-  test still owns the exact size pin and the version pin.
+  `PacketJoinRequest` and `PacketJoinReject` — so the list stays at 38; protocol 17 appends
+  `PacketBlockDamage` at 38 (39 types); protocol 18 appends `PacketRoundReset` at 39 (40 types);
+  the close-out's last slice, the fixture door, added no packet, so the list stays at 40 and the
+  newest protocol test still owns the exact size pin and the version pin.
 
 ## 9. Milestones
 
@@ -799,10 +826,11 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    map in the join request and the server refuses a mismatch (protocol 16, §8) — and then the crack
    half: a chip carries the authority's running total, live and on the join baseline (protocol 17),
    and the round's reset now travels as its own event with `/mapreset` as the hand that runs it
-   (protocol 18). Still open in this milestone: the close-out's last piece, a door authored into the
-   shipped arena so the door boxes stop being unreachable (slice D). Gate: the destruction tests
-   below plus the door tests, the join-gate, chip and reset cases, and a manual two-client pass (the
-   acceptance document).
+   (protocol 18). The close-out's last piece has since landed too: the shipped arena authors the
+   fixture door pair, so the acceptance document's door boxes have a doorway to be walked through
+   (no protocol change — doors were already on the wire). Gate: the destruction tests below plus the
+   door tests, the join-gate, chip and reset cases, and a manual two-client pass (the acceptance
+   document).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
    in a fresh session.

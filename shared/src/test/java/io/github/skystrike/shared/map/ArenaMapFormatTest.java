@@ -31,9 +31,9 @@ class ArenaMapFormatTest {
             new SpawnPoint(1, 2760f, 180f)), map.spawns());
 
         // The pre-migration arena was wall and stone throughout. Milestone 3 then authored the sky
-        // range — a one-way platform, a pane and a crate per side — so this census is the shipped
-        // map's published shape: the wall count is the pre-migration one, and every other block is
-        // named here rather than appearing quietly.
+        // range — a one-way platform, a pane and a crate per side — and the close-out authored the
+        // fixture door pair, so this census is the shipped map's published shape: the wall count is
+        // the pre-migration one, and every other block is named here rather than appearing quietly.
         Map<BlockKind, Integer> kinds = new EnumMap<>(BlockKind.class);
         Map<Material, Integer> materials = new EnumMap<>(Material.class);
         for (MapBlock block : map.blocks()) {
@@ -42,9 +42,11 @@ class ArenaMapFormatTest {
         }
         assertEquals(
             Map.of(BlockKind.WALL, 56, BlockKind.GLASS, 2, BlockKind.BREAKABLE, 2,
-                BlockKind.PLATFORM, 2),
+                BlockKind.PLATFORM, 2, BlockKind.DOOR, 2),
             kinds);
-        assertEquals(Map.of(Material.STONE, 56, Material.WOOD, 4, Material.GLASS, 2), materials);
+        assertEquals(
+            Map.of(Material.STONE, 56, Material.WOOD, 4, Material.GLASS, 2, Material.METAL, 2),
+            materials);
     }
 
     @Test
@@ -205,12 +207,15 @@ class ArenaMapFormatTest {
      * <p>{@code assets/data/arena.sdf} names exactly this hash in its header, so if this assertion
      * ever fails the asset has to be re-baked with {@code SdfBakeTool} in the same change — a stale
      * field is refused by the client rather than drawn. It is also the guard that the per-block
-     * durability multiplier stayed out of the encoding for maps that never authored one.
+     * durability multiplier stayed out of the encoding for maps that never authored one, and that
+     * a door's id and access are encoded only for a door block: the close-out's fixture door pair
+     * is the first door content the shipped arena authors, and it moved this literal and the
+     * asset's header together.
      */
     @Test
     void standardArenaHashPinsTheBakedSdfIdentity() {
         assertEquals(
-            "bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693",
+            "686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597",
             MapHash.hex(ArenaMap.standard().mapHash()));
     }
 
@@ -226,14 +231,15 @@ class ArenaMapFormatTest {
         ArenaMap map = ArenaMap.standard();
         String describe = map.describe();
 
-        assertTrue(describe.contains("62 blocks"), describe);
+        assertTrue(describe.contains("64 blocks"), describe);
         assertTrue(describe.contains("WALL 56"), describe);
         assertTrue(describe.contains("GLASS 2"), describe);
         assertTrue(describe.contains("BREAKABLE 2"), describe);
         assertTrue(describe.contains("PLATFORM 2"), describe);
+        assertTrue(describe.contains("DOOR 2"), describe);
         assertTrue(describe.contains("mirror x=1500.0"), describe);
         assertTrue(
-            describe.contains("bef76535455be93d0fd3f845a92dee9a6c68053c4e2dc8159c7210a9cca26693"),
+            describe.contains("686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597"),
             describe);
         assertEquals(MapHash.hex(map.mapHash()), map.mapHashHex());
     }
@@ -426,9 +432,10 @@ class ArenaMapFormatTest {
      *
      * <p>This list began as the old Java builder's exact rectangles — the pre-migration arena,
      * which the text conversion had to reproduce to the unit. Milestone 3 then added the sky range
-     * to the shipped map on purpose, and the crate is the only fixture of it that appears here:
-     * glass passes bullets and a one-way platform never blocks them, so neither changes the bullet
-     * view this set describes.
+     * to the shipped map on purpose, and two fixtures of it appear here: the crate, because a
+     * breakable block blocks bullets while the pane beside it passes them and the platform under it
+     * never blocks them, and the close-out's door pair, because a shut door panel is in the way of
+     * a bullet exactly as a wall is.
      */
     private static Set<Rect> expectedStandardSolids() {
         Set<Rect> solids = new HashSet<>();
@@ -470,6 +477,10 @@ class ArenaMapFormatTest {
 
         // Milestone 3's fixture range: the crate on the sky platform, which does block bullets.
         addMirrored(solids, new Rect(1740f, 1318f, 60f, 60f));
+
+        // The close-out's fixture door: a mirrored metal pair in the lane, closed at the start of a
+        // round and therefore in the bullet view this set describes.
+        addMirrored(solids, new Rect(1034f, 100f, 36f, 170f));
 
         return solids;
     }

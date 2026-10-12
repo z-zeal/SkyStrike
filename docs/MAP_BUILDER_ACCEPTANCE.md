@@ -80,6 +80,17 @@ match layer that decides a round has ended is still later work — the operator 
 that runs it today — and the door boxes below stay unreachable until the close-out's last slice
 authors a door into the shipped arena. Every box above remains unchecked.
 
+**Update — the close-out's last slice has landed: the fixture door.** The shipped arena authors one
+mirrored metal door — ids 1 and 2, both `ALL` — sealing the ground lane between the tall wall at
+`x` 1010..1034 and the shorter one at 1070..1092, so the whole "Doors" section is attemptable in a
+running build, with one exception: no `TEAM` door is authored, so the team-refusal box (a team door
+opens for its own team and refuses the other) stays unreachable — a mirrored pair shares one access
+by construction, and per-side ownership would mean authoring two separate lines with their own ids.
+No protocol change came with it — doors have been stateful and broadcast since protocol 15 — but the
+map's identity moved and `assets/data/arena.sdf` was re-baked in the same change: a door is not
+baked geometry, so every texel stayed and only the header's hash moved. Every box above remains
+unchecked.
+
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
 `docs/MAP_BUILDER_PLAN.md` §7 and are the first gate; this document is the second.
@@ -306,8 +317,8 @@ the body in that same run. The leading remaining explanation is two processes on
 which the local-test path can produce silently (`Main.startLocalTest` joins whatever already
 owns the default ports when the embedded host fails to bind); both sides now print
 `ArenaMap.describe()` — census, mirror axis, hash — at startup so the next run settles it in one
-glance against the pinned hash `bef76535…6693` and the census `62 blocks [WALL 56, GLASS 2,
-BREAKABLE 2, PLATFORM 2]`. The exact checks run after these changes were:
+glance against the pinned hash `686c9165…a597` and the census `64 blocks [WALL 56, GLASS 2,
+BREAKABLE 2, PLATFORM 2, DOOR 2]`. The exact checks run after these changes were:
 
 - `python3 tools/scratch/static_check.py` — clean (419 Java files scanned, 419 declared types; no
   findings, including the module boundaries and the two consumer gates).
@@ -488,3 +499,41 @@ mistake it can see), so the slice's cross-module calls (`GameServer.resetMap`'s 
 executed, nothing was observed: the new round-trip and pin, the command-layer cases and every
 earlier suite remain unexecuted, and the two-client reset pass through `/mapreset` is outstanding
 human work.
+
+The close-out's last slice (the fixture door pair authored into `StandardArenaMap.TEXT`, the asset
+re-baked in the same change, the moved map-identity pins and the checker's door grammar) was then
+source-checked only; it is not map validation, and every box above remains unchecked. The exact
+checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (435 Java files scanned, 435 declared types; no
+  findings, including the module boundaries and both consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (539 project types indexed from 431 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1 loop,
+  14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated 89 gun rows and 21 melee rows with
+  no tracked diff.
+- `python3 tools/scratch/arena_sdf_check.py` — clean: the checker learned the door grammar the Java
+  format already enforces (`id=` required on a door and refused elsewhere, `access=ALL|TEAM<n>`
+  case-insensitively, duplicate ids refused, `durability=` only on a kind that pools it and positive,
+  `DoorSpec.reflection()`'s next-id rule) and the door triple in the hash's sort key and canonical
+  row; it re-baked `assets/data/arena.sdf` for the new map text here and then reported the committed
+  asset as the bake of the committed map — header hash
+  `686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597`, 1500 × 1000 texels at 2.0
+  units/texel, 1,500,060 bytes, every texel equal, with only the header's hash differing from the
+  previous bake.
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the slice's edits, and the SDF check is the one that carries the most weight here:
+the map text and the asset moved together in one commit, and the Python bake is an independent
+second implementation of `MapHash`/`SdfBaker`, so the header agreement plus texel-level equality is
+real evidence for the parts both implementations share — but it is not the client: it cannot prove
+that `SdfTexture` uploads the field the shipping-default guard accepts. This slice adds no
+main-source call site (authored text, test pins and the checker), so `static_api_check.py`'s usual
+blind spot — an instance call made through a field or a variable — does not arise, and the strings
+the map's identity is pinned by were compared against the checker's own digest by hand. Nothing was
+compiled, nothing was executed, nothing was observed: the new fixture-door pin, the doorless-map
+case, the moved pins and every earlier suite remain unexecuted, and the desktop passes the door
+unlocks — the whole "Doors" section except the team-refusal box, the crack pass, and the reset pass
+through `/mapreset` — are outstanding human work.

@@ -711,6 +711,31 @@ run here either; each change carries its own unexecuted acceptance note.
   round trip and pin, and the command-layer cases (transaction handed over once, the answer's count,
   and the ADMIN gate keeping a refused command away from the simulation). No Java was compiled,
   executed or observed here.
+- **Map building system, milestone 4's close-out, slice D — the fixture door, and the arena re-baked
+  under it.** Implemented on `arena/b24b8b2c-skystrike`, on top of slice C. The door half landed at
+  protocol 15, but the shipped arena authored no door, so the acceptance checklist's door boxes had
+  nothing in a running build to open — with the editor still milestone 5, the shipped arena is the
+  only map there is. It now authors one mirrored metal door — ids 1 and 2, both `ALL`, sealing the
+  ground lane between the tall wall at `x` 1010..1034 and the shorter one at 1070..1092 (the pair
+  stands at 1034..1070 and 1930..1966, `y` 100..270, and a shut panel is 170 tall against a jump
+  rise of about 110, so it seals the gap to movement and not only to sight). No protocol change came
+  with it: doors have been stateful and broadcast since protocol 15, so the pair simply arrives as
+  two more entries in the join's door baseline. The map's identity moved, so `assets/data/arena.sdf`
+  was re-baked in the same commit — a door is a dynamic occluder, not baked geometry, so every texel
+  stayed and only the header's hash moved (`bef76535…6693` → `686c9165…a597`, still 1500 × 1000
+  texels at 2.0 units/texel and 1,500,060 bytes) — and the identity pins followed: the hash literal
+  and the describe line in `ArenaMapFormatTest` (62 → 64 blocks, `DOOR 2`), its hand-written bullet
+  view (a shut panel stops a bullet where the pane beside the crate does not), `ArenaMapTest`'s new
+  pin of the pair, and the wire tests' sample hash. Since the shipped arena is no longer doorless,
+  `MapDoorStateTest`'s empty case authors its own doorless map instead of borrowing `standard()`.
+  `tools/scratch/arena_sdf_check.py` learned the door grammar the Java format enforces (`id=`
+  required on a door and refused elsewhere, `access=ALL|TEAM<n>` case-insensitively, duplicate ids
+  refused, `durability=` only on a kind that pools it and positive), `DoorSpec.reflection()`'s
+  next-id rule and the door triple in the hash's sort key and canonical row, and re-baked the asset
+  here, where no JDK can run `SdfBakeTool`. Tests were written and not executed: the census,
+  describe, hash and solids pins, the fixture-door pin, and the doorless-map case. No Java was
+  compiled, executed or observed here; the close-out's four slices have all landed, and every
+  acceptance box remains unchecked.
 
 ---
 
@@ -921,3 +946,29 @@ reset and revision bump, the re-seeded door baseline, the clock read for the eve
 server, client, game or desktop build was run or observed, and no `MAP_BUILDER_ACCEPTANCE.md` box
 was ticked: the reset box is now attemptable through `/mapreset`, but only a human with a desktop
 and two clients can tick it.
+
+The close-out's last slice (protocol-free: the fixture door pair authored into
+`StandardArenaMap.TEXT`, `assets/data/arena.sdf` re-baked in the same commit with the field unchanged
+texel for texel and only the header's hash moving, the moved identity pins in `ArenaMapFormatTest`,
+`ArenaMapTest` and `NetworkRegistrationTest`, the doorless-map case in `MapDoorStateTest`, and the
+`arena_sdf_check.py` door grammar) was source-checked with exactly the permitted Python checks:
+`python3 tools/scratch/static_check.py` (clean: 435 Java files scanned, 435 declared types, no
+findings — including both consumer gates), `python3 tools/scratch/static_api_check.py` (clean: 539
+project types indexed from 431 files), `python3 tools/scratch/static_audio_check.py` (clean: 13
+world entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries), `python3
+tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree), `python3
+tools/scratch/phase3_ballistics.py` (analytical report completed without findings), `python3
+tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee rows regenerated with no tracked
+diff) and `python3 tools/scratch/arena_sdf_check.py` (clean, and this is the slice where it matters:
+it now parses the same door grammar the Java format enforces, re-baked the asset from the new map
+text here, and then reported the committed asset as the bake of the committed map — header hash
+`686c9165…a597`, 1500 × 1000 texels at 2.0 units/texel, 1,500,060 bytes, every texel equal, with
+only the header's hash differing from the previous bake). `static_api_check.py` cannot see an
+instance call made through a field or a variable, but this slice adds none — it is authored map text,
+test pins, a tool and a binary — so the identity strings the pins hold
+(`ArenaMapFormatTest`'s literal and describe assertions, `ArenaMapTest`'s door pair and
+`NetworkRegistrationTest`'s sample hash) were additionally compared, by hand, against the checker's
+own digest. No Java was compiled, no test, server, client, game or desktop build was run or observed,
+and no `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the fixture door makes the whole Doors section —
+except the team-refusal box, which no authored door can reach — attemptable in a build, but only a
+human with a desktop and two clients can tick it.
