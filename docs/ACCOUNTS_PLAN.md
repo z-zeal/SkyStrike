@@ -15,6 +15,8 @@ M2, says **P5 (joining rooms and passwords) cannot start until this plan's first
   only at login, over an encrypted connection.
 - **Hosting: self-hosted by the user.** The login service runs on a machine the user controls,
   alongside the game server. The user owns uptime, backups and the stored data.
+- **Code location (A3): a separate project inside this repo**, outside the Gradle build.
+- **Recovery (A1): operator reset only**, with no email collected in v1.
 - **Accounts are per player, not per device.** A player logs in from any client.
 - **Per-server room lists** (multiplayer plan M1) and **one game server process running many rooms**
   (server plan L1) are unchanged by accounts.
@@ -116,9 +118,14 @@ and any gameplay history. A decision on IP logging for abuse review is A7.
 
 ## 8. Decisions
 
-- **A1 — Email and recovery.** No email is collected in v1, so a forgotten password is recovered by
-  the operator (a command that sets a new password and revokes the account's sessions). *Recommended:*
-  this, for v1. An email address adds a mail provider and a recovery flow; that is a later decision.
+- **A1 — Email and recovery. Decided (2026-10-12): operator reset.** No email is collected in v1,
+  so a forgotten password is recovered by the operator (a command that sets a new password and
+  revokes the account's sessions). Email-based recovery is a later decision that would add a mail
+  provider and a recovery flow.
+- **A3 — Where the login service code lives. Decided (2026-10-12): (b), a separate project inside
+  this repo**, with its own build outside the Gradle modules, so it stays out of the game's checks
+  and module graph. Option (a), a Gradle module, and option (c), a separate repository, were the
+  alternatives.
 - **A2 — Token algorithm.** *Recommended:* Ed25519 signatures, with access tokens of 15 minutes and
   refresh tokens of 30 days, rotated on each use.
 - **A3 — Where the login service code lives.** Three options:
