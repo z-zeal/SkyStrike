@@ -668,6 +668,26 @@ run here either; each change carries its own unexecuted acceptance note.
   with the server's map named, unstated refused, and a line-shuffled copy admitted as the same
   map). No Java was compiled, executed or observed here; the close-out's remaining slices —
   per-hit crack sync and the round-reset event — are still open.
+- **Map building system, milestone 4's close-out, slice B — per-hit crack sync (protocol 17).**
+  Implemented on `arena/b24b8b2c-skystrike`, on top of slice A. Breaks already travelled; chips did
+  not, so a breakable a client had been shooting still read pristine until the hit that opened it.
+  `MapDamageState` now records every non-lethal hit as a `BlockChip` — the block and the damage it
+  has accumulated once that hit landed — beside the break history and disjoint from it (a hit that
+  takes the block out is a break, and the two records never both exist for one hit). The record
+  carries the authority's running total rather than the hit's size, so it is idempotent and
+  order-tolerant and no fraction has to travel: the overlay's fraction follows from the total
+  through the material row both sides read. `PacketBlockDamage` (tick, authored index, damage) is
+  appended after `PacketDoorState` and broadcast reliably per chip from the same tail-diff pattern
+  the breaks use, and the join accept carries the crack baseline — one record per standing damaged
+  block, its current total, not the hits, so a joiner's picture lands cracked without a re-bake.
+  The mirror applies totals (max-wins; out-of-range, destroyed, NaN and non-positive records are
+  ignored) and clears them with `reset()`, buffered across the join window like the breaks; a chip
+  changes no rule view, no live map and no SDF, so nothing downstream of the destruction set is
+  refreshed. `PROTOCOL_VERSION` 16 → 17 in the same commit: `PacketBlockDamage` at index 38 (39
+  types), pinned by the newest protocol test. Tests were written and not executed: the
+  chip/total/baseline cases in `MapDamageStateTest`, the bullet-path chip case in
+  `BlockDestructionTest`, and the registration round trips. No Java was compiled, executed or
+  observed here; the close-out's remaining slice — the round-reset event — is still open.
 
 ---
 
@@ -834,3 +854,24 @@ cross-module calls (`ArenaMap.standard().mapHashHex` on the client's join path,
 test, server, client, game or desktop build was run or observed, and no
 `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the checklist has no box for the handshake, so the
 guard's only pending human work is the staged-client check that watches the refusal fire.
+
+The close-out's second slice (protocol 17: per-hit crack sync — `BlockChip` as the running-total
+record, `PacketBlockDamage` appended at index 38 with 39 types, the reliable tail broadcast beside
+the breaks, the per-block crack baseline on the join accept, and the max-wins mirror that clears
+with the round) was source-checked with exactly the permitted Python checks: `python3
+tools/scratch/static_check.py` (clean: 434 Java files scanned, 434 declared types, no findings —
+including both consumer gates), `python3 tools/scratch/static_api_check.py` (clean: 537 project
+types indexed from 430 files), `python3 tools/scratch/static_audio_check.py` (clean: 13 world
+entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries), `python3
+tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree), `python3
+tools/scratch/phase3_ballistics.py` (analytical report completed without findings), `python3
+tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee rows regenerated with no tracked
+diff) and `python3 tools/scratch/arena_sdf_check.py` (clean: the shipped asset still agrees with the
+committed map on header hash, header shape and every texel; neither changed this slice).
+`static_api_check.py` cannot see an instance call made through a field or a variable, so the slice's
+cross-module calls (`MapDamageState.chips`/`damagedBlocks`/`applyRemoteDamage`, `GameServer`'s
+`dispatchBlockChips`, `JoinRequestHandler`'s baseline assembly, `ClientSession`'s replay buffer and
+`GameScreen`'s `onBlockDamage`) were additionally read by hand. No Java was compiled, no test,
+server, client, game or desktop build was run or observed, and no `MAP_BUILDER_ACCEPTANCE.md` box
+was ticked: the crack-state box is now attemptable in a build, but only a human with a desktop and
+two clients can tick it.

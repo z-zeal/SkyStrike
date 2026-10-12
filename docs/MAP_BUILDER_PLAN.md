@@ -79,9 +79,16 @@ lands the server half of §8's half-landed guard: `PacketJoinRequest` states the
 parsed (protocol 16), the server refuses any join whose stated hash is not the map it is running,
 and the refusal carries the server's own hash so the refusal line has both sides of the comparison.
 Nothing is a wildcard — an empty stated hash is an unstated map and is refused with the rest — and
-the client's check of the accept stays the second line of the same gate. Still open in the
-close-out: per-hit crack sync and the round-reset event. The desktop re-run is pending a human, and
-no acceptance box has been executed.
+the client's check of the accept stays the second line of the same gate. The desktop re-run is
+pending a human, and no acceptance box has been executed.
+
+**Slice B then closed the crack half of the same gap.** Per-hit crack sync is landed: a hit that
+leaves a breakable standing is recorded as a `BlockChip` carrying the authority's running total,
+`PacketBlockDamage` (protocol 17) broadcasts the tail reliably and the join accept carries the
+per-block totals as the crack baseline, and the client's mirror applies totals rather than adding
+them — so a cracked crate now reads cracked on every client that can see it, and a late joiner's
+picture arrives cracked without a re-bake. Still open in the close-out: the round-reset event.
+Every acceptance box remains unexecuted.
 
 ## 1. What exists today
 
@@ -96,14 +103,17 @@ movement, sight, bullets, the bake and the picture, and a strict persistence pat
   versus destructible is the table's `DamageRule` column (`INDESTRUCTIBLE`, `DURABILITY`,
   `SHATTER`), and `MapBlock` carries the optional authored `durability=` multiplier that scales its
   material's pool.
-- **`shared/map/{MaterialTable, BlockBreak, MapDamageState}`** — the destruction layer, all data.
+- **`shared/map/{MaterialTable, BlockBreak, BlockChip, MapDamageState}`** — the destruction layer, all
+  data.
   `MaterialTable` holds one immutable row per material: the durability pool, how much of each damage
   source's damage it accepts (`BULLET`, `BLAST`, `MELEE`), its fill and line colours, and its impact
   effect — so a surface's whole survivability and appearance are one row. `MapDamageState` is the
   per-round authority: it accumulates damage, removes a block from its derived **live map** when the
   pool is spent (or when a `SHATTER` block is hit at all), bumps the revision, and reports a
-  `BlockBreak` for the debris, the sound and the eventual wire event. `reset()` restores the authored
-  map and the revision for the next round.
+  `BlockBreak` for the debris, the sound and the eventual wire event. A hit that leaves the block
+  standing is recorded as a `BlockChip` carrying the running damage total — the picture has to
+  travel even though the map does not. `reset()` restores the authored map, clears the chips and the
+  revision for the next round.
 - **`shared/map/ArenaMap`** — immutable `blocks()`, rule-derived `blockers(Blocking)` (one cached
   rectangle view per query purpose), `movementBlockers(MovementRule)` (the same treatment for the
   movement column, which is not a line-query purpose) and a backwards-compatible `List<Rect>
@@ -633,6 +643,15 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   `JoinRequestHandlerTest` pins the decision itself: the authored map's own hash is admitted, any
   other tuple of hex and an unstated map are refused with the server's hash named, and a map that
   differs only in the order its lines were authored still joins.
+- **Per-hit crack sync (implemented, the close-out's second slice):** `NetworkRegistrationTest`
+  pins the protocol-17 append and round-trips the packet and the join accept's crack baseline;
+  `MapDamageStateTest` proves a chip carries the running total, that a mirror applies totals
+  (idempotent, order-tolerant, refusing out-of-range, destroyed, NaN and non-positive records
+  alike) and that the baseline holds one record per standing damaged block rather than the hits;
+  and, in `server/src/test`, `BlockDestructionTest` pins the same through the real path — one
+  chip per non-lethal carbine hit, the record equal to the authority's accumulated damage and
+  short of the pool, the break that follows superseding it, and a mirror fed both landing on the
+  authority's fraction and revision.
 
 ## 8. Wire contract (protocol 13 → 14; the destruction half has landed)
 
@@ -676,12 +695,22 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
   as a plain int ordinal with a defensive `DoorState.fromOrdinal` decode — the enum itself stays
   off the registered list — because a door answer that cannot decode fails shut instead of
   walking a body through a panel.
-- **Per-hit crack sync (open):** breaks travel; chips do not. A breakable shows its cracks only
-  to the server until the hit that opens it — the client draws it pristine, then gone. Crack
-  fractions need their own unreliable channel and are a later increment, not this one.
+- **Per-hit crack sync (landed, protocol 17):** `PacketBlockDamage` — dispatch tick, authored
+  index, the authority's accumulated damage after the hit — broadcast reliably per chip and replayed
+  as the crack baseline on the join accept. Reliable rather than the unreliable channel the plan
+  originally sketched: the record is tiny, hits are far rarer than snapshots, and a lost chip would
+  leave one client's cracks behind the other's for the rest of the round, which is exactly the
+  visible disagreement the record exists to remove. The number is the running total, not the hit's
+  size: the receiving side applies it (max-wins) instead of adding it, so a duplicate or a late
+  record can never chip a block further than the authority did, and no fraction travels because the
+  fraction follows from the total through the material row both sides read. A hit that takes the
+  block out stays a break — the two records are disjoint per hit — and a chip changes no rule view,
+  no live map and no SDF, so applying one never re-bakes.
 - **Round-reset event (open):** no round layer calls `reset()` yet, so no reset travels. When the
   match layer exists, the reset needs a wire event of its own — a client that is not told the
-  round restarted keeps playing the chewed map.
+  round restarted keeps playing the chewed map. The two counters that diff the break and chip
+  histories already follow a reset down (`breaksBroadcast`, `chipsBroadcast`), so the wire event is
+  the only missing piece.
 - **Anti-cheat stance:** the server decides every door, every break and every shatter; the client
   predicts optimistically with the same shared functions and reconciles. A modified client that
   claims a wall is broken simply walks into a wall: movement, bullets and line of sight are all
@@ -745,9 +774,10 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    (join baseline included), the `DoorOccluders` array in the visibility and light shaders, and
    `TerrainRenderer` posing doors from the static map while the SDF names the destruction-only
    static map. The close-out has since closed the handshake's server half: the client states its
-   map in the join request and the server refuses a mismatch (protocol 16, §8). Still open in this
-   milestone: per-hit crack sync and the round-reset event. Gate: the destruction tests below plus
-   the door tests and the join-gate cases, and a manual two-client pass (the acceptance document —
+   map in the join request and the server refuses a mismatch (protocol 16, §8) — and then the crack
+   half: a chip carries the authority's running total, live and on the join baseline (protocol 17).
+   Still open in this milestone: the round-reset event. Gate: the destruction tests below plus the
+   door tests, the join-gate and chip cases, and a manual two-client pass (the acceptance document —
    whose door boxes also stay unreachable until a door is authored into a playable map).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
