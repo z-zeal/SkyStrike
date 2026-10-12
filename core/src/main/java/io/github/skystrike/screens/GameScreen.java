@@ -599,7 +599,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private void onDestructionChanged() {
         minimapModel.setArena(damageState.liveMap());
         if (pipeline != null) {
-            pipeline.rebakeSdf(damageState.liveMap());
+            // The field is destruction-only (map plan D3/D9): doors never enter it — the kind
+            // rule refuses them in the baker anyway — so a door swinging is a door machine
+            // concern (state, wire, occluder array), never a re-bake.
+            pipeline.rebakeSdf(damageState.staticMap());
         }
     }
 
@@ -653,8 +656,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             if (damageState.revision() > 0) {
                 // The join baseline landed before the pipeline existed — the connecting screen
                 // joins before this screen is built — so the live field starts re-baked rather
-                // than waiting for the next break.
-                pipeline.rebakeSdf(damageState.liveMap());
+                // than waiting for the next break. Destruction-only, like every later re-bake.
+                pipeline.rebakeSdf(damageState.staticMap());
             }
         }
         // Phase 9: audio consumes the very same effect-event queue as the particles.

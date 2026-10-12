@@ -315,14 +315,15 @@ public final class FxPipeline implements Disposable {
      * the new field.
      *
      * <p>The caller is the play screen's destruction sync: every applied block event and every
-     * non-empty join baseline re-bakes for the client's live map. The re-baked field names that
-     * live map — its hash stops matching the authored one with the first break — while the
-     * load-time {@code SdfCache} guard still verifies the shipped asset against the authored
-     * hash, exactly as D9 asks: the asset must describe the map both sides agreed to, and only
-     * the runtime field follows the damage.
+     * non-empty join baseline re-bakes for the client's live map. The re-baked field names the
+     * destruction-only static map — its hash moves with each break, never with a door swing
+     * (map plan D3: doors are absent from the field by kind rule, and the live map that would
+     * swing it is never handed here) — while the load-time {@code SdfCache} guard still verifies
+     * the shipped asset against the authored hash, exactly as D9 asks: the asset must describe
+     * the map both sides agreed to, and only the runtime field follows the damage.
      */
-    public void rebakeSdf(ArenaMap liveMap) {
-        sdfRebakes.request(liveMap, sdfTexture.texelScale());
+    public void rebakeSdf(ArenaMap staticMap) {
+        sdfRebakes.request(staticMap, sdfTexture.texelScale());
     }
 
     /** Applies the newest finished re-bake, if one is waiting. Render thread, once per frame. */
