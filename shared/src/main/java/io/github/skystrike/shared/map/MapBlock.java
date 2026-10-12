@@ -56,10 +56,13 @@ public record MapBlock(
     }
 
     /**
-     * Returns this same block reflected about the given vertical axis.
+     * Returns this block's reflection — its <i>twin</i> on the other side of the axis.
      *
      * <p>A reflected door is a second door (see {@link DoorSpec#reflection()}), so the reflection
-     * carries the next id rather than the same one.
+     * carries the next id rather than the same one. A block that is its own reflection is therefore
+     * never built this way: a door centred on the axis is one door with one id, authored once, and
+     * the self-reflection checks (the builder's {@code centred}, the canonical writer) compare
+     * rectangles rather than calling this.
      */
     public MapBlock mirror(float axis) {
         return new MapBlock(kind, material, rect.mirror(axis), durabilityMultiplier, door.reflection());

@@ -194,10 +194,14 @@ public final class ArenaMapFormat {
             if (!remaining.remove(block)) {
                 continue;
             }
-            MapBlock reflection = block.mirror(map.mirrorAxisX());
-            if (reflection.equals(block)) {
+            if (block.rect().mirror(map.mirrorAxisX()).equals(block.rect())) {
+                // A block that is its own reflection was never mirrored into existence, so it keeps
+                // its own door id: a centred door is one door on the axis, not a pair.
                 appendBlock(output, "centred", block);
-            } else if (remaining.remove(reflection)) {
+                continue;
+            }
+            MapBlock reflection = block.mirror(map.mirrorAxisX());
+            if (remaining.remove(reflection)) {
                 appendBlock(output, "mirrored", block);
             } else {
                 throw new IllegalArgumentException(

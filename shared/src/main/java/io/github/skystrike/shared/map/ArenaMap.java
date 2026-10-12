@@ -281,11 +281,18 @@ public final class ArenaMap {
             return this;
         }
 
-        /** Adds a block that is its own reflection, failing loudly if it is not. */
+        /**
+         * Adds a block that is its own reflection, failing loudly if it is not.
+         *
+         * <p>Symmetry is a question about the rectangle, not about {@link MapBlock#mirror(float)}:
+         * that method produces a block's <i>twin</i>, and a door's twin is a second door with the
+         * next id, so a door centred on the mirror axis — one door, authored once, its own id —
+         * would fail a record comparison here. Which is why the two self-reflection checks in this
+         * class and in the canonical writer compare geometry instead.
+         */
         public Builder centred(MapBlock block) {
             Objects.requireNonNull(block, "block");
-            MapBlock reflection = block.mirror(mirrorAxisX);
-            if (!reflection.equals(block)) {
+            if (!block.rect().mirror(mirrorAxisX).equals(block.rect())) {
                 throw new IllegalArgumentException(
                     "block is not symmetric about x=" + mirrorAxisX + ": " + block.rect());
             }

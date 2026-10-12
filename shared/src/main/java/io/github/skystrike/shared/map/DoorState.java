@@ -6,10 +6,18 @@ package io.github.skystrike.shared.map;
  *
  * <p><b>Collision, sight and bullets read this, never the animation.</b> {@link #blocks()} is the
  * whole contract a consumer needs, and it is a property of the state rather than of the pose: a
- * door nobody can walk through is one whose panel is not out of the way yet. That is why
- * {@code OPENING} still blocks — the panel is mid-swing across the doorway — while {@code OPEN}
- * does not, and why a shutting door is passable until it is actually shut: the swing is drawn from
- * {@link MapDoorState#swingFraction(MapBlock)}, which is presentation only.
+ * door nobody can walk through is one whose panel is not out of the way yet. So {@link #OPEN} does
+ * not block and the other three do — a swinging panel is across the doorway for part of its swing,
+ * which is exactly the part a body or a round would meet it in, and the pose is only ever read by
+ * the renderer, from {@link MapDoorState#swingFraction(MapBlock)}.
+ *
+ * <p><b>Only a fully open door passes.</b> The alternative rule — a door that stops blocking the
+ * moment it starts to shut — reads better for a body that happens to be in the doorway, but it
+ * makes a doorway crossable while a panel is coming down into it, and the door then has to catch
+ * whoever is standing there. This way the collision answer never depends on how far a swing has
+ * got: a door starts blocking again the instant it starts shutting, so nothing can step into the
+ * gap, and {@link MapDoorState#advance} refuses to finish a swing that something occupies anyway —
+ * a door can end up open when it is blocked, never shut around a body.
  *
  * <p>{@link BlockKind#DOOR}'s {@link BlockRules} row keeps saying that a door blocks movement,
  * sight and bullets. This enum says which doors are currently answering that row.
@@ -25,7 +33,7 @@ public enum DoorState {
     /** Fully open and out of the way: no movement, sight or bullet blocking at all. */
     OPEN(false),
 
-    /** Swinging shut: already passable, and it will not finish on top of a body (see below). */
+    /** Swinging shut: blocking again, on its way back to {@link #CLOSED}. */
     SHUTTING(true);
 
     private final boolean blocks;
@@ -37,11 +45,9 @@ public enum DoorState {
     /**
      * True while this door is in the way.
      *
-     * <p>A door is passable only when it is fully {@link #OPEN}: a half-open panel is a panel you
-     * would walk into. A door that is {@link #SHUTTING} is passable, because the alternative — a
-     * closing door that traps a body inside itself — is worse than a doorway that can be crossed
-     * while the panel comes down; the state machine never lets a door finish closing on a body
-     * ({@link MapDoorState#advance}).
+     * <p>True for everything but {@link #OPEN}: a half-open panel is a panel you would walk into,
+     * a closing one is a panel about to be in the way, and the state machine keeps a body out of
+     * the region it is closing through ({@link MapDoorState#advance}).
      */
     public boolean blocks() {
         return blocks;
