@@ -47,7 +47,7 @@ import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
 import io.github.skystrike.shared.map.DoorState;
-
+import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
