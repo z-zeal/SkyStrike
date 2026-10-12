@@ -7,6 +7,7 @@ import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
@@ -84,6 +85,12 @@ public final class ClientSession {
      * in that window desyncs nothing.
      */
     private final List<PacketBlockBreak> pendingBreaks = new ArrayList<>();
+    private Consumer<PacketDoorState> doorStateListener;
+    /**
+     * The same window for door records (protocol 15): a door the server moves between the join
+     * completing and the play screen registering would otherwise be missed until it moved again.
+     */
+    private final List<PacketDoorState> pendingDoorStates = new ArrayList<>();
 
     /**
      * The local player's blindness, decayed locally between snapshots so the whiteout recovers
@@ -199,6 +206,20 @@ public final class ClientSession {
         }
     }
 
+    /**
+     * Called on the render thread for every authoritative door state record (protocol 15), with
+     * the same replay-the-window guarantee as {@link #setBlockBreakListener}.
+     */
+    public void setDoorStateListener(Consumer<PacketDoorState> listener) {
+        this.doorStateListener = listener;
+        if (listener != null && !pendingDoorStates.isEmpty()) {
+            for (PacketDoorState pending : pendingDoorStates) {
+                listener.accept(pending);
+            }
+            pendingDoorStates.clear();
+        }
+    }
+
     /** Called whenever a connection attempt or joined session is torn down. */
     public void setSessionResetListener(Runnable listener) {
         this.sessionResetListener = listener;
@@ -307,6 +328,12 @@ public final class ClientSession {
                 blockBreakListener.accept(broke);
             } else {
                 pendingBreaks.add(broke);
+            }
+        } else if (payload instanceof PacketDoorState door) {
+            if (doorStateListener != null) {
+                doorStateListener.accept(door);
+            } else {
+                pendingDoorStates.add(door);
             }
         } else if (payload instanceof PacketDamageEvent damage) {
             applyDamageEvent(damage);
@@ -419,6 +446,7 @@ public final class ClientSession {
         acceptedName = "";
         joinAccept = null;
         pendingBreaks.clear();
+        pendingDoorStates.clear();
         serverPlayerCount = 0;
         latencyMillis = -1;
         latestSnapshot = null;

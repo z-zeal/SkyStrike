@@ -354,6 +354,46 @@ class MapDamageStateTest {
     }
 
     @Test
+    @DisplayName("a closed door fills every blocking column and an open one leaves them all")
+    void aClosedDoorBlocksEverythingAnOpenDoorNothing() {
+        Rect doorRect = new Rect(1488f, 100f, 24f, 90f);
+        MapBlock door = new MapBlock(
+            BlockKind.DOOR, Material.METAL, doorRect, MapBlock.DEFAULT_DURABILITY_MULTIPLIER,
+            DoorSpec.all(1));
+        MapDamageState state = MapDamageState.intact(ArenaMap.builder(AXIS).centred(door).build());
+        MapBlock applied = state.authoredMap().blocks().get(0);
+
+        ArenaMap live = state.liveMap();
+        // The movement column.
+        assertTrue(live.movementBlockers(MovementRule.SOLID).contains(doorRect));
+        assertTrue(MapQueries.overlapsMovementBlocker(
+            live, new Rect(1500f, 140f, 10f, 10f)), "a body in the doorway meets the panel");
+        // Every line column: the door answers all three rule rows.
+        for (Blocking purpose : Blocking.values()) {
+            assertTrue(live.blockers(purpose).contains(doorRect), purpose.toString());
+            assertTrue(MapQueries.lineBlocked(live, 1300f, 145f, 1700f, 145f, purpose),
+                purpose.toString());
+        }
+
+        state.doors().requestUse(applied, 0, MapDoorState.CLEAR);
+        state.doors().advance(DoorConfig.SWING_TICKS, MapDoorState.CLEAR);
+
+        live = state.liveMap();
+        assertFalse(live.movementBlockers(MovementRule.SOLID).contains(doorRect));
+        assertFalse(MapQueries.overlapsMovementBlocker(
+            live, new Rect(1500f, 140f, 10f, 10f)), "the doorway is walkable end to end");
+        for (Blocking purpose : Blocking.values()) {
+            assertFalse(live.blockers(purpose).contains(doorRect), purpose.toString());
+            assertFalse(MapQueries.lineBlocked(live, 1300f, 145f, 1700f, 145f, purpose),
+                purpose.toString());
+        }
+        // The single-block map held only the door: with the panel swung every column is empty,
+        // and the authored map still carries the door both sides agreed on.
+        assertTrue(live.blocks().isEmpty(), "nothing but the door authored, nothing left but it");
+        assertTrue(state.authoredMap().blocks().contains(applied));
+    }
+
+    @Test
     @DisplayName("a door reopening after a break keeps both in the one live map")
     void doorsAndBreaksShareTheLiveMap() {
         Rect doorRect = new Rect(1488f, 100f, 24f, 90f);

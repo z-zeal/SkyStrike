@@ -52,4 +52,18 @@ public enum DoorState {
     public boolean blocks() {
         return blocks;
     }
+
+    /**
+     * Decodes a wire ordinal defensively (protocol 15): an unknown value — from a mismatched
+     * build that is only possible through the version gate — fails shut to {@link #CLOSED}, the
+     * blocking state, rather than walking a body through a panel or swinging a door it cannot
+     * name.
+     */
+    public static DoorState fromOrdinal(int ordinal) {
+        DoorState[] states = values();
+        if (ordinal < 0 || ordinal >= states.length) {
+            return CLOSED;
+        }
+        return states[ordinal];
+    }
 }

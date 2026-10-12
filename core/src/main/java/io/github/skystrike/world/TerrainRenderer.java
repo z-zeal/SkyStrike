@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.fx.gl.BlendState;
 import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.render.RenderLayers;
+import io.github.skystrike.shared.config.DoorConfig;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockRenderStyle;
 import io.github.skystrike.shared.map.BlockRules;
@@ -30,13 +31,21 @@ import io.github.skystrike.shared.map.SpawnPoint;
  * colours, and only treatment accents — the pane's sheen, the door's seam, the platform's landing
  * edge — live in core. That is what keeps LibGDX out of shared.
  *
- * <p>Every draw pass is one loop over the whole block list, so the geometry cannot drift between
- * the fill and the outline of the same block. Which block list is a constructor argument: with a
- * {@link MapDamageState} the picture follows the map the server is actually playing on — a
- * destroyed block is not drawn and a damaged one shows its cracks — and without one it draws the
- * authored map, which is the only thing a client that has not been told anything can honestly
- * draw.
- */
+     * <p>Every draw pass is one loop over the whole block list, so the geometry cannot drift between
+     * the fill and the outline of the same block. Which block list is a constructor argument: with a
+     * {@link MapDamageState} the picture follows the map's destruction — a destroyed block is not
+     * drawn and a damaged one shows its cracks — and without one it draws the authored map, which
+     * is the only thing a client that has not been told anything can honestly draw.
+     *
+     * <p>Doors are the one deliberate exception to "the picture is the live map": the live map
+     * drops an open door so movement, sight and bullets pass, and a renderer reading it would
+     * make a panel blink out the moment it finishes swinging. So doors are drawn from the
+     * destruction-scarred <i>static</i> map instead — always present — and posed from the shared
+     * state machine's swing fraction. The pose is a drawing and nothing else: collision, sight
+     * and bullets read the state (map plan D3), and the occluder list the shaders test is
+     * derived from that same state, so the pair can never disagree about whether a doorway is
+     * walled, however in-between the drawn panel is.
+     */
 public final class TerrainRenderer implements Disposable {
 
     // Two layers of colour. A surface's fill and outline come from its material row in the shared
@@ -44,8 +53,8 @@ public final class TerrainRenderer implements Disposable {
     // wall — draws exactly the slate it always did. What a treatment adds on top is its accent: a
     // one-way slab is a slab, not a wall, so it keeps its own colour and highlights only its top
     // edge, because that edge is the surface a body lands on; glass keeps its pane sheen; and a
-    // door is drawn as the closed panel with its seam, a treatment accent until the swing angle
-    // arrives with the authoritative door state.
+    // door's panel and seam are the pose of the shared machine's swing fraction (map plan D3:
+    // the machine moves the collision, the pose only moves the picture).
     private static final Color GLASS_SHEEN_COLOR = new Color(0.80f, 0.97f, 1f, 0.55f);
     private static final Color DOOR_FILL_COLOR = new Color(0.40f, 0.33f, 0.24f, 1f);
     private static final Color DOOR_EDGE_COLOR = new Color(0.64f, 0.53f, 0.36f, 1f);
@@ -89,9 +98,13 @@ public final class TerrainRenderer implements Disposable {
         this.damage = damage;
     }
 
-    /** The map being drawn: the live one whenever the client has a destruction state. */
-    private ArenaMap liveMap() {
-        return damage == null ? map : damage.liveMap();
+    /**
+     * The map being drawn: the destruction-scarred static one whenever the client has a
+     * destruction state — not the live map, whose missing open doors belong to collision and
+     * sight, never to the picture (see the class comment).
+     */
+    private ArenaMap drawnMap() {
+        return damage == null ? map : damage.staticMap();
     }
 
     /** The layer this renderer belongs to. */
@@ -107,14 +120,14 @@ public final class TerrainRenderer implements Disposable {
         BlendState.setAlpha();
 
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        for (MapBlock block : liveMap().blocks()) {
+        for (MapBlock block : drawnMap().blocks()) {
             drawFill(block);
         }
         drawSpawnMarkers();
         shapes.end();
 
         shapes.begin(ShapeRenderer.ShapeType.Line);
-        for (MapBlock block : liveMap().blocks()) {
+        for (MapBlock block : drawnMap().blocks()) {
             drawOutline(block);
         }
         shapes.setColor(ARENA_EDGE);
@@ -148,8 +161,12 @@ public final class TerrainRenderer implements Disposable {
                 shapes.rect(rect.x(), rect.y(), rect.width(), rect.height());
             }
             case DOOR_PANEL -> {
+                // The static drag rect, posed: a door is always drawn, its panel foreshortened
+                // by how far it has swung (map plan §7 rule: the state moves collision, the
+                // pose only moves the picture).
+                Rect panel = doorPanelRect(block);
                 shapes.setColor(DOOR_FILL_COLOR);
-                shapes.rect(rect.x(), rect.y(), rect.width(), rect.height());
+                shapes.rect(panel.x(), panel.y(), panel.width(), panel.height());
             }
             case PLATFORM_SLAB -> {
                 shapes.setColor(PLATFORM_FILL_COLOR);
@@ -178,12 +195,13 @@ public final class TerrainRenderer implements Disposable {
                 shapes.line(rect.left(), rect.bottom(), rect.right(), rect.top());
             }
             case DOOR_PANEL -> {
+                Rect panel = doorPanelRect(block);
                 shapes.setColor(DOOR_EDGE_COLOR);
-                shapes.rect(rect.x(), rect.y(), rect.width(), rect.height());
-                // The panel's seam. Its swing angle is authoritative door state, which arrives
-                // with the door milestone; until then a door is drawn closed, as it behaves.
+                shapes.rect(panel.x(), panel.y(), panel.width(), panel.height());
+                // The seam rides the posed panel: its vertical bar marks the panel's free edge
+                // wherever the swing has carried it.
                 shapes.setColor(DOOR_SEAM_COLOR);
-                shapes.line(rect.centerX(), rect.bottom(), rect.centerX(), rect.top());
+                shapes.line(panel.centerX(), panel.bottom(), panel.centerX(), panel.top());
             }
             case PLATFORM_SLAB -> {
                 // Only the landing surface is outlined: the top edge is the whole collider.
@@ -191,6 +209,38 @@ public final class TerrainRenderer implements Disposable {
                 shapes.line(rect.left(), rect.top(), rect.right(), rect.top());
             }
         }
+    }
+
+    /**
+     * What fraction of {@link DoorConfig#SWING_TICKS} a collapsing pose leaves above the floor:
+     * a fully swung door does not vanish — it leaves the lintel it hangs from, so the doorway
+     * still reads as a doorway and the panel remains a thing that can come back down.
+     */
+    private static final float DOOR_LINTEL_FRACTION = 0.12f;
+
+    /**
+     * One door's panel as it is drawn this frame.
+     *
+     * <p>The pose is a pure function of the shared machine's {@code swingFraction}: the panel
+     * retracts upward — top-anchored, because the hinge drawing is the doorway's top edge and
+     * the walk-through space a door frees is always at floor level — foreshortened from full to
+     * a lintel stub between closed and open. Posing is kind-free: it reads the machine by the
+     * door's authored block, and doors the machine does not know (a client with no door state
+     * yet, a map slice that named none) draw exactly as authored, which is the pose the
+     * blocking rule already presents.
+     */
+    private Rect doorPanelRect(MapBlock block) {
+        Rect rect = block.rect();
+        float swing = 0f;
+        if (damage != null) {
+            swing = damage.doors().swingFraction(block);
+        }
+        float height = Math.max(
+            rect.height() * DOOR_LINTEL_FRACTION,
+            rect.height() * (1f - swing));
+        // Top-anchored: the seam and the free edge sink together as the panel retracts.
+        float y = rect.top() - height;
+        return new Rect(rect.x(), y, rect.width(), height);
     }
 
     /**

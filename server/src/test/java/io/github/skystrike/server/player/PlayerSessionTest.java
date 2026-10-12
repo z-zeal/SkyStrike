@@ -230,6 +230,41 @@ class PlayerSessionTest {
     }
 
     @Test
+    @DisplayName("a use press is latched once and deduplicated by its birth sequence")
+    void usePressIsLatchedAndDeduplicated() {
+        for (int i = 0; i < 3; i++) {
+            PacketPlayerInput packet = new PacketPlayerInput(90L + i, 0f, false, false, false, false, false, 0f);
+            packet.usePress = PacketPlayerInput.USE_PRESS;
+            packet.usePressSeq = 90L;
+            session.setInput(packet);
+        }
+
+        assertEquals(PacketPlayerInput.USE_PRESS, session.consumeUsePress(),
+            "the door press reaches the tick once");
+        assertEquals(PacketPlayerInput.NO_USE_PRESS, session.consumeUsePress(),
+            "retransmissions of the same birth never re-fire it");
+
+        PacketPlayerInput next = new PacketPlayerInput(100L, 0f, false, false, false, false, false, 0f);
+        next.usePress = PacketPlayerInput.USE_PRESS;
+        next.usePressSeq = 100L;
+        session.setInput(next);
+        assertEquals(PacketPlayerInput.USE_PRESS, session.consumeUsePress());
+        assertEquals(PacketPlayerInput.NO_USE_PRESS, session.consumeUsePress(),
+            "and consumed means consumed: a press is never banked (plan §4)");
+    }
+
+    @Test
+    @DisplayName("clearing input edges drops a pending use press")
+    void clearTriggerDropsUsePress() {
+        PacketPlayerInput packet = new PacketPlayerInput(110L, 0f, false, false, false, false, false, 0f);
+        packet.usePress = PacketPlayerInput.USE_PRESS;
+        packet.usePressSeq = 110L;
+        session.setInput(packet);
+        session.clearTrigger();
+        assertEquals(PacketPlayerInput.NO_USE_PRESS, session.consumeUsePress());
+    }
+
+    @Test
     @DisplayName("an input with no view action rides none, and a fresh input keeps no stale latch")
     void noViewActionRidesByDefault() {
         session.setInput(new PacketPlayerInput(90L, 0f, false, false, false, false, false, 0f));

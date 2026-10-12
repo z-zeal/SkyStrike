@@ -32,6 +32,7 @@ import io.github.skystrike.server.player.PlayerSession;
 import io.github.skystrike.server.player.RespawnService;
 import io.github.skystrike.server.player.SpawnService;
 import io.github.skystrike.server.utility.UtilitySystem;
+import io.github.skystrike.server.world.DoorSystem;
 import io.github.skystrike.server.sim.SimulationClock;
 import io.github.skystrike.server.sim.TickLoop;
 import io.github.skystrike.server.weapons.FireController;
@@ -45,6 +46,8 @@ import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
+import io.github.skystrike.shared.map.DoorState;
+
 import io.github.skystrike.shared.map.MapDamageState;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
@@ -61,6 +64,7 @@ import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
@@ -108,6 +112,15 @@ public final class GameServer {
     private final EffectBroadcaster effectBroadcaster;
     private final ShieldSystem shieldSystem;
     private final FuelTankSystem fuelTankSystem;
+    /** Map milestone 4: the door authority — presses and the door clock, on the true world. */
+    private final DoorSystem doorSystem;
+    /**
+     * The door states as last broadcast, in authored order. The per-tick diff against them is
+     * the live stream: one diff covers both how a door can change (a press and the clock), so
+     * there is exactly one producer of {@code PacketDoorState} traffic and it fires exactly
+     * once per change.
+     */
+    private final List<DoorState> doorBroadcast = new ArrayList<>();
     /** Phase 6: the drone and camera device systems, and the surveillance view they serve. */
     private final DroneSystem droneSystem;
     private final CameraSystem cameraSystem;
@@ -157,6 +170,16 @@ public final class GameServer {
         // round, a blast or a swing is gone for all of them at once.
         this.bulletSystem.setDestruction(this.damageState);
         this.utilitySystem.setDestruction(this.damageState);
+        // Map milestone 4: one door machine behind the authority's presses and its clock, on the
+        // same destruction state the rounds already share; the machine itself is the shared one
+        // a client predicts with.
+        this.doorSystem = new DoorSystem(this.arena, this.damageState.doors());
+        // A shut door is the authored state, and it is what every client already mirrors at
+        // connect (and a fresh join baseline states), so the first broadcast can only ever be
+        // "something moved".
+        for (int index = 0; index < this.damageState.doors().doors().size(); index++) {
+            doorBroadcast.add(DoorState.CLOSED);
+        }
         this.shieldSystem = new ShieldSystem();
         this.fuelTankSystem = new FuelTankSystem(this.arena);
         this.fuelTankSystem.setDestruction(this.damageState);
@@ -361,6 +384,11 @@ public final class GameServer {
         return bulletSystem;
     }
 
+    /** Map milestone 4's door authority, exposed the same way the combat systems are. */
+    public DoorSystem doorSystem() {
+        return doorSystem;
+    }
+
     public UtilitySystem utilitySystem() {
         return utilitySystem;
     }
@@ -523,6 +551,53 @@ public final class GameServer {
             }
         }
 
+        // Milestone 4: doors run last in the world step — after bullets, thrown utilities and
+        // the device sweep — so the occupancy they consult is this tick's, and a body moved or
+        // a grenade detonated this tick is never counted where it no longer is. One press is
+        // consumed per player per tick, refused or not (PlayerSession keeps it one-shot, and
+        // the refusal itself is the answer: nothing is banked for a later world).
+        for (PlayerSession session : players.all()) {
+            int usePress = session.consumeUsePress();
+            if (usePress == PacketPlayerInput.NO_USE_PRESS) {
+                continue;
+            }
+            DoorSystem.PressResult result = doorSystem.usePressed(
+                session.player(), playerStates, utilitySystem.active());
+            if (result == null) {
+                continue;
+            }
+            // A refusal answers twice. The warning is the sole client-visible voice (the client
+            // deliberately never shows its own predicted refusal); the authoritative record on
+            // REFUSED_BLOCKED is the correction of the prediction the client was allowed to
+            // make — it could not know someone else stood in the swing — so its mirror reverts
+            // instead of leaving a door mid-swing the authority never started.
+            switch (result.outcome()) {
+                case REFUSED_ACCESS -> sendToPlayer(session.playerId(), PacketCommandResponse.of(
+                    CommandResult.warning("This door is not yours to open.")));
+                case REFUSED_BLOCKED -> {
+                    sendToPlayer(session.playerId(), PacketCommandResponse.of(
+                        CommandResult.warning("The doorway is blocked.")));
+                    sendToPlayer(session.playerId(), doorStateRecord(clock.tick(), result.door()));
+                }
+                default -> {
+                }
+            }
+        }
+        doorSystem.advance(clock.tick(), playerStates, utilitySystem.active());
+
+        // Every door change this tick — press-driven and clock-driven alike, since one diff
+        // covers both — is broadcast reliable before the state that would reference it leaves.
+        List<MapBlock> doors = doorSystem.doors().doors();
+        for (int index = 0; index < doors.size(); index++) {
+            MapBlock door = doors.get(index);
+            DoorState current = doorSystem.doors().stateOf(door);
+            if (current == doorBroadcast.get(index)) {
+                continue;
+            }
+            endpoint.broadcastReliable(doorStateRecord(clock.tick(), door));
+            doorBroadcast.set(index, current);
+        }
+
         // 4. Tell the clients what happened to them.
         dispatchCombatEvents();
         dispatchBlockBreaks(clock.tick());
@@ -581,6 +656,20 @@ public final class GameServer {
      * join payload carried everything older — so the tail from there on is exactly what nobody
      * has been told. Reliable, like kills: breaks are rare and every client must apply every one.
      */
+    /**
+     * One authoritative door record for {@code door} as the wire carries it (protocol 15): the
+     * dispatch tick, the authored id, the state ordinal and the tick the state began. One
+     * producer means the live path, the refusal correction and the join baseline can never give
+     * the same door three different shapes.
+     */
+    private PacketDoorState doorStateRecord(long tick, MapBlock door) {
+        return new PacketDoorState(
+            tick,
+            door.door().id(),
+            doorSystem.doors().stateOf(door),
+            doorSystem.doors().sinceTickOf(door));
+    }
+
     private void dispatchBlockBreaks(long tick) {
         List<BlockBreak> breaks = damageState.breaks();
         if (breaks.size() < breaksBroadcast) {

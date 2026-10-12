@@ -36,6 +36,16 @@ public final class PacketJoinAccept implements Packet {
      */
     public List<PacketBlockBreak> destroyedBlocks = new ArrayList<>();
 
+    /**
+     * Every door's state at the moment of the accept, so a late joiner lands on the current
+     * doors without waiting for one to move — the door counterpart of {@link #destroyedBlocks},
+     * and like it a plain replay of the records the live path would have carried. A fresh map
+     * ships the all-closed authored states rather than an empty list, so both join paths —
+     * fresh round and mid-round — leave the mirror in a fully-stated shape with no special
+     * "untouched means closed" rule on the receiving side.
+     */
+    public List<PacketDoorState> doors = new ArrayList<>();
+
     public PacketJoinAccept() {
     }
 
@@ -54,6 +64,7 @@ public final class PacketJoinAccept implements Packet {
             + ", serverTick=" + serverTick
             + ", mapHashHex=" + mapHashHex
             + ", mapRevision=" + mapRevision
-            + ", destroyedBlocks=" + destroyedBlocks.size() + "]";
+            + ", destroyedBlocks=" + destroyedBlocks.size()
+            + ", doors=" + doors.size() + "]";
     }
 }

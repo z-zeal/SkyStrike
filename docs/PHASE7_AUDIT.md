@@ -619,6 +619,38 @@ run here either; each change carries its own unexecuted acceptance note.
   rebuild both sides, confirm the identity lines, shoot the pane and the crate, walk and shoot
   through where they stood, confirm the re-bake and the late joiner, press S on the platform —
   is outstanding human work, and every acceptance box remains unchecked.
+- **Map building system, milestone 4's door half — the use key, server authority, protocol 15
+  and the occluder array.** Implemented on `arena/a395c41c-skystrike` plus this documentation,
+  on top of PR #55's authored-data and shared-machine/live-map halves. The use key is its own
+  binding (default `F`; `E` is the E-gadget slot end to end), and its press rides
+  `PacketPlayerInput` as the fourth birth-sequenced edge (`usePress`/`usePressSeq`, deduped by
+  the same one-shot latch in `PlayerSession` the other three use). The client predicts the press
+  with the shared resolution (`MapQueries.doorAt`, `DoorConfig.USE_REACH`) and machine
+  (`MapDoorState.requestUse`) on its own door-clock estimate — it latches the edge even when the
+  prediction refuses, because the authority is the only voice a refusal is allowed to have, and
+  the server answers with a console warning and, for `REFUSED_BLOCKED`, an authoritative
+  correction record. `server/world/DoorSystem` consumes every press each tick (refused or not)
+  and advances the machine against the true occupancy: every live player hitbox counts, a dead
+  one counts nothing, and every thrown utility counts by its position point. The wire is
+  `PacketDoorState` (dispatch tick, authored door id, state ordinal, opening tick), broadcast
+  reliably per change right after the tick's door step and replayed on the join accept as the
+  every-door baseline; the state rides as a plain int with the defensive `DoorState.fromOrdinal`
+  (fails shut to `CLOSED`), the enum deliberately off the registered list. `PROTOCOL_VERSION`
+  14 → 15 in the same commit as the first packet, with `PacketDoorState` appended at index 37
+  (38 types). Doors occlude without touching the SDF: `DoorOccluders` — the rectangle
+  counterpart of `SmokeVolumes`'s circle array — feeds `u_doorRects` in both
+  `visibility_cone.frag` and `light_radial.frag`, uploaded once per pass from exactly the doors
+  whose state still blocks, and `TerrainRenderer` draws every door from the destruction-scarred
+  static map posed by `swingFraction`, so an open door never blinks out of the picture while the
+  SDF keeps naming the destruction-only `staticMap()`. Deliberately deferred: the server-side
+  map-hash join rejection, per-hit crack sync and the round-reset wire event. Tests were written
+  and not executed: the server `DoorSystemTest` (reach, gates, team rule, body/utility
+  occupancy, blocked-swing reopen, press-during-swing), the `MapDamageStateTest` per-column
+  closed-vs-open case, the `NetworkRegistrationTest` protocol-15 pins and round trips, and the
+  `PlayerSessionTest` use-edge latch/dedupe cases. No Java was compiled, executed or observed
+  here; the desktop re-run is outstanding human work — and the door boxes in the acceptance
+  checklist additionally stay unreachable until a door is authored into a playable map (the
+  shipped arena has none, by decision the fixture range was not extended for this slice).
 
 ---
 
@@ -742,3 +774,25 @@ hand. Nothing was compiled, executed or observed in this sandbox: the new
 `MapDamageStateTest`, `NetworkRegistrationTest` and `MinimapModelTest` cases and every earlier
 suite remain unexecuted, the two-client destruction pass and the late-join check are outstanding
 human work, and every `MAP_BUILDER_ACCEPTANCE.md` box remains unchecked.
+
+The door slice of milestone 4 (protocol 15: the use key and its client-side door prediction,
+the server's door authority with body/utility occupancy, the reliable door-state wire and join
+baseline, and the dynamic door occluder array in the visibility and light shaders) was
+source-checked with exactly the permitted Python checks: `python3 tools/scratch/static_check.py`
+(clean: 431 Java files scanned, 431 declared types, no findings — including both consumer
+gates), `python3 tools/scratch/static_api_check.py` (clean: 534 project types indexed from 427
+files), `python3 tools/scratch/static_audio_check.py` (clean: 13 world entries, 6 weapon
+events, 1 loop, 14 effect types, 30 manifest entries), `python3 tools/scratch/synth_sfx.py
+--check` (clean: 14 generated sounds agree), `python3 tools/scratch/phase3_ballistics.py`
+(analytical report completed without findings) and `python3 tools/weapons/generate_weapon_tables.py`
+(completed with no tracked generated-table diff). `python3 tools/scratch/arena_sdf_check.py` was
+run as belt-and-braces even though neither `StandardArenaMap.TEXT` nor `assets/data/arena.sdf`
+changed this increment (clean: the shipped asset still agrees with the committed map on header
+hash, header shape and every texel). `static_api_check.py` cannot see an instance call made
+through a field or a variable, so the slice's cross-module calls were additionally read by
+hand. No Java was compiled, no test, server, client, game or desktop build was run or observed,
+and no `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the new `DoorSystemTest`,
+`MapDamageStateTest`, `NetworkRegistrationTest` and `PlayerSessionTest` cases and every earlier
+suite await a human with a JDK, and the door boxes stay unreachable until a door is authored
+into a playable map (the shipped arena has none, and by decision the fixture range was not
+extended for this slice).

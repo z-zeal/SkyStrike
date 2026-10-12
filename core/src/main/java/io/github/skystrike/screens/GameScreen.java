@@ -23,6 +23,7 @@ import io.github.skystrike.audio.EffectAudio;
 import io.github.skystrike.audio.GunAudio;
 import io.github.skystrike.audio.SoundCatalog;
 import io.github.skystrike.audio.TinnitusEffect;
+import io.github.skystrike.gameplay.DoorUseController;
 import io.github.skystrike.gameplay.LoadoutController;
 import io.github.skystrike.gameplay.SurveillanceController;
 import io.github.skystrike.input.InputRouter;
@@ -72,6 +73,7 @@ import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketGameState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketDamageEvent;
+import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
@@ -181,6 +183,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
      * server acknowledges them. The server remains the authority; this is feel.
      */
     private final SurveillanceController surveillance;
+    /**
+     * The use key's client half (map plan §4): predicts the door the key means and carries the
+     * edge on the wire until the server acknowledges it. The door stays a server decision; this
+     * is feel and safe delivery, like the loadout presses.
+     */
+    private final DoorUseController doorUse;
     private final InputSampler inputSampler;
     private final DebugKeyController debugKeyController;
     private final Runnable disconnectToMenu;
@@ -204,6 +212,15 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final LocalPrediction prediction = new LocalPrediction();
     private final StateBuffer stateBuffer = new StateBuffer();
     private final Interpolator interpolator = new Interpolator(stateBuffer);
+
+    /**
+     * The client's estimate of the server's tick, for the door clock (map plan §4, D3): seeded by
+     * the join accept, lifted to the newest snapshot tick, and run forward at the server tick
+     * rate every frame. A swing the prediction starts and one the authority reports then last the
+     * same wall-clock time, because both are dated against this one estimate; no wall-clock time
+     * ever crosses the wire for doors. {@code -1} until a join seeds it.
+     */
+    private float estimatedServerTick = -1f;
 
     private FxPipeline pipeline;
     private final List<ObserverState> observers = new ArrayList<>();
@@ -276,6 +293,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.tinnitus = new TinnitusEffect(this.audio, this.soundCatalog);
         this.surveillance = new SurveillanceController(this.bindings, inputRouter);
         this.loadoutController = new LoadoutController(this.bindings, inputRouter, this.surveillance);
+        this.doorUse = new DoorUseController(this.bindings, inputRouter, arena, damageState);
         this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
         this.settingsDialog = new GameSettingsDialog(inputRouter, this.settings, this.bindings);
@@ -300,6 +318,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.session.setJoinListener(this::onJoinAccept);
         onJoinAccept(session.joinAccept());
         this.session.setBlockBreakListener(this::onBlockBreak);
+        this.session.setDoorStateListener(this::onDoorState);
         this.session.setChatListener(this::onChatMessage);
         this.session.setCapabilityListener(this::onCapabilities);
         this.session.setSessionResetListener(() -> {
@@ -308,6 +327,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             surveillance.reset();
             // Leaving a match must not leave the stun ring playing into the menu.
             tinnitus.stop();
+            // The next join re-seeds the door clock from its own accept.
+            estimatedServerTick = -1f;
         });
         this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
@@ -466,6 +487,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     + "; ignoring the destruction baseline");
             return;
         }
+        // The door clock estimates the server's tick from the accept onward; the snapshot at the
+        // start of the next round re-anchors it, so an unseeded reconnect starts cold rather
+        // than from a previous match's clock.
+        estimatedServerTick = Math.max(estimatedServerTick, accept.serverTick);
         List<MapBlock> restored = damageState.reset();
         int applied = 0;
         if (accept.destroyedBlocks != null) {
@@ -480,10 +505,46 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         Gdx.app.log("SkyStrike",
             "destruction baseline: rev " + damageState.revision() + " (" + applied + " applied)");
+        // The door baseline rides the same accept: apply it through the same translation as the
+        // live path, so both paths for one record take one route.
+        if (accept.doors != null && !accept.doors.isEmpty()) {
+            int doorsApplied = 0;
+            for (PacketDoorState record : accept.doors) {
+                if (applyDoorRecord(record)) {
+                    doorsApplied++;
+                }
+            }
+            Gdx.app.log("SkyStrike",
+                "door baseline: " + doorsApplied + "/" + accept.doors.size() + " doors stated");
+        }
         if (damageState.revision() != accept.mapRevision) {
             Gdx.app.error("SkyStrike",
                 "destruction baseline revision " + accept.mapRevision
                     + " does not match the applied " + damageState.revision());
+        }
+    }
+
+    /**
+     * The door clock in ticks: the floor of the server-tick estimate, floored at zero so a cold
+     * client presents "the round just started" instead of a negative tick.
+     */
+    private long doorClockTick() {
+        return Math.max(0L, (long) estimatedServerTick);
+    }
+
+    /**
+     * One authoritative door record arrived live. The mirror applies states, never decides them
+     * — a duplicate, stale or unknown-door record changes nothing by
+     * {@code MapDoorState#applyRemote}'s own rules, including one that would rewind a swing the
+     * client predicted further than the authority did.
+     */
+    private void onDoorState(PacketDoorState packet) {
+        if (packet == null) {
+            return;
+        }
+        if (applyDoorRecord(packet)) {
+            Gdx.app.log("SkyStrike",
+                "door " + packet.doorId + " -> " + packet.state() + " (wire tick " + packet.tick + ")");
         }
     }
 
@@ -512,6 +573,25 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     }
 
     /**
+     * Translates one door record onto the local door clock and feeds it to the mirror, from
+     * either wire path — the live event or the join baseline; one route for both is what keeps
+     * the two from disagreeing about how far a drawn swing has got.
+     *
+     * <p>The translation: the record's age on the server's clock ({@code tick - sinceTick})
+     * maps straight onto the local estimate ({@code estNow - age}), because the two clocks agree
+     * on durations, never on absolutes. The estimate only ever moves forward, so a record older
+     * than the estimate is clamped rather than handed a negative anchor.
+     *
+     * @return true when the door actually changed state
+     */
+    private boolean applyDoorRecord(PacketDoorState packet) {
+        long estNow = doorClockTick();
+        long localSince = estNow - Math.max(0L, packet.tick - packet.sinceTick);
+        return damageState.doors().applyRemote(
+            packet.doorId, packet.state(), packet.tick, Math.max(0L, localSince));
+    }
+
+    /**
      * Everything downstream of the destruction set, refreshed: the minimap's terrain and marker
      * gating, and the SDF re-bake for shadows, light occlusion and particle collision. The
      * terrain pass and the prediction paths read the live map every frame already.
@@ -519,13 +599,19 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private void onDestructionChanged() {
         minimapModel.setArena(damageState.liveMap());
         if (pipeline != null) {
-            pipeline.rebakeSdf(damageState.liveMap());
+            // The field is destruction-only (map plan D3/D9): doors never enter it — the kind
+            // rule refuses them in the baker anyway — so a door swinging is a door machine
+            // concern (state, wire, occluder array), never a re-bake.
+            pipeline.rebakeSdf(damageState.staticMap());
         }
     }
 
     private void onGameStateSnapshot(PacketGameState snapshot) {
         stateBuffer.addSnapshot(snapshot);
         gunAudio.onSnapshot(snapshot);
+        // Snapshots anchor the door clock's estimate; it only ever moves forward, so jitter or
+        // an interleaved stale snapshot cannot rewind a swing anyone is watching.
+        estimatedServerTick = Math.max(estimatedServerTick, snapshot.tick);
 
         int localId = session.playerId();
         if (localId >= 0 && snapshot.players != null) {
@@ -534,6 +620,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     prediction.reconcile(p, liveMap());
                     loadoutController.onAuthoritativePlayer(p, prediction.predicted());
                     surveillance.onAuthoritativePlayer(p, prediction.predicted());
+                    doorUse.onAuthoritativePlayer(p);
                     break;
                 }
             }
@@ -569,8 +656,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             if (damageState.revision() > 0) {
                 // The join baseline landed before the pipeline existed — the connecting screen
                 // joins before this screen is built — so the live field starts re-baked rather
-                // than waiting for the next break.
-                pipeline.rebakeSdf(damageState.liveMap());
+                // than waiting for the next break. Destruction-only, like every later re-bake.
+                pipeline.rebakeSdf(damageState.staticMap());
             }
         }
         // Phase 9: audio consumes the very same effect-event queue as the particles.
@@ -589,6 +676,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         session.update(delta);
         lastDeltaMillis = delta * 1000f;
         consoleDialog.update(delta);
+
+        // The door clock runs at the server's tick rate (map plan D3): predictions date their
+        // swings against it, and the record corrections reconcile onto the same clock.
+        if (estimatedServerTick >= 0f && session.serverTickRateHz() > 0) {
+            estimatedServerTick += delta * session.serverTickRateHz();
+        }
+        damageState.doors().setClock(doorClockTick());
 
         // Escape is polled only while no dialog/modal owns the focus stack — the console and the
         // pause menu keep their own claim on it through that focus. What is left over routes to
@@ -637,8 +731,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         if (localPlayer != null) {
             // 1. Loadout input first: a slot press this frame rides this frame's input packet
             loadoutController.update(localPlayer);
-            // The surveillance controller polls the view-cycle key the same way.
+            // The surveillance and door-use controllers poll their edges the same way.
             surveillance.update(localPlayer);
+            doorUse.update(localPlayer);
 
             // 2. Sample input and simulate predicted local motion. While surveilling, the aim is
             //    measured from the device the player is looking through, so the piloted cone
@@ -646,6 +741,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             SurveillanceController.ViewTarget aimAnchor = surveillance.aimAnchor(localPlayer);
             PacketPlayerInput input = inputSampler.sample(localPlayer, camera, aimAnchor.x(), aimAnchor.y());
             surveillance.stampPacket(input);
+            doorUse.stampPacket(input);
             gunAudio.onLocalInput(input, localPlayer, bindings.isFireJustPressed());
             localPlayer = prediction.predict(input, delta, liveMap());
             // The piloted drone is predicted locally, so the view and the cone stay crisp.
@@ -703,6 +799,17 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 for (SmokeVolume volume : zone.smokeVolumes()) {
                     pipeline.smokeVolumes().add(volume);
                 }
+            }
+        }
+
+        // Map plan D3: doors occlude through their own array because they never enter the SDF.
+        // Feed exactly the doors whose state still blocks — all but OPEN, the shared machine's
+        // own answer — so a fully open door gates no ray and a swinging one gates until it
+        // finishes, matching the rule collision and sight already live by.
+        pipeline.doorOccluders().clear();
+        for (MapBlock door : damageState.doors().doors()) {
+            if (damageState.doors().blocks(door)) {
+                pipeline.doorOccluders().add(door.rect());
             }
         }
 
@@ -1172,7 +1279,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 arena.width(),
                 arena.height()));
         lines.add("A/D move  W jump  Space jetpack  S crouch/drop  LMB fire  RMB aim/ADS"
-            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  6 view cycle"
+            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  F use  6 view cycle"
             + "  Esc exit/pause  Enter chat/console");
         return lines;
     }

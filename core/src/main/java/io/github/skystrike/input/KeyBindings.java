@@ -69,6 +69,13 @@ public final class KeyBindings {
     public int viewExit = Input.Keys.ESCAPE;
 
     /**
+     * The use key (map plan §4): the nearest door within reach, today. It is its own binding
+     * rather than doubling up on E because E is already the E-gadget slot end to end
+     * ({@link #gadgetE} → {@code PacketPlayerInput.GADGET_E_PRESS}).
+     */
+    public int useKey = Input.Keys.F;
+
+    /**
      * Opens the chat/console dialog (console plan §3.1: one key, default Enter, rebindable).
      * The dialog's own processor consumes it once open, so this only matters as the opener.
      */
@@ -143,6 +150,7 @@ public final class KeyBindings {
         recordSingle("gadgetE", () -> gadgetE, v -> gadgetE = v, () -> Input.Keys.E);
         recordSingle("viewCycle", () -> viewCycle, v -> viewCycle = v, () -> Input.Keys.NUM_6);
         recordSingle("viewExit", () -> viewExit, v -> viewExit = v, () -> Input.Keys.ESCAPE);
+        recordSingle("use", () -> useKey, v -> useKey = v, () -> Input.Keys.F);
         recordSingle("openChat", () -> openChat, v -> openChat = v, () -> Input.Keys.ENTER);
         recordSingle("uiLoadout", () -> uiLoadout, v -> uiLoadout = v, () -> Input.Keys.L);
 
@@ -417,6 +425,11 @@ public final class KeyBindings {
     /** Edge-triggered: true only on the frame the view-cycle key goes down (mechanics §9, key 6). */
     public boolean isViewCycleJustPressed() {
         return Gdx.input.isKeyJustPressed(viewCycle);
+    }
+
+    /** Edge-triggered: true only on the frame the use key goes down (map plan §4, default F). */
+    public boolean isUseJustPressed() {
+        return Gdx.input.isKeyJustPressed(useKey);
     }
 
     /** Edge-triggered: true only on the frame the chat key goes down. */

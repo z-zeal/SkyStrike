@@ -30,6 +30,18 @@ client. The work does **not** yet ship an `assets/maps` file, an editor or `MapT
 per-hit crack sync, or the server-side map-hash join rejection. Boxes that need a door, a saved
 map file or the editor therefore remain unreachable; the destruction boxes are now within reach
 but unattempted, like all the rest.
+
+**Update — the door slice of milestone 4 has now landed in source as well:** the use key with the
+shared reach rule and the optimistic client prediction, the server's door authority (occupancy
+from every live body and every thrown utility; refused presses answered by a console warning and,
+for a blocked swing, an authoritative correction record), the protocol-15 `PacketDoorState` wire
+with its join-payload baseline, the dynamic door occluder array in both the visibility and the
+light shader, and posing of every door's panel from the machine's swing fraction while the SDF
+keeps naming the destruction-only static map. Nothing above is ticked: every box remains
+unchecked, and the "Doors" section in particular stays **unreachable** in a running build for
+now — the shipped arena still authors no door, by decision the fixture range was not extended
+for this slice, so there is no contained doorway to walk up to and press `F` at. The day one is
+authored, those boxes become attemptable without further code work.
 Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
@@ -320,3 +332,41 @@ unexecuted. Everything a human with a runnable desktop build must do — rebuild
 confirm the startup identity lines, then shoot the pane and the crate, walk and shoot through
 where they stood, confirm the re-bake and the late joiner, and press S on the platform —
 remains outstanding, and every box above stays unchecked until that run.
+
+The door slice of milestone 4 (protocol 15: the use key and its client prediction, the server's
+door authority with body/utility occupancy and refused-press answers, the reliable door-state
+wire and join baseline, the dynamic occluder array in both shaders, and the posed-door
+rendering that leaves the SDF naming the destruction-only static map) was then source-checked
+only; it is not map validation, and every box above remains unchecked. The exact checks run
+after these changes were:
+
+- `python3 tools/scratch/static_check.py` — clean (431 Java files scanned, 431 declared types;
+  no findings, including the module boundaries and both consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (534 project types indexed from 427
+  files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1
+  loop, 14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without
+  findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — completed with no tracked generated-table
+  diff.
+- `python3 tools/scratch/arena_sdf_check.py` — run as belt-and-braces even though neither
+  `StandardArenaMap.TEXT` nor `assets/data/arena.sdf` changed this increment; clean (the
+  shipped asset agrees with the committed map on header hash, header shape and every texel).
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the slice's edits; `static_api_check.py` cannot see calls made through fields
+or variables, so the slice's cross-module calls (`DoorUseController` → the shared `MapQueries`,
+`MapDoorState` and `PacketPlayerInput` surfaces; `PlayerSession.consumeUsePress`; the
+`DoorSystem` press/advance/occupancy paths; `JoinRequestHandler`'s door-baseline assembly; the
+`GameServer` diff broadcast and correction unicast; `ClientSession`'s door replay buffer;
+`GameScreen`'s record translation, occlusion feed, door-clock and posed-panel call; the
+`DoorOccluders` → `VisibilitySystem`/`LightPass` shader uploads; and
+`TerrainRenderer.doorPanelRect`) were also read by hand. Nothing was compiled, nothing was
+executed, nothing was observed: the new `MapDamageStateTest`, `NetworkRegistrationTest`,
+`DoorSystemTest` and `PlayerSessionTest` cases and every earlier suite remain unexecuted.
+Everything a human with a runnable desktop build must do — rebuild
+both sides, author one door into a playable map (none is shipped), then walk the door boxes
+above with two clients and a late joiner — remains outstanding, and every box above stays
+unchecked until that run.

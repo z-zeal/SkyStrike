@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.utils.Disposable;
 import io.github.skystrike.fx.gl.RenderTarget;
 import io.github.skystrike.fx.gl.ShaderLibrary;
+import io.github.skystrike.fx.lighting.DoorOccluders;
 import io.github.skystrike.fx.lighting.Light;
 import io.github.skystrike.fx.lighting.LightPass;
 import io.github.skystrike.fx.lighting.LightPool;
@@ -59,6 +60,12 @@ public final class FxPipeline implements Disposable {
     private final CompositePass compositePass;
     private final SdfDebugView sdfDebugView;
     private final SmokeVolumes smokeVolumes;
+    /**
+     * Map plan D3: the shared closed-door occluder array both visibility and lights read. One
+     * instance because the frame's closed set is global — every observer and every light meets
+     * the same doors.
+     */
+    private final DoorOccluders doorOccluders;
     /** M7: particles and attached effect lights, sharing the light pool and the SDF field. */
     private final GpuParticleSystem particles;
     /** M7: the flashbang whiteout post pass. */
@@ -93,6 +100,7 @@ public final class FxPipeline implements Disposable {
         this.compositePass = new CompositePass(this.shaders);
         this.sdfDebugView = new SdfDebugView(this.shaders);
         this.smokeVolumes = new SmokeVolumes();
+        this.doorOccluders = new DoorOccluders();
         this.particles = new GpuParticleSystem(
             new FxClock(), new FxBudget(), this.lightPool, this.sdfTexture.field(), this.shaders);
         this.blindnessPass = new BlindnessPass(this.shaders);
@@ -129,7 +137,7 @@ public final class FxPipeline implements Disposable {
      *     default SDF soft shadows.
      */
     public void renderVisibility(GameCamera camera, List<ObserverState> observers, boolean hardShadows) {
-        visibilitySystem.render(camera, sdfTexture, observers, smokeVolumes, hardShadows);
+        visibilitySystem.render(camera, sdfTexture, observers, smokeVolumes, doorOccluders, hardShadows);
     }
 
     /**
@@ -244,6 +252,7 @@ public final class FxPipeline implements Disposable {
                 lightPool,
                 localPlayerLightHandle,
                 localPlayer,
+                doorOccluders,
                 hardShadows);
     }
 
@@ -306,14 +315,15 @@ public final class FxPipeline implements Disposable {
      * the new field.
      *
      * <p>The caller is the play screen's destruction sync: every applied block event and every
-     * non-empty join baseline re-bakes for the client's live map. The re-baked field names that
-     * live map — its hash stops matching the authored one with the first break — while the
-     * load-time {@code SdfCache} guard still verifies the shipped asset against the authored
-     * hash, exactly as D9 asks: the asset must describe the map both sides agreed to, and only
-     * the runtime field follows the damage.
+     * non-empty join baseline re-bakes for the client's live map. The re-baked field names the
+     * destruction-only static map — its hash moves with each break, never with a door swing
+     * (map plan D3: doors are absent from the field by kind rule, and the live map that would
+     * swing it is never handed here) — while the load-time {@code SdfCache} guard still verifies
+     * the shipped asset against the authored hash, exactly as D9 asks: the asset must describe
+     * the map both sides agreed to, and only the runtime field follows the damage.
      */
-    public void rebakeSdf(ArenaMap liveMap) {
-        sdfRebakes.request(liveMap, sdfTexture.texelScale());
+    public void rebakeSdf(ArenaMap staticMap) {
+        sdfRebakes.request(staticMap, sdfTexture.texelScale());
     }
 
     /** Applies the newest finished re-bake, if one is waiting. Render thread, once per frame. */
@@ -422,6 +432,14 @@ public final class FxPipeline implements Disposable {
 
     public SmokeVolumes smokeVolumes() {
         return smokeVolumes;
+    }
+
+    /**
+     * The closed-door occluder array (map plan D3). The feed fills it once per frame from the
+     * door machine's {@code blocks} answer; both passes upload from the same instance.
+     */
+    public DoorOccluders doorOccluders() {
+        return doorOccluders;
     }
 
     public SdfTexture sdfTexture() {

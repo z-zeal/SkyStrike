@@ -79,6 +79,7 @@ public final class LightPass implements Disposable {
             LightPool lights,
             int localPlayerLightHandle,
             Player localPlayer,
+            DoorOccluders doorOccluders,
             boolean hardShadows) {
         lightFbo.begin();
         try {
@@ -117,6 +118,14 @@ public final class LightPass implements Disposable {
             shader.setUniformi("u_sdfTexture", 0);
             visibilityTexture.bind(1);
             shader.setUniformi("u_visibilityTexture", 1);
+
+            // Doors gate lights without touching the SDF (map plan D3). Uploaded once for the
+            // loop: every shadow-casting light reads the same closed set this frame.
+            if (doorOccluders != null) {
+                doorOccluders.uploadUniforms(shader);
+            } else {
+                shader.setUniformi("u_doorCount", 0);
+            }
 
             float halfViewWidth = camera.viewportWidth() * 0.5f;
             float halfViewHeight = camera.viewportHeight() * 0.5f;

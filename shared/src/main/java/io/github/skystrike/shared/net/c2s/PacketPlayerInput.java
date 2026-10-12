@@ -24,6 +24,12 @@ import io.github.skystrike.shared.net.Packet;
  * ({@link #VIEW_EXIT}) edges of mechanics §9. It follows the same birth-sequence contract, and
  * the server consumes it under every lock — Escape must always be able to leave a surveillance
  * view — so a piloting player can never be trapped by a dropped packet.
+ *
+ * <p>{@code usePress} carries the use-key edge (map plan §4: today, doors). It follows the same
+ * birth-sequence contract. The edge is all that travels: which door a press means is resolved
+ * from the player's position by the shared {@code MapQueries.doorAt} rule on both sides — the
+ * server re-resolves against its own authoritative world, so a client can never name a door to
+ * open; it can only say "I pressed use".
  */
 public final class PacketPlayerInput implements Packet {
 
@@ -45,6 +51,12 @@ public final class PacketPlayerInput implements Packet {
 
     /** The exit-surveillance edge value carried by {@link #viewAction} (Escape, mechanics §9). */
     public static final int VIEW_EXIT = 2;
+
+    /** Sentinel for "no use press on this sample". */
+    public static final int NO_USE_PRESS = 0;
+
+    /** The use-key edge value carried by {@link #usePress} (map plan §4: the door key today). */
+    public static final int USE_PRESS = 1;
 
     public long sequence;
     public float moveX;
@@ -86,6 +98,17 @@ public final class PacketPlayerInput implements Packet {
 
     /** Birth sequence of {@link #viewAction}; {@code -1} when no edge rides this sample. */
     public long viewActionSeq = -1L;
+
+    /**
+     * Use-key edge on this sample: {@link #USE_PRESS}, or {@link #NO_USE_PRESS}. Appended after
+     * the view-action fields so the input wire shape remains prefix-compatible. An edge that
+     * arrived while the player was dead, stunned or piloting is consumed and dropped like the
+     * others — a press is never banked for a later life.
+     */
+    public int usePress = NO_USE_PRESS;
+
+    /** Birth sequence of {@link #usePress}; {@code -1} when no edge rides this sample. */
+    public long usePressSeq = -1L;
 
     public PacketPlayerInput() {
     }
@@ -154,6 +177,7 @@ public final class PacketPlayerInput implements Packet {
             + ", aim=" + aimAngle
             + ", slotPress=" + slotPress
             + ", gadgetPress=" + gadgetPress
-            + ", viewAction=" + viewAction + "]";
+            + ", viewAction=" + viewAction
+            + ", usePress=" + usePress + "]";
     }
 }

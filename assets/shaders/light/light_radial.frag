@@ -1,5 +1,6 @@
 #include "lib/header.glsl"
 #include "lib/sdf.glsl"
+#include "lib/door_occluders.glsl"
 
 varying vec2 v_texCoords;
 varying vec2 v_worldPos;
@@ -77,6 +78,10 @@ void main() {
             u_worldSize,
             u_shadowK,
             u_maxMarchSteps);
+        // A lamp behind a closed door must not light the pixels this side of it even when the
+        // observer can see them: the door is absent from the SDF (map plan D3), so it gates the
+        // light here explicitly, with the same hard edge the wall grants it.
+        shadow *= doorOccluderVisibility(u_lightPos, v_worldPos);
     }
 
     float energy = radial * visibleGate * shadow * u_lightIntensity;

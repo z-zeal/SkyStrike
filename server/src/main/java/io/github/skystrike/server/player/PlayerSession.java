@@ -66,6 +66,15 @@ public final class PlayerSession {
     private volatile long viewActionSeqPending = -1L;
     private volatile long lastViewActionSeqApplied = -1L;
 
+    /**
+     * Use-key edge latch (map plan §4: doors), deduplicated by the client's first carrying
+     * sequence, exactly like the three edge latches above. The server re-resolves which door the
+     * press means; the latch only guarantees it is resolved exactly once.
+     */
+    private volatile int usePressPending = PacketPlayerInput.NO_USE_PRESS;
+    private volatile long usePressSeqPending = -1L;
+    private volatile long lastUsePressSeqApplied = -1L;
+
     /** Most recent authoritative loadout refusal, retained for the /loadout diagnostic command. */
     private volatile String lastLoadoutRefusalReason;
     private long lastLoadoutRefusalNoticeMillis = Long.MIN_VALUE;
@@ -190,6 +199,12 @@ public final class PlayerSession {
             viewActionPending = packet.viewAction;
             viewActionSeqPending = packet.viewActionSeq;
         }
+        if (packet.usePress == PacketPlayerInput.USE_PRESS
+            && packet.usePressSeq > lastUsePressSeqApplied
+            && packet.usePressSeq != usePressSeqPending) {
+            usePressPending = packet.usePress;
+            usePressSeqPending = packet.usePressSeq;
+        }
         this.latestInput = PlayerInput.fromPacket(packet);
         this.lastInputTimeMillis = System.currentTimeMillis();
     }
@@ -261,6 +276,24 @@ public final class PlayerSession {
         return action;
     }
 
+    /**
+     * Returns one use-key edge and retires its birth sequence (map plan §4: the door key). The
+     * caller must invoke this every tick: an edge that arrived for a player who cannot use a
+     * door right now — dead, stunned or piloting — is consumed and dropped, never banked for a
+     * later life, the same rule the slot and gadget channels keep.
+     */
+    public int consumeUsePress() {
+        int press = usePressPending;
+        long seq = usePressSeqPending;
+        usePressPending = PacketPlayerInput.NO_USE_PRESS;
+        usePressSeqPending = -1L;
+        if (press == PacketPlayerInput.NO_USE_PRESS || seq <= lastUsePressSeqApplied) {
+            return PacketPlayerInput.NO_USE_PRESS;
+        }
+        lastUsePressSeqApplied = seq;
+        return press;
+    }
+
     /** Drops every pending edge, used when the player dies or respawns holding the mouse. */
     public void clearTrigger() {
         firePressedPending = false;
@@ -280,6 +313,11 @@ public final class PlayerSession {
         gadgetPressSeqPending = -1L;
         viewActionPending = PacketPlayerInput.NO_VIEW_ACTION;
         viewActionSeqPending = -1L;
+        if (usePressSeqPending > lastUsePressSeqApplied) {
+            lastUsePressSeqApplied = usePressSeqPending;
+        }
+        usePressPending = PacketPlayerInput.NO_USE_PRESS;
+        usePressSeqPending = -1L;
     }
 
     /** Drops only a pending gadget edge, for a death detected after the input was received. */
