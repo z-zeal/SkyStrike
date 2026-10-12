@@ -23,6 +23,7 @@ import io.github.skystrike.audio.EffectAudio;
 import io.github.skystrike.audio.GunAudio;
 import io.github.skystrike.audio.SoundCatalog;
 import io.github.skystrike.audio.TinnitusEffect;
+import io.github.skystrike.gameplay.DoorUseController;
 import io.github.skystrike.gameplay.LoadoutController;
 import io.github.skystrike.gameplay.SurveillanceController;
 import io.github.skystrike.input.InputRouter;
@@ -181,6 +182,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
      * server acknowledges them. The server remains the authority; this is feel.
      */
     private final SurveillanceController surveillance;
+    /**
+     * The use key's client half (map plan §4): predicts the door the key means and carries the
+     * edge on the wire until the server acknowledges it. The door stays a server decision; this
+     * is feel and safe delivery, like the loadout presses.
+     */
+    private final DoorUseController doorUse;
     private final InputSampler inputSampler;
     private final DebugKeyController debugKeyController;
     private final Runnable disconnectToMenu;
@@ -204,6 +211,15 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final LocalPrediction prediction = new LocalPrediction();
     private final StateBuffer stateBuffer = new StateBuffer();
     private final Interpolator interpolator = new Interpolator(stateBuffer);
+
+    /**
+     * The client's estimate of the server's tick, for the door clock (map plan §4, D3): seeded by
+     * the join accept, lifted to the newest snapshot tick, and run forward at the server tick
+     * rate every frame. A swing the prediction starts and one the authority reports then last the
+     * same wall-clock time, because both are dated against this one estimate; no wall-clock time
+     * ever crosses the wire for doors. {@code -1} until a join seeds it.
+     */
+    private float estimatedServerTick = -1f;
 
     private FxPipeline pipeline;
     private final List<ObserverState> observers = new ArrayList<>();
@@ -276,6 +292,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.tinnitus = new TinnitusEffect(this.audio, this.soundCatalog);
         this.surveillance = new SurveillanceController(this.bindings, inputRouter);
         this.loadoutController = new LoadoutController(this.bindings, inputRouter, this.surveillance);
+        this.doorUse = new DoorUseController(this.bindings, inputRouter, arena, damageState);
         this.inputSampler = new InputSampler(this.bindings, inputRouter, loadoutController);
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
         this.settingsDialog = new GameSettingsDialog(inputRouter, this.settings, this.bindings);
@@ -308,6 +325,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             surveillance.reset();
             // Leaving a match must not leave the stun ring playing into the menu.
             tinnitus.stop();
+            // The next join re-seeds the door clock from its own accept.
+            estimatedServerTick = -1f;
         });
         this.chatClient.setSender(session::sendReliable);
         this.loadoutController.setPacketSender(session::sendReliable);
@@ -466,6 +485,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     + "; ignoring the destruction baseline");
             return;
         }
+        // The door clock estimates the server's tick from the accept onward; the snapshot at the
+        // start of the next round re-anchors it, so an unseeded reconnect starts cold rather
+        // than from a previous match's clock.
+        estimatedServerTick = Math.max(estimatedServerTick, accept.serverTick);
         List<MapBlock> restored = damageState.reset();
         int applied = 0;
         if (accept.destroyedBlocks != null) {
@@ -485,6 +508,14 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 "destruction baseline revision " + accept.mapRevision
                     + " does not match the applied " + damageState.revision());
         }
+    }
+
+    /**
+     * The door clock in ticks: the floor of the server-tick estimate, floored at zero so a cold
+     * client presents "the round just started" instead of a negative tick.
+     */
+    private long doorClockTick() {
+        return Math.max(0L, (long) estimatedServerTick);
     }
 
     /** One authoritative break arrived live. A duplicate or stale record changes nothing. */
@@ -526,6 +557,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private void onGameStateSnapshot(PacketGameState snapshot) {
         stateBuffer.addSnapshot(snapshot);
         gunAudio.onSnapshot(snapshot);
+        // Snapshots anchor the door clock's estimate; it only ever moves forward, so jitter or
+        // an interleaved stale snapshot cannot rewind a swing anyone is watching.
+        estimatedServerTick = Math.max(estimatedServerTick, snapshot.tick);
 
         int localId = session.playerId();
         if (localId >= 0 && snapshot.players != null) {
@@ -534,6 +568,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                     prediction.reconcile(p, liveMap());
                     loadoutController.onAuthoritativePlayer(p, prediction.predicted());
                     surveillance.onAuthoritativePlayer(p, prediction.predicted());
+                    doorUse.onAuthoritativePlayer(p);
                     break;
                 }
             }
@@ -590,6 +625,13 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         lastDeltaMillis = delta * 1000f;
         consoleDialog.update(delta);
 
+        // The door clock runs at the server's tick rate (map plan D3): predictions date their
+        // swings against it, and the record corrections reconcile onto the same clock.
+        if (estimatedServerTick >= 0f && session.serverTickRateHz() > 0) {
+            estimatedServerTick += delta * session.serverTickRateHz();
+        }
+        damageState.doors().setClock(doorClockTick());
+
         // Escape is polled only while no dialog/modal owns the focus stack — the console and the
         // pause menu keep their own claim on it through that focus. What is left over routes to
         // surveillance: while piloting, Escape exits the view instead of opening the pause menu
@@ -637,8 +679,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         if (localPlayer != null) {
             // 1. Loadout input first: a slot press this frame rides this frame's input packet
             loadoutController.update(localPlayer);
-            // The surveillance controller polls the view-cycle key the same way.
+            // The surveillance and door-use controllers poll their edges the same way.
             surveillance.update(localPlayer);
+            doorUse.update(localPlayer);
 
             // 2. Sample input and simulate predicted local motion. While surveilling, the aim is
             //    measured from the device the player is looking through, so the piloted cone
@@ -646,6 +689,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             SurveillanceController.ViewTarget aimAnchor = surveillance.aimAnchor(localPlayer);
             PacketPlayerInput input = inputSampler.sample(localPlayer, camera, aimAnchor.x(), aimAnchor.y());
             surveillance.stampPacket(input);
+            doorUse.stampPacket(input);
             gunAudio.onLocalInput(input, localPlayer, bindings.isFireJustPressed());
             localPlayer = prediction.predict(input, delta, liveMap());
             // The piloted drone is predicted locally, so the view and the cone stay crisp.
@@ -1172,7 +1216,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 arena.width(),
                 arena.height()));
         lines.add("A/D move  W jump  Space jetpack  S crouch/drop  LMB fire  RMB aim/ADS"
-            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  6 view cycle"
+            + "  1-5 slot (tap 1/2 quick-swap)  [ / ]/wheel cycle  Q/E gadget  F use  6 view cycle"
             + "  Esc exit/pause  Enter chat/console");
         return lines;
     }
