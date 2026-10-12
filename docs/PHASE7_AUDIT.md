@@ -1029,3 +1029,83 @@ were written and not executed, and the two decisions they lean on are surfaced i
 gate reads a door as an opening, which a `TEAM` door would turn into a lower bound) and §11.4
 (the shipped arena fails the strict reading by one intended pocket, so slice B's CI step has to
 know which reading fails a build) rather than settled here.
+
+**Map milestone 5, slice B (the `tools` module, `MapTool check|bake` and CI's map gate)** —
+implemented in source on `arena/78110530-skystrike`, on top of slice A (PR #63), with nothing
+deferred out of the slice and no wire change (`PROTOCOL_VERSION` stays 18). **§11.4 is now
+decided**, and the decision is what the CI step implements: the user chose, on 2026-10-12, that a
+map whose spawns cannot reach each other **fails** the build and a map that is merely not fully
+reachable **warns with the sealed pocket named**. The shipped arena is the second kind — 600
+columns, 1526 stances at the gate's 5-unit pitch, both spawns reaching each other, ten stances
+sealed inside the milestone-4 fixture door's alcove — so CI is green on it while still naming the
+alcove, which slice A's evidence is what made a decision rather than a defect. The stricter
+reading is not deleted, it is a value: `MapAudit.Reading.FULL` is §7's letter and `MapTool check
+--strict` asks for it, so a human can put any map to the stricter question without a code change.
+The choice lives in the shared core rather than in the CLI because the editor has to answer the
+same question about the same map: `MapAudit.check(ArenaMap, label, Reading)` runs slice A's
+`MapReachability.check`, maps its two booleans onto `PASS`/`WARN`/`FAIL` (spawns disconnected →
+FAIL under either reading; not fully reachable → FAIL under `FULL`, WARN under `SPAWNS_ONLY`; no
+spawn authored → WARN, because a spawnless map is a valid map that proves nothing), and *builds
+the report lines itself* — `Result.lines()` — so a CI log and the editor's status area cannot say
+two different things about one map. `Result.pocket()` hands the editor the gate's own complete
+list of stances, never a sample. `MapAudit.bake(ArenaMap)` is the other half both surfaces share:
+the field's bytes with its header, i.e. exactly what `data/<map>.sdf` holds, and
+`MapAudit.bakeField(ArenaMap)` the field the in-game editor will draw and upload with.
+
+**Where the task lives — decided.** `tools` is a real Gradle module (`include 'tools'`) rather
+than a `JavaExec` task hung off `shared`: it depends on `shared` and nothing else, and
+`checkModuleDependencies` now indexes it as an owner, forbids `tools` → `core`/`server` *and*
+forbids every game module from reaching `tools` (the CLI is a consumer of the map model, never a
+dependency of the game), and extends the LibGDX ban to it because the CLI is headless by
+construction. Both source-only python checkers gained `tools` to their module lists — which is how
+`tools/src/main/java/io/github/skystrike/tools/SdfBakeTool.java` stops being a file no build and no
+check had ever read. `MapTool` itself is deliberately a shell: argument parsing, file I/O, printing
+and an exit code (0 passed or warned, 1 failed/malformed/unwritable, 2 usage), with the verdict
+mapping one line long, so a CI step cannot quietly change what a failed map means.
+`MapTool check [--strict] [map.map ...]` audits file maps or, with no path, the shipped arena — the
+embedded canonical text is the only map there is until the shipped-maps milestone moves it — and
+`MapTool bake [map] [--out <path>]` writes the asset while `bake --check` re-bakes in memory and
+compares the committed file byte for byte, naming which of the three differences it found: another
+length, a header hash naming another map, or a texel region (its first rectangle, through
+`SdfField.diff`). `SdfBakeTool` survives as the desktop one-button bake, now delegating to
+`MapAudit`, so the tool, the CLI and CI share one bake implementation rather than three.
+
+**CI.** Two steps were added after the compile step, which now also compiles `tools`:
+`./gradlew tools:mapCheck --no-daemon` (the §7 reachability gate over the shipped map, as decided
+above) and `./gradlew tools:mapBakeCheck --no-daemon` (`MapTool bake --check` against
+`assets/data/arena.sdf`). Both are `JavaExec` tasks in `tools/build.gradle` with the repository root
+as their working directory, so a CI step names a task and cannot drift from the class or its
+arguments. Tests were written and not executed here: `MapAuditTest`, in `shared/src/test` where
+the suite lives, pins both readings against the shipped arena (WARN with the exact ten-stance
+alcove under `SPAWNS_ONLY`, FAIL under `FULL`, 1526 stances on 600 columns and 150 on foot / 1516
+with fuel per spawn), the two failure modes a small authored map can show (a 1800-tall centred wall
+disconnects the spawns under both readings; a sealed chamber — walls with a ceiling flush on them,
+800 up — only warns), the spawnless-map warning and its own line, and the bake (deterministic
+bytes, 1,500,060 bytes = a 60-byte header plus 1500 × 1000 texels, header hash matching the map it
+names and not another). `static_api_check.py` cannot see an instance call made through a field or a
+variable, so the slice's cross-module calls were hand-read against their declarations:
+`MapReachability.check`, `Report.stanceCount()/columns()/spawns()/spawnsConnected()/fullyReachable()/describe()/unreachableFromEverySpawn()`,
+`SpawnReport.teamIndex()/spawnX()/spawnY()/start()/onFoot()/withFuel()/unreachable()`,
+`Stance.x()/feet()`, `SdfBaker.bake(ArenaMap)`,
+`SdfField.HEADER_BYTES/width()/height()/texelScale()/mapHash()/write()/read()/diff()`,
+`SdfDiff.x()/y()/width()/height()/texels()`, `MapHash.hex(byte[])` and
+`ArenaMap.standard()/blocks()/spawns()/mirrorAxisX()/mapHashHex()`.
+
+The slice was source-checked with exactly the permitted Python checks: `python3
+tools/scratch/static_check.py` (clean: 442 Java files scanned, 442 declared types, no findings —
+including both consumer gates, now covering `tools` too), `python3
+tools/scratch/static_api_check.py` (clean: 552 project types indexed from 438 files),
+`python3 tools/scratch/static_audio_check.py` (clean: 13 world entries, 6 weapon events, 1 loop,
+14 effect types, 30 manifest entries), `python3 tools/scratch/synth_sfx.py --check` (clean: 14
+generated sounds agree), `python3 tools/scratch/phase3_ballistics.py` (analytical report completed
+without findings), `python3 tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee
+rows regenerated with no tracked diff) and `python3 tools/scratch/arena_sdf_check.py` (clean: 64
+blocks, map hash `686c9165…a597`, 1500 × 1000 texels at 2.0 units/texel, 1,500,060 bytes, the
+shipped asset the bake of the committed map — no map text changed in this slice). The source-only
+mirror `tools/scratch/arena_reachability_check.py` was re-run for the numbers the new test pins and
+reports them unchanged: 1526 stances on 600 columns, spawns connected under either door reading,
+ten sealed stances listed by name, 150 stances on foot and 1516 with fuel for each spawn. No Java
+was compiled, no test, server, client, game or desktop build was run or observed, and **no
+`MAP_BUILDER_ACCEPTANCE.md` box was ticked**: the CI steps and the CLI have never executed, so
+their first run in CI is also the first execution of `MapTool` and of the Java bake against the
+committed bytes (the python mirror already reports that asset as the bake of that map).

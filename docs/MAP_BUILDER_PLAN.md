@@ -583,6 +583,14 @@ the network, and it must not be able to publish a map to a running match. The CL
 surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachability, and
 `MapTool bake` writes the SDF the client loads.
 
+*Landed as slice B (PR #64).* The shared core is `MapAudit`, in `shared`: `check(map, label,
+reading)` returns the verdict and the report lines both surfaces print, and `bake`/`bakeField` are
+the one bake. The CLI is a `tools` module of its own — the only module that may not be reached from
+the game modules and the only one that reaches `shared` and nothing else — with `check [--strict]`,
+`bake` and `bake --check`, wired as `tools:mapCheck` and `tools:mapBakeCheck` in CI. Format
+validation is not re-implemented: every map reaching the audit has already been through
+`ArenaMap.Builder`, which the parser, the editor's draft and the tests all use.
+
 ## 7. Tests (all in `shared/src/test`, no GPU)
 
 - **Symmetry:** every shipped map loads, and for every block its reflection about `mirrorAxisX()`
@@ -839,7 +847,14 @@ landed, and the close-out's last slice needed no wire change)
    tests beside it. `MapEditorScreen` (slice C) and `MapTool` (slice B — which also has to decide
    where that task lives, because `tools` is not a Gradle module) are untouched. Written and not
    executed: this environment has no JDK. §11.3 and §11.4 below now carry the readings slice A had
-   to take to run at all, for confirmation rather than as settled answers.
+   to take to run at all, for confirmation rather than as settled answers. **Slice B has landed
+   too** (branch `arena/78110530-skystrike`, PR #64): `tools` is a Gradle module that reaches
+   `shared` and nothing else, `MapAudit` is the check/bake core the editor and the CLI both read
+   (§6), `MapTool check|bake` exists with CI running `tools:mapCheck` and `tools:mapBakeCheck`, and
+   §11.4 is decided — a map whose spawns cannot reach each other fails CI, a map that is merely not
+   fully reachable warns with the sealed pocket named, and §7's strict reading stays available as
+   `check --strict`. `MapAuditTest` was written and not executed, like everything else here. What
+   remains of this milestone is slice C, the screen.
 6. **Shipped maps.** The arena moves to `assets/maps/arena.map`; additional maps become possible,
    with the map list a server setting.
 
@@ -892,3 +907,15 @@ landed, and the close-out's last slice needed no wire change)
    other, and **warn** with the pocket named on one that is merely not fully reachable — unless
    the map should be able to declare a pocket intended. Awaiting the decision before slice B
    wires the CI step.
+
+   *Slice B's answer (PR #64), decided 2026-10-12.* **Decided: fail on disconnected spawns, warn
+   with the pocket named.** A map whose spawns cannot reach each other fails the build; a map that
+   is merely not fully reachable passes with a warning that lists every stance no spawn can reach,
+   which is what the shipped arena does — so CI is green on the map this build ships while the
+   alcove is still named in the log. The strict reading is not discarded: it is the other value of
+   `MapAudit.Reading` (`FULL`) and `MapTool check --strict` asks for it, so §7's letter can be
+   applied to any map on demand. The policy lives in the shared core rather than in the CLI,
+   because the editor's report has to answer the same question about the same map, and a declared
+   intentional pocket (the third option on the table) is *not* implemented: the format has no way
+   to say it, the editor cannot author it, and today's only pocket is a fixture artifact that a
+   warning names precisely enough to act on.

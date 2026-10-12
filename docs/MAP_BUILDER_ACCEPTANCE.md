@@ -199,6 +199,21 @@ reachability report against the shipped arena, from the source-only mirror in `t
 1526 stances on 600 columns, spawns connected, 10 stances sealed in the fixture alcove; see §11.4 of
 the plan for why that last number is the decision slice B is waiting on rather than a defect.
 
+**Status — milestone 5 slice B (PR #64), appended 2026-10-12.** None of the five boxes is ticked
+here: this environment has no JDK, so the CLI, the Gradle tasks and both new CI steps were written
+and not executed, and no manual box can be ticked without a desktop. The third box is the one this
+slice moves from "missing" to "attemptable by a human watching CI": `MapTool check` exists and CI
+runs it as its own named step (`tools:mapCheck`), so a broken map is caught in the run rather than
+in a playtest — with §11.4 now decided (a map whose spawns cannot reach each other fails; a merely
+unreachable pocket is a named warning), and `MapTool bake --check` as a second step
+(`tools:mapBakeCheck`) re-bakes the shipped arena in memory and compares it byte for byte with
+`assets/data/arena.sdf`, which is the "reproduces the shipped SDF byte-for-byte" half of that same
+box. What is left to a human is the observing: the checks list on a real run, and the desktop
+re-run. The fourth box stays half-attemptable: the CI gate and its reading exist, but "the editor's
+reachability report marks an unreachable objective" is `MapEditorScreen` and waits for slice C.
+Nothing here touches the wire: `PROTOCOL_VERSION` stays 18, and a map cannot reach a running match
+through the CLI — `MapTool` reads and writes files and has no network path at all.
+
 ## Performance
 
 - [ ] A map with the maximum shipped block count holds 60 Hz on the reference desktop with the

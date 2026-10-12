@@ -50,8 +50,9 @@
 | `server` | `shared`, networking, auth SDK | Game framework, rendering, `core`, any launcher |
 | `core` | `shared`, game framework, rendering | `server`, any launcher, platform-specific APIs |
 | `lwjgl3` / `android` | `core`, `shared`, platform APIs | `server` |
+| `tools` | `shared`, the JDK | Game framework, `core`, `server`, any launcher |
 
-Enforce the dependency direction with `checkModuleDependencies`: it resolves imports to the source module that owns each type, rejecting `shared` → `server`/`core`, `server` → `core`/LibGDX, and `core` → `server`. This ownership check matters because client packages such as `audio`, `fx` and `ui` live directly under `io.github.skystrike`, not under a `.core` package.
+Enforce the dependency direction with `checkModuleDependencies`: it resolves imports to the source module that owns each type, rejecting `shared` → `server`/`core`/`tools`, `server` → `core`/`tools`/LibGDX, `core` → `server`/`tools`, and `tools` → `core`/`server`/LibGDX. This ownership check matters because client packages such as `audio`, `fx` and `ui` live directly under `io.github.skystrike`, not under a `.core` package.
 
 ---
 
@@ -65,7 +66,7 @@ Enforce the dependency direction with `checkModuleDependencies`: it resolves imp
 ├── lwjgl3/              Desktop launcher
 ├── android/             Mobile launcher
 ├── assets/              Shared runtime assets (sprites, shaders, fonts, data)
-├── tools/               Offline build tools (SDF baker, atlas packer, asset list)
+├── tools/               Headless tooling module (map check|bake, SDF baker)
 ├── docs/                Design and planning documents
 ├── gradle/              Wrapper
 ├── build.gradle         Root build
@@ -479,10 +480,12 @@ assets/
 ```
 
 ```
-tools/
-├── SdfBakeTool                  Offline distance-field bake
-├── AtlasPackTool                Sprite atlas packing
-└── AssetManifestTool            Generates assets.txt
+tools/                            A module since milestone 5 slice B: shared-only, headless
+├── src/main/java/io/github/skystrike/tools/
+│   ├── MapTool                  check|bake, the CLI CI runs (§6 of the map plan)
+│   └── SdfBakeTool              The desktop one-button bake, over the same shared core
+├── scratch/                     Source-only python checks for this sandbox (no JDK)
+└── weapons/                     The weapon-table generator
 ```
 
 ---
