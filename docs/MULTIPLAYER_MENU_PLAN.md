@@ -740,7 +740,10 @@ service, accounts and friends, skill-based matchmaking, and in-game invitations 
   is taken.
 - **M2 — accounts.** Players log in with an account, not a typed guest name. Consequences,
   which the phases must respect:
-  1. **P5 cannot start until an accounts plan exists.** That plan is a new piece of work, not
+  1. **P5 cannot start until an accounts plan exists.** That plan is written as
+     `docs/ACCOUNTS_PLAN.md`. Its first two inputs are decided: username and password login, and
+     a login service the user self-hosts. Its phases A0–A6 come before P5. The rest of the
+     paragraph is the original consequence:
      part of this one. Until it exists, the guest-name rules in §3, §5.5 and §10 do not apply;
      they are kept only as the record of what was considered.
   2. **A login service is new and sits outside the game server.** It is a separate process with
