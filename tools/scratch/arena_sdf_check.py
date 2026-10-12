@@ -16,7 +16,8 @@ authoring sandbox can hit and a desktop cannot: no JDK, so `tools/.../SdfBakeToo
 What it verifies:
 
   1. `StandardArenaMap.TEXT` parses as the version-1 format (`skystrike-map 1`, one `mirror`, any
-     `spawn`s, then `mirrored`/`centred` block lines with an optional `durability=` attribute).
+     `spawn`s, then `mirrored`/`centred` block lines with the optional `durability=`, `id=` and
+     `access=` attributes, parsed under the same rules the Java format enforces).
   2. The semantic map hash from the text equals the hash in the shipped asset's header — the same
      check `SdfCache` makes at load, and the one that fails in front of a player if this is wrong.
   3. Every texel of a fresh bake equals the shipped texel. Not "close": equal, because the asset is
@@ -51,6 +52,11 @@ MATERIAL_ORDINALS = {"stone": 0, "metal": 1, "wood": 2, "glass": 3, "energy": 4}
 # BlockRules.bakesIntoSdf: the kinds that are part of the static field. Glass and platforms are
 # never in it, and a door is a dynamic occluder rather than baked geometry.
 BAKED_KINDS = {"wall", "breakable"}
+# BlockRules.damage: the only kind whose rule row accumulates a durability pool, and therefore the
+# only kind a `durability=` attribute may scale. DoorAccess ordinals, for the hash's door triple.
+DURABILITY_KINDS = {"breakable"}
+DOOR_ACCESS_ORDINALS = {"ALL": 0, "TEAM": 1}
+INT_MAX = 2 ** 31 - 1
 
 MAGIC = 0x53534446  # "SSDF"
 VERSION = 2
@@ -114,18 +120,70 @@ def parse_map(lines):
         x, y, width, height = (f32(float(value)) for value in tokens[3:7])
 
         multiplier = DEFAULT_DURABILITY_MULTIPLIER
+        saw_durability = False
+        door_id = None
+        access = "ALL"
+        access_team = 0
+        saw_access = False
         for extra in tokens[7:]:
-            key, _, value = extra.partition("=")
-            if key != "durability":
-                raise ValueError("unknown attribute: " + line)
-            multiplier = f32(float(value))
+            key, separator, value = extra.partition("=")
+            key = key.lower()
+            if not separator or not value:
+                raise ValueError("unknown block attribute: " + line)
+            if key == "durability":
+                if saw_durability:
+                    raise ValueError("duplicate durability attribute: " + line)
+                saw_durability = True
+                if kind not in DURABILITY_KINDS:
+                    raise ValueError("durability is only meaningful for a kind that accumulates"
+                                     " damage: " + line)
+                multiplier = f32(float(value))
+                if multiplier <= 0.0:
+                    raise ValueError("durability multiplier must be positive: " + line)
+            elif key == "id":
+                if door_id is not None:
+                    raise ValueError("duplicate id attribute: " + line)
+                if kind != "door":
+                    raise ValueError("id is only meaningful on a door: " + line)
+                door_id = int(value)
+                if door_id <= 0 or door_id > INT_MAX:
+                    raise ValueError("door id must be a positive integer: " + line)
+            elif key == "access":
+                if saw_access:
+                    raise ValueError("duplicate access attribute: " + line)
+                saw_access = True
+                if kind != "door":
+                    raise ValueError("access is only meaningful on a door: " + line)
+                upper = value.upper()
+                if upper == "ALL":
+                    access, access_team = "ALL", 0
+                elif upper.startswith("TEAM") and upper[4:].isdigit():
+                    access = "TEAM"
+                    access_team = int(upper[4:])
+                    if access_team > INT_MAX:
+                        raise ValueError("door team index is out of range: " + line)
+                else:
+                    raise ValueError("door access must be ALL or TEAM<n>: " + line)
+            else:
+                raise ValueError("unknown block attribute: " + line)
 
-        block = (kind, material, x, y, width, height, multiplier)
+        door = None
+        if kind == "door":
+            if door_id is None:
+                raise ValueError("a door requires an id=<n> attribute: " + line)
+            door = (door_id, DOOR_ACCESS_ORDINALS[access], access_team)
+        block = (kind, material, x, y, width, height, multiplier, door)
         blocks.append(block)
         if verb == "mirrored":
+            # A reflected door is a second door, not the same one seen from the other side, so it
+            # takes the next id — DoorSpec.reflection().
+            reflected_door = None if door is None else (door[0] + 1, door[1], door[2])
             blocks.append((kind, material, f32(2.0 * mirror - (x + width)), y, width, height,
-                           multiplier))
+                           multiplier, reflected_door))
 
+    door_ids = [block[7][0] for block in blocks if block[7] is not None]
+    if len(set(door_ids)) != len(door_ids):
+        raise ValueError("duplicate door id in the map text")
     if mirror is None:
         raise ValueError("the map text declares no mirror axis")
     return mirror, spawns, blocks
@@ -136,7 +194,11 @@ def map_hash(mirror, spawns, blocks):
     spawn_key = lambda s: (s[0], float_bits(s[1]), float_bits(s[2]))
     block_key = lambda b: (
         KIND_ORDINALS[b[0]], MATERIAL_ORDINALS[b[1]],
-        float_bits(b[2]), float_bits(b[3]), float_bits(b[4]), float_bits(b[5]))
+        float_bits(b[2]), float_bits(b[3]), float_bits(b[4]), float_bits(b[5]),
+        # Doors are the one kind whose identity is not their geometry, so ordering by id keeps the
+        # hash a function of the contents rather than of the line order they were authored in; a
+        # block that is not a door sorts on MapHash's DoorSpec.NONE id of 0.
+        b[7][0] if b[7] is not None else 0)
 
     canonical = ["skystrike-map-hash 1", "mirror %d" % float_bits(mirror)]
     ordered_spawns = sorted(spawns, key=spawn_key)
@@ -145,7 +207,7 @@ def map_hash(mirror, spawns, blocks):
         canonical.append("%d %d %d" % (team, float_bits(x), float_bits(y)))
     ordered_blocks = sorted(blocks, key=block_key)
     canonical.append("blocks %d" % len(ordered_blocks))
-    for kind, material, x, y, width, height, multiplier in ordered_blocks:
+    for kind, material, x, y, width, height, multiplier, door in ordered_blocks:
         row = "%d %d %d %d %d %d" % (
             KIND_ORDINALS[kind], MATERIAL_ORDINALS[material],
             float_bits(x), float_bits(y), float_bits(width), float_bits(height))
@@ -153,6 +215,11 @@ def map_hash(mirror, spawns, blocks):
         # what keeps the hash of an all-default map identical to what it was before the field.
         if f32(multiplier) != DEFAULT_DURABILITY_MULTIPLIER:
             row += " %d" % float_bits(multiplier)
+        # A door's id, access and team are authored content exactly as its rectangle is, encoded
+        # only for a real door so every block of a map without doors hashes as it did before doors
+        # existed.
+        if door is not None:
+            row += " door %d %d %d" % (door[0], door[1], door[2])
         canonical.append(row)
 
     return hashlib.sha256(("\n".join(canonical) + "\n").encode("utf-8")).digest()
@@ -161,7 +228,7 @@ def map_hash(mirror, spawns, blocks):
 def rasterize(blocks, width, height):
     """SdfBaker's step 1: which texels are solid, for the kinds that bake."""
     solid = bytearray(width * height)
-    for kind, _material, x, y, w, h, _multiplier in blocks:
+    for kind, _material, x, y, w, h, _multiplier, _door in blocks:
         if kind not in BAKED_KINDS:
             continue
         left, right, bottom, top = x, x + w, y, y + h

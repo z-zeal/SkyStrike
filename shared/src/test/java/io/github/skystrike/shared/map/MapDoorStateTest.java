@@ -56,7 +56,12 @@ class MapDoorStateTest {
 
     @Test
     void aMapWithoutDoorsAnswersEveryQuestionAsEmpty() {
-        MapDoorState state = MapDoorState.closed(ArenaMap.standard());
+        // The shipped arena authors the close-out's fixture door pair, so the doorless map is
+        // authored here: this test is about the empty case, not about a particular map.
+        MapBlock wall = new MapBlock(
+            BlockKind.WALL, Material.STONE, new Rect(0f, 0f, 3000f, 100f),
+            MapBlock.DEFAULT_DURABILITY_MULTIPLIER, DoorSpec.NONE);
+        MapDoorState state = MapDoorState.closed(ArenaMap.builder(AXIS).centred(wall).build());
 
         assertTrue(state.isEmpty());
         assertTrue(state.doors().isEmpty());

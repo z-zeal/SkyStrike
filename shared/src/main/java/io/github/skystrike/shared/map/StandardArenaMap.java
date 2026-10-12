@@ -7,12 +7,21 @@ package io.github.skystrike.shared.map;
  * {@code assets/maps/arena.map}. Keeping it as text now makes {@link ArenaMap#standard()} prove
  * the real parser path without making shared depend on a desktop or LibGDX file API.
  *
- * <p>The last three lines are milestone 3's fixture range: one mirrored one-way platform high over
+ * <p>Three of the lines are milestone 3's fixture range: one mirrored one-way platform high over
  * the centre carrying a pane and a wooden crate. The arena is deliberately not wall-only any more,
  * because with no map file and no editor (milestone 5) a running game could otherwise never meet
  * the kinds that milestone built — stand on the platform and drop through it, shoot the pane and
  * watch it shatter, chip the crate and break it. Everything else is the pre-existing arena, and
  * the range sits far above every lane the game and the older tests use.
+ *
+ * <p>The line after them is the close-out's fixture door: one mirrored metal door, ids 1 and 2,
+ * sealing the ground-lane gap between the tall wall at {@code x} 1010..1034 and the shorter one at
+ * 1070..1092 — the pair stands at {@code x} 1034..1070 and 1930..1966, from {@code y} 100 to 270.
+ * It exists for the same reason the range above does: the door boxes in the acceptance checklist
+ * need a contained doorway a running game can walk up to and press {@code F} at, and with the
+ * editor still milestone 5 the shipped arena is the only map there is. The lane is otherwise empty
+ * (nothing in the game or in the tests walks through it), and a shut panel is 170 units tall
+ * against a jump rise of about 110, so the door seals that gap to movement and not only to sight.
  */
 final class StandardArenaMap {
 
@@ -55,6 +64,7 @@ final class StandardArenaMap {
         "mirrored platform wood 1620 1300 220 18",
         "mirrored glass glass 1660 1318 20 180",
         "mirrored breakable wood 1740 1318 60 60 durability=0.4",
+        "mirrored door metal 1034 100 36 170 id=1 access=ALL",
         "");
 
     private StandardArenaMap() {
