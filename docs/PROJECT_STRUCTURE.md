@@ -106,10 +106,24 @@ shared/src/main/java/io/github/skystrike/shared/
 │   ├── HitZone                  Head, body, fuel tank
 │   └── ShieldState              Stowed, equipped, broken
 │
-├── map/                         Arena definition
-│   ├── Rect                     Axis-aligned rectangle with overlap helpers
-│   ├── ArenaMap                 Platform and wall arrays, spawn points, bounds
-│   └── MapQueries               Ground height, platform-at-point, containment
+├── map/                         Arena definition, its format, and its reachability gate
+│   ├── Rect, ArenaMap, MapQueries   Geometry, blocks and spawns, ground/overlap queries
+│   ├── ArenaMapFormat, MapDraft     The canonical text form, and the editor's editable copy
+│   ├── MapFormatException       A load error an author can read and fix
+│   ├── MapBlock, BlockKind, BlockRules, Material, MaterialTable
+│   │                            One placed block; and what a kind is made of, how it breaks,
+│   │                            and what the two sides of a hit agree it should do
+│   ├── DamageRule, DamageSource, Blocking, MovementRule
+│   │                            The per-kind rules damage, sight and movement read
+│   ├── DoorSpec, DoorAccess     A doorway's side filter, and whether a side may pass
+│   ├── DoorState, MapDoorState, MapDamageState, BlockBreak, BlockChip
+│   │                            The live state a map gains in a match: door timers, damage
+│   ├── BlockRenderStyle         The client's drawing vocabulary for a kind, chosen in shared
+│   ├── MapHash                  The one map identity — text form, SDF header, bake check
+│   ├── MapReachability          Stance flood fill: where a spawn can actually stand and go
+│   ├── MapAudit                 The gate's verdict (check) and the one SDF bake
+│   ├── MapPalette               Editor presets and tap geometry, so the screen names no kind
+│   └── StandardArenaMap         The shipped arena, authored in code and written out by tools
 │
 ├── weapons/
 │   ├── Weapon                   Base type
@@ -322,6 +336,7 @@ core/src/main/java/io/github/skystrike/
 │   ├── LoadingScreen            Async asset load, shader warm-up, SDF load
 │   ├── MainMenuScreen           Play, settings, account, exit
 │   ├── GameScreen               Composition root for a match — thin orchestrator
+│   ├── MapEditorScreen          The map editor, debug builds only (map plan §6)
 │   └── transition/              Fades and screen transitions
 │
 ├── net/

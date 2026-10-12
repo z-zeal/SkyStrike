@@ -229,6 +229,29 @@ reachability report marks an unreachable objective" is `MapEditorScreen` and wai
 Nothing here touches the wire: `PROTOCOL_VERSION` stays 18, and a map cannot reach a running match
 through the CLI — `MapTool` reads and writes files and has no network path at all.
 
+**Status — milestone 5 slice C, appended 2026-10-12.** None of the five boxes is ticked, and none
+can be: this environment has no JDK, so the screen, the palette and their tests were written and
+not executed, and the boxes are desktop observations by definition. Three of them become
+attemptable for a human with a debug desktop build. The first — reachable only behind the debug
+master switch — is now a run with `--dev` (the menu lists "Map editor") and a run without it (the
+menu is the four standard actions and there is no editor entry to find, because the action is
+spliced in only while `DebugFlags.enabled()`); the release-build half is still a build nobody has
+made. The second — touch editing — is the canvas: one finger places the armed palette entry, a
+finger that moves more than 14 pixels pans instead, and a tap with Delete armed removes the block
+under it; what a human cannot check here is the feel of it, and no emulator or device has run it.
+The fifth — the editor cannot publish — is attemptable two ways: structurally, by reading
+`Main.openMapEditor()`, which constructs the screen with the route back to the menu and nothing else
+(no session, no socket, no match state, so there is no path to publish with), and by behaviour, by
+authoring a map while a session runs and seeing the session unaffected. The fourth box is the one
+this slice completes on the editor side: Validate runs the shared gate over the draft written and
+parsed back — the map a fresh session would load, not the in-memory block list — prints
+`MapAudit.Result.lines()` and marks `Result.pocket()` in red on the canvas, and the strict-reading
+note appears exactly when the two readings disagree, which on the shipped arena is the alcove the CI
+step deliberately warns about (§11.4). The third box is unchanged from slice B and still waits on a
+CI run being watched by a human. `PROTOCOL_VERSION` stays 18, and no map text was touched, so
+`assets/data/arena.sdf` is the same asset it was — the editor writes new files into the user's own
+directory and never into the repository.
+
 ## Performance
 
 - [ ] A map with the maximum shipped block count holds 60 Hz on the reference desktop with the

@@ -42,6 +42,8 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     private static final float FORM_FIELD_WIDTH = 300f;
     private static final float DIALOG_WIDTH = 480f;
     public static final String LOCAL_TEST_ACTION = "Local test";
+    /** The map editor's action; like the local host, a debug build is the only one offered it. */
+    public static final String MAP_EDITOR_ACTION = "Map editor";
     private static final String[] STANDARD_ACTIONS = {"Play", "Loadout", "Settings", "Quit"};
 
     /** A validated connection request produced only by Play. */
@@ -64,6 +66,7 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
     private final Stage stage;
     private final InputMultiplexer input = new InputMultiplexer();
     private final boolean localTestAvailable;
+    private final boolean mapEditorAvailable;
     private final String[] menuActions;
 
     private final List<Actor> menuOrder = new ArrayList<>();
@@ -100,12 +103,24 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
             String tcpText,
             String udpText,
             boolean localTestAvailable) {
+        this(action, playerName, host, tcpText, udpText, localTestAvailable, false);
+    }
+
+    public MainMenuScreen(
+            Consumer<Request> action,
+            String playerName,
+            String host,
+            String tcpText,
+            String udpText,
+            boolean localTestAvailable,
+            boolean mapEditorAvailable) {
         if (action == null) {
             throw new IllegalArgumentException("action is required");
         }
         this.action = action;
         this.localTestAvailable = localTestAvailable;
-        this.menuActions = buildMenuActions(localTestAvailable);
+        this.mapEditorAvailable = mapEditorAvailable;
+        this.menuActions = buildMenuActions(localTestAvailable, mapEditorAvailable);
         this.actionButtons = new TextButton[this.menuActions.length];
         this.skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
         this.stage = new Stage(new ScreenViewport());
@@ -143,11 +158,29 @@ public final class MainMenuScreen extends de.eskalon.commons.screen.ManagedScree
         stage.setKeyboardFocus(actionButtons[0]);
     }
 
-    private static String[] buildMenuActions(boolean localTestAvailable) {
-        if (!localTestAvailable) {
+    /**
+     * The actions the menu offers, with the debug-only ones spliced in.
+     *
+     * <p>Both flags come from the composition root, which resolves the debug master switch once:
+     * a release build's menu is {@link #STANDARD_ACTIONS} and nothing else, so there is no entry to
+     * a local host or to the map editor at all rather than a hidden or disabled one.
+     */
+    private static String[] buildMenuActions(boolean localTestAvailable, boolean mapEditorAvailable) {
+        if (!localTestAvailable && !mapEditorAvailable) {
             return STANDARD_ACTIONS.clone();
         }
-        return new String[] {"Play", LOCAL_TEST_ACTION, "Loadout", "Settings", "Quit"};
+        List<String> actions = new ArrayList<>();
+        actions.add("Play");
+        if (localTestAvailable) {
+            actions.add(LOCAL_TEST_ACTION);
+        }
+        if (mapEditorAvailable) {
+            actions.add(MAP_EDITOR_ACTION);
+        }
+        actions.add("Loadout");
+        actions.add("Settings");
+        actions.add("Quit");
+        return actions.toArray(new String[0]);
     }
 
     private TextField field(String value, String message) {
