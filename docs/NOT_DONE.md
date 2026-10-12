@@ -75,7 +75,7 @@ unchecked boxes in each file.
 | `VISION_AUDIO_DRONE_ACCEPTANCE.md` | no checkboxes; a manual list, unexecuted |
 | `MECHANICS_PLAN.md` §11 feel checklist | 12 lines, unexecuted |
 
-`ADMIN_ACCESS_FLOW.md` has 7 boxes, all ticked. It is not in this table.
+`docs/archive/ADMIN_ACCESS_FLOW.md` (moved from `docs/`) has 7 boxes, all ticked. It is not in this table.
 
 ## 6. Documentation debt
 
