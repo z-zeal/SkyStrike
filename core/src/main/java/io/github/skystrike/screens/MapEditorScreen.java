@@ -632,7 +632,7 @@ public final class MapEditorScreen extends de.eskalon.commons.screen.ManagedScre
             }
             down = false;
             if (!panning) {
-                Vector3 world = worldAt(downX, downY);
+                Vector3 world = worldAt((int) downX, (int) downY);
                 tapAt(world.x, world.y);
             }
             return true;
