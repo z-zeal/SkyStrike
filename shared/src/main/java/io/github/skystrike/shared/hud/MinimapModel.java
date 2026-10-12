@@ -211,21 +211,18 @@ public final class MinimapModel {
     private record Memory(long seenAtMillis, float x, float y, Allegiance allegiance) {
     }
 
-    private final ArenaMap arena;
-    private final float arenaWidth;
-    private final float arenaHeight;
-    private final List<Box> terrain;
+    // Not final: setArena re-points the model at the live map after destruction.
+    private ArenaMap arena;
+    private float arenaWidth;
+    private float arenaHeight;
+    private List<Box> terrain;
     private final Map<Target, Memory> memory = new LinkedHashMap<>();
 
     /** Tracks the viewer's alive flag so a respawn empties the map exactly once. */
     private boolean viewerWasAlive = true;
 
     public MinimapModel(ArenaMap arena) {
-        this.arena = Objects.requireNonNull(arena, "the minimap is a picture of one arena");
-        // Never zero: a degenerate arena would divide every marker into infinity.
-        this.arenaWidth = Math.max(1f, arena.width());
-        this.arenaHeight = Math.max(1f, arena.height());
-        this.terrain = terrainBoxes(arena, arenaWidth, arenaHeight);
+        applyArena(arena);
     }
 
     /**
@@ -239,8 +236,20 @@ public final class MinimapModel {
      * nothing; calling this per frame would rebuild garbage for no reason.
      */
     public void setArena(ArenaMap liveMap) {
-        this.arena = Objects.requireNonNull(liveMap, "the minimap is a picture of one arena");
-        this.terrain = terrainBoxes(liveMap, arenaWidth, arenaHeight);
+        applyArena(liveMap);
+    }
+
+    /**
+     * The one place the arena and everything derived from it is set — the constructor and {@link
+     * #setArena} both land here, so a derived map is normalised by its own dimensions rather than
+     * the previous arena's, and the two paths can never disagree about what the picture shows.
+     */
+    private void applyArena(ArenaMap map) {
+        this.arena = Objects.requireNonNull(map, "the minimap is a picture of one arena");
+        // Never zero: a degenerate arena would divide every marker into infinity.
+        this.arenaWidth = Math.max(1f, map.width());
+        this.arenaHeight = Math.max(1f, map.height());
+        this.terrain = terrainBoxes(map, arenaWidth, arenaHeight);
     }
 
     /**
