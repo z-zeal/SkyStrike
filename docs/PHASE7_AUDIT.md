@@ -651,6 +651,23 @@ run here either; each change carries its own unexecuted acceptance note.
   here; the desktop re-run is outstanding human work — and the door boxes in the acceptance
   checklist additionally stay unreachable until a door is authored into a playable map (the
   shipped arena has none, by decision the fixture range was not extended for this slice).
+- **Map building system, milestone 4's close-out, slice A — the map-hash join gate (protocol 16).**
+  Implemented on `arena/b24b8b2c-skystrike`, on top of the door slice. The handshake's map guard was
+  half a guard: the accept stated the map and the client verified it before touching its mirror,
+  which turns a stale-process mismatch into a loud client error but lets the mismatched join
+  complete first. Now the join request states the client's own hash (`PacketJoinRequest.mapHashHex`,
+  empty meaning "unstated" and never a wildcard) and `JoinRequestHandler` refuses anything but the
+  map it is running before it allocates a slot, a session or a spawn; the refusal is
+  `REASON_MAP_MISMATCH` and the packet carries the server's hash, so the client's status line has
+  both sides to compare. The decision is one pure function (`mapRefusal`) because the handler
+  around it needs a socket while the decision is the whole risk, and the handler logs both hashes
+  for the host problem the guard was written for. `PROTOCOL_VERSION` 15 → 16 in the same commit:
+  both packets changed shape and no registration was appended, so the list stays at 38 and the
+  newest protocol test owns the exact size pin. Tests were written and not executed: the shared
+  handshake round trips, the size/version pin, and the server-side gate cases (admitted, refused
+  with the server's map named, unstated refused, and a line-shuffled copy admitted as the same
+  map). No Java was compiled, executed or observed here; the close-out's remaining slices —
+  per-hit crack sync and the round-reset event — are still open.
 
 ---
 
@@ -796,3 +813,24 @@ and no `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the new `DoorSystemTest`,
 suite await a human with a JDK, and the door boxes stay unreachable until a door is authored
 into a playable map (the shipped arena has none, and by decision the fixture range was not
 extended for this slice).
+
+The milestone-4 close-out's first slice (protocol 16: the map-hash join gate — the client's stated
+map in the join request, the server's refusal on a mismatch with its own hash attached, the empty
+hash treated as an unstated map rather than a wildcard, and a registration list that stays at 38
+because no type was appended) was source-checked with exactly the permitted Python checks:
+`python3 tools/scratch/static_check.py` (clean: 432 Java files scanned, 432 declared types, no
+findings — including both consumer gates), `python3 tools/scratch/static_api_check.py` (clean: 535
+project types indexed from 428 files), `python3 tools/scratch/static_audio_check.py` (clean: 13
+world entries, 6 weapon events, 1 loop, 14 effect types, 30 manifest entries), `python3
+tools/scratch/synth_sfx.py --check` (clean: 14 generated sounds agree), `python3
+tools/scratch/phase3_ballistics.py` (analytical report completed without findings), `python3
+tools/weapons/generate_weapon_tables.py` (89 gun rows and 21 melee rows regenerated with no tracked
+diff) and `python3 tools/scratch/arena_sdf_check.py` (clean: the shipped asset still agrees with the
+committed map on header hash, header shape and every texel; neither changed this slice).
+`static_api_check.py` cannot see an instance call made through a field or a variable, so the slice's
+cross-module calls (`ArenaMap.standard().mapHashHex` on the client's join path,
+`MapDamageState.authoredMap` in the gate's caller, the two packet schema changes and
+`ClientSession`'s refusal-detail assembly) were additionally read by hand. No Java was compiled, no
+test, server, client, game or desktop build was run or observed, and no
+`MAP_BUILDER_ACCEPTANCE.md` box was ticked: the checklist has no box for the handshake, so the
+guard's only pending human work is the staged-client check that watches the refusal fire.

@@ -46,6 +46,18 @@ Nothing in this repository was
 built, launched or observed: the authoring sandbox has no JDK, so not even the shared tests could
 be executed here.
 
+**Update — the milestone-4 close-out has opened with the handshake's map guard, now enforced on
+both sides (protocol 16).** The join request states the map the client parsed, the server refuses a
+join whose stated hash is not the map it is running, and the refusal carries the server's own hash,
+so the line a refused player sees has both sides of the comparison. There is no box below for this
+one — it is a handshake fact rather than a thing to tick — but it is watchable in a desktop run in
+a way the earlier half was not: stage a client on a different map text and the join is refused with
+`map hash mismatch (server plays …, this client parsed …)` instead of a match that silently
+disagrees about what a wall is. Still open in the close-out: per-hit crack sync and the round-reset
+event, so the crack-state boxes ("the breakable's crack state matches the number of hits it has
+taken") and the reset box ("destruction resets … the two clients agree") stay unreachable for now.
+Every box above remains unchecked.
+
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
 `docs/MAP_BUILDER_PLAN.md` §7 and are the first gate; this document is the second.
@@ -370,3 +382,29 @@ Everything a human with a runnable desktop build must do — rebuild
 both sides, author one door into a playable map (none is shipped), then walk the door boxes
 above with two clients and a late joiner — remains outstanding, and every box above stays
 unchecked until that run.
+
+The close-out's first slice (protocol 16: the map-hash join gate) was then source-checked only; it
+is not map validation, and every box above remains unchecked. The exact checks run were:
+
+- `python3 tools/scratch/static_check.py` — clean (432 Java files scanned, 432 declared types; no
+  findings, including the module boundaries and both consumer gates).
+- `python3 tools/scratch/static_api_check.py` — clean (535 project types indexed from 428 files).
+- `python3 tools/scratch/static_audio_check.py` — clean (13 world entries, 6 weapon events, 1 loop,
+  14 effect types, 30 manifest entries).
+- `python3 tools/scratch/synth_sfx.py --check` — clean (14 generated sounds agree).
+- `python3 tools/scratch/phase3_ballistics.py` — completed its analytical report without findings.
+- `python3 tools/weapons/generate_weapon_tables.py` — regenerated 89 gun rows and 21 melee rows with
+  no tracked diff.
+- `python3 tools/scratch/arena_sdf_check.py` — clean: the committed asset is still the bake of the
+  committed map (header hash `bef76535…6693`, every texel equal); neither `StandardArenaMap.TEXT`
+  nor the asset changed this slice.
+
+What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
+regression across the slice's edits; `static_api_check.py` cannot see calls made through fields or
+variables, so the slice's cross-module calls (`ArenaMap.standard().mapHashHex` on the client's join
+path, `MapDamageState.authoredMap` in the gate's caller, the `PacketJoinRequest`/`PacketJoinReject`
+schema change, `ClientSession`'s refusal-detail assembly and the package-private `mapRefusal` the
+new server test calls) were also read by hand. Nothing was compiled, nothing was executed, nothing
+was observed: the new handshake round trips, the protocol-16 pin, the `mapRefusal` cases and every
+earlier suite remain unexecuted, and the staged-client check that watches the refusal fire is
+outstanding human work.
