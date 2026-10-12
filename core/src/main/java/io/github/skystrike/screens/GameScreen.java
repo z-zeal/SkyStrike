@@ -799,6 +799,17 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             }
         }
 
+        // Map plan D3: doors occlude through their own array because they never enter the SDF.
+        // Feed exactly the doors whose state still blocks — all but OPEN, the shared machine's
+        // own answer — so a fully open door gates no ray and a swinging one gates until it
+        // finishes, matching the rule collision and sight already live by.
+        pipeline.doorOccluders().clear();
+        for (MapBlock door : damageState.doors().doors()) {
+            if (damageState.doors().blocks(door)) {
+                pipeline.doorOccluders().add(door.rect());
+            }
+        }
+
         // Phase 9: the mixer's ears follow the local player — or the camera before a spawn — so
         // every sound the drain asks for this frame is placed from the right position. While
         // surveilling, the ears follow the device: the player is listening through it.

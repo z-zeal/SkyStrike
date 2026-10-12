@@ -86,6 +86,7 @@ public final class VisibilitySystem implements Disposable {
             SdfTexture sdfTexture,
             List<ObserverState> observers,
             SmokeVolumes smokeVolumes,
+            DoorOccluders doorOccluders,
             boolean hardShadows) {
         if (shader == null) {
             shader = shaders.load("visibility_cone", "light/visibility.vert", "light/visibility_cone.frag");
@@ -113,6 +114,15 @@ public final class VisibilitySystem implements Disposable {
                 smokeVolumes.uploadUniforms(shader);
             } else {
                 shader.setUniformi("u_smokeCount", 0);
+            }
+
+            // Doors gate sight without touching the SDF (map plan D3); the array is uploaded
+            // once per pass because the per-observer loop below shares it — a door blocks a
+            // drone's cone exactly as it blocks its owner's.
+            if (doorOccluders != null) {
+                doorOccluders.uploadUniforms(shader);
+            } else {
+                shader.setUniformi("u_doorCount", 0);
             }
 
             for (ObserverState observer : observers) {

@@ -1,6 +1,7 @@
 #include "lib/header.glsl"
 #include "lib/camera.glsl"
 #include "lib/sdf.glsl"
+#include "lib/door_occluders.glsl"
 
 varying vec2 v_texCoords;
 varying vec2 v_worldPos;
@@ -77,8 +78,11 @@ void main() {
         angFactor = mix(1.0, u_peripheralFloor, smoothT);
     }
 
-    // 3. SDF soft shadow occlusion
+    // 3. SDF soft shadow occlusion. Doors are absent from that same SDF on purpose (map plan
+    //    D3: the bake is static, a door is not), so the closed door rectangles gate the ray
+    //    analytically beside it: a shut door blocks sight exactly as hard as the wall it sits in.
     float shadow = sdfSoftShadow(u_sdfTexture, u_observerPos, v_worldPos, u_worldSize, u_shadowK, u_maxMarchSteps);
+    shadow *= doorOccluderVisibility(u_observerPos, v_worldPos);
 
     // 4. Smoke volume attenuation
     float smokeAtten = calculateSmokeAttenuation(u_observerPos, v_worldPos);
