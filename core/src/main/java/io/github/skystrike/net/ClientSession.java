@@ -8,6 +8,7 @@ import io.github.skystrike.shared.net.c2s.PacketJoinRequest;
 import io.github.skystrike.shared.net.c2s.PacketLeaveRequest;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
@@ -104,6 +105,12 @@ public final class ClientSession {
      * completing and the play screen registering would otherwise be missed until it moved again.
      */
     private final List<PacketDoorState> pendingDoorStates = new ArrayList<>();
+    private Consumer<PacketBlockDamage> blockDamageListener;
+    /**
+     * The same window for chips (protocol 17): a block chipped during it would otherwise read
+     * pristine until its next hit, which for a crate that is never hit again means forever.
+     */
+    private final List<PacketBlockDamage> pendingBlockDamages = new ArrayList<>();
 
     /**
      * The local player's blindness, decayed locally between snapshots so the whiteout recovers
@@ -233,6 +240,22 @@ public final class ClientSession {
         }
     }
 
+    /**
+     * Called on the render thread for every authoritative chip (protocol 17) — a block damaged but
+     * still standing — with the same replay-the-window guarantee as {@link #setBlockBreakListener}:
+     * a block chipped between the join completing and the play screen registering must not read
+     * pristine until its next hit.
+     */
+    public void setBlockDamageListener(Consumer<PacketBlockDamage> listener) {
+        this.blockDamageListener = listener;
+        if (listener != null && !pendingBlockDamages.isEmpty()) {
+            for (PacketBlockDamage pending : pendingBlockDamages) {
+                listener.accept(pending);
+            }
+            pendingBlockDamages.clear();
+        }
+    }
+
     /** Called whenever a connection attempt or joined session is torn down. */
     public void setSessionResetListener(Runnable listener) {
         this.sessionResetListener = listener;
@@ -357,6 +380,12 @@ public final class ClientSession {
             } else {
                 pendingDoorStates.add(door);
             }
+        } else if (payload instanceof PacketBlockDamage chip) {
+            if (blockDamageListener != null) {
+                blockDamageListener.accept(chip);
+            } else {
+                pendingBlockDamages.add(chip);
+            }
         } else if (payload instanceof PacketDamageEvent damage) {
             applyDamageEvent(damage);
         } else if (payload instanceof PacketKillEvent kill) {
@@ -469,6 +498,7 @@ public final class ClientSession {
         joinAccept = null;
         pendingBreaks.clear();
         pendingDoorStates.clear();
+        pendingBlockDamages.clear();
         serverPlayerCount = 0;
         latencyMillis = -1;
         latestSnapshot = null;

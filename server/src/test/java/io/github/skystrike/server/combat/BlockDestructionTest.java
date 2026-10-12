@@ -15,6 +15,7 @@ import io.github.skystrike.shared.effect.EffectType;
 import io.github.skystrike.shared.gadget.GadgetId;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.ArenaMapFormat;
+import io.github.skystrike.shared.map.BlockChip;
 import io.github.skystrike.shared.map.DamageSource;
 import io.github.skystrike.shared.map.MapBlock;
 import io.github.skystrike.shared.map.MapDamageState;
@@ -237,6 +238,56 @@ class BlockDestructionTest {
             1,
             bullets.terrainImpactCount(),
             "the breaking hit is not a stop-hit: only the chip stopped a round");
+    }
+
+    @Test
+    @DisplayName("a non-lethal hit leaves one chip carrying the running total, and a break supersedes it")
+    void chipsAreRecordedPerHitWithTheRunningTotal() {
+        Player player = shooter(1200f, 100f, 0f);
+        MapBlock crate = crate(arena);
+        float pool = 48f; // wood's 120 durability under the authored 0.4 multiplier
+
+        // The first hit leaves the crate standing, so the hit is a chip: one record, carrying the
+        // total rather than the hit's own size, and nothing about the map changes.
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f));
+        for (int tick = 0; tick < 30 && bullets.count() > 0; tick++) {
+            bullets.step(TICK, List.of(player), damage);
+        }
+        assertEquals(1, destruction.chips().size(), "one record per non-lethal hit");
+        BlockChip chip = destruction.chips().get(0);
+        assertEquals(crate, chip.block());
+        assertEquals(destruction.damage(crate), chip.damage(), 1e-4f,
+            "the record carries the authority's running total");
+        assertTrue(chip.damage() > 0f && chip.damage() < pool,
+            "a chip leaves the block standing: " + chip.damage());
+        assertEquals(0, destruction.revision(), "and changes nothing the map is");
+        assertTrue(destruction.damagedBlocks().contains(chip),
+            "the baseline of what is chipped right now holds it too");
+
+        // The second hit spends the pool. That is a break, and the break is the only record it
+        // leaves: a block that left the map is never also stated as chipped.
+        float afterChip = destruction.damage(crate);
+        float fractionAfterChip = destruction.damageFraction(crate);
+        assertNotNull(bullets.spawn(player, WeaponId.IRON_CARBINE, 0f));
+        for (int tick = 0; tick < 30 && destruction.revision() == 0; tick++) {
+            bullets.step(TICK, List.of(player), damage);
+        }
+        assertEquals(1, destruction.revision());
+        assertEquals(1, destruction.chips().size(), "the breaking hit is a break, not a chip");
+
+        // A mirror fed the chip lands on the authority's number while the block stands — the
+        // fraction the crack overlay draws follows from it through the shared material row — and
+        // the break then leaves both sides reading a fully spent, destroyed block.
+        MapDamageState mirror = MapDamageState.intact(arena);
+        assertTrue(mirror.applyRemoteDamage(destruction.authoredIndexOf(crate), chip.damage()));
+        assertEquals(afterChip, mirror.damage(crate), 1e-4f, "the chip carried a total, not a delta");
+        assertEquals(fractionAfterChip, mirror.damageFraction(crate), 1e-4f);
+        assertFalse(mirror.isDestroyed(crate), "a chip leaves the block standing");
+        assertNotNull(mirror.applyRemoteBreak(
+            destruction.authoredIndexOf(crate), DamageSource.BULLET, CRATE_LEFT, 150f, false));
+        assertTrue(mirror.isDestroyed(crate));
+        assertEquals(1f, mirror.damageFraction(crate), 1e-4f, "a destroyed block reads fully spent");
+        assertEquals(1, mirror.revision(), "and the two sides' revisions agree once both land");
     }
 
     @Test

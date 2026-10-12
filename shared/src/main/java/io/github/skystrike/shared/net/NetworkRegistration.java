@@ -23,6 +23,7 @@ import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketDoorState;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
@@ -124,7 +125,12 @@ public final class NetworkRegistration {
 
         // Map milestone 4, door half (protocol 15): the authoritative door state, carried live
         // and replayed in the join payload as the door baseline (append-only)
-        PacketDoorState.class);
+        PacketDoorState.class,
+
+        // Map milestone 4 close-out, slice B (protocol 17): the authoritative chip — a block
+        // damaged but still standing — carried live and replayed in the join payload as the crack
+        // baseline (append-only)
+        PacketBlockDamage.class);
 
     private NetworkRegistration() {
     }

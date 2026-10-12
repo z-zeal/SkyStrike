@@ -36,6 +36,7 @@ import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
 import io.github.skystrike.shared.net.c2s.PacketPing;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
+import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
 import io.github.skystrike.shared.net.s2c.PacketCapabilities;
 import io.github.skystrike.shared.net.s2c.PacketChatMessage;
 import io.github.skystrike.shared.net.s2c.PacketCommandResponse;
@@ -219,13 +220,50 @@ class NetworkRegistrationTest {
     @Test
     @DisplayName("the protocol-16 join map gate changed the handshake without appending a type")
     void protocolSixteenJoinMapHashIsPinned() {
-        // The one bump so far that adds no registration: the join request and the join reject both
-        // changed shape instead, which is why the pin asserts a size that stayed put and a version
-        // that moved with it.
+        // The one bump so far that adds no registration of its own: the join request and the join
+        // reject changed shape instead. The size pin belongs to the newest protocol's test, so this
+        // one only asserts that protocol 16 left the list exactly as protocol 15 ended it.
         List<Class<?>> types = NetworkRegistration.registeredTypes();
-        assertEquals(38, types.size(), "the join gate appends nothing");
         assertEquals(PacketDoorState.class, types.get(37));
-        assertEquals(16, NetConfig.PROTOCOL_VERSION);
+        assertTrue(types.size() >= 38, "the join gate appends nothing of its own");
+        assertTrue(NetConfig.PROTOCOL_VERSION >= 16);
+    }
+
+    @Test
+    @DisplayName("the protocol-17 chip packet is appended after the door-state packet")
+    void protocolSeventeenBlockDamageIsAppended() {
+        // Registration order is the wire format: this index can never move again.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(PacketBlockDamage.class, types.get(38));
+        assertEquals(39, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(17, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("a chip survives the wire as the authority's running total, not a hit size")
+    void blockDamagePacketsRoundTrip() {
+        PacketBlockDamage decoded = roundTrip(new PacketBlockDamage(4242L, 57, 12.5f));
+        assertEquals(4242L, decoded.tick);
+        assertEquals(57, decoded.blockIndex);
+        assertEquals(12.5f, decoded.damage, 1e-6f);
+    }
+
+    @Test
+    @DisplayName("the join accept carries the crack baseline beside the break history")
+    void joinAcceptCarriesTheCrackBaseline() {
+        PacketJoinAccept outbound = new PacketJoinAccept(3, "Nova", 60, 900L);
+        outbound.damagedBlocks.add(new PacketBlockDamage(800L, 57, 12.5f));
+        outbound.damagedBlocks.add(new PacketBlockDamage(860L, 42, 30f));
+
+        PacketJoinAccept accept = roundTrip(outbound);
+        assertEquals(2, accept.damagedBlocks.size());
+        assertEquals(57, accept.damagedBlocks.get(0).blockIndex);
+        assertEquals(12.5f, accept.damagedBlocks.get(0).damage, 1e-6f);
+        assertEquals(42, accept.damagedBlocks.get(1).blockIndex);
+        assertEquals(30f, accept.damagedBlocks.get(1).damage, 1e-6f);
+
+        PacketJoinAccept fresh = roundTrip(new PacketJoinAccept(4, "Rook", 60, 901L));
+        assertTrue(fresh.damagedBlocks.isEmpty(), "a fresh map has nothing chipped to state");
     }
 
     @Test
