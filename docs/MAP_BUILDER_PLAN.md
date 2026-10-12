@@ -56,6 +56,24 @@ first `rebakeSdf` caller. Doors, the dynamic occluder array, per-hit crack sync 
 map-hash join rejection are still milestone-4 remainder; the desktop re-run of the destruction
 slice is pending a human, and no acceptance box has been executed.
 
+**Milestone 4's door slice has now landed in source.** PR #55 landed the authored data
+(`DoorSpec`/`DoorAccess`, the format verbs, the builder's mirror and cap rules) and the shared
+machine and live-map half (`MapDoorState`, the door-aware `MapDamageState`, `swingFraction`,
+`applyRemote`); this slice closes the loop over it: the use key (`F`, its own binding, with the
+shared reach rule and an optimistic local prediction that retransmits the press with the usual
+birth-sequence discipline), the server authority (`PlayerSession`'s one-shot edge, `DoorSystem`
+resolving each press against authored reach plus the true occupancy of bodies and thrown
+utilities, warnings through the console-response channel and a corrective record on a refused
+blocked swing, `advance` re-armed by the tick), the protocol-15 door packet and join baseline,
+the `DoorOccluders` uniform array in both the visibility and light shaders, and
+`TerrainRenderer` drawing every door from the static map posed by the machine's swing fraction
+while the SDF keeps naming the destruction-only static map. Still milestone-4 remainder by
+choice: per-hit crack sync, the round-reset wire event and the server-side map-hash join
+rejection. The desktop re-run is pending a human — and because the shipped arena authors no
+door yet (the fixture range stays untouched by decision, so the door boxes in the acceptance
+checklist remain unreachable in a running build until one is authored), no acceptance box has
+been executed here either.
+
 ## 1. What exists today
 
 Every consumer now reads the shared rule table, so authored geometry has one meaning across
@@ -208,7 +226,15 @@ block kind (or test one in a `switch`), and the renderer must mention every decl
 the *state*, never the animation. Because a door changes every few seconds, it is **not** baked
 into the SDF: doors that occlude are handed to the visibility and light shaders as a small fixed
 array of dynamic occluders, using the pattern the smoke circles already use. Closed doors are in
-the collision/bullet sets; open doors are in neither.
+the collision/bullet sets; open doors are in neither. **Implemented:** the shared
+`MapDoorState` machine (§7's transitions, with `swingFraction` the only thing the picture reads)
+inside `MapDamageState`; `DoorSystem` as the server authority feeding it presses and its tick;
+the use key's client half (`DoorUseController`) predicting with the very same functions against
+its own door-clock estimate; `PacketDoorState` carried reliably per change plus the join
+payload's door baseline (protocol 15); `DoorOccluders` uploaded per pass from exactly the doors
+whose state still blocks, with the analytic segment-vs-rect test in both `visibility_cone.frag`
+and `light_radial.frag` beside the smoke attenuation; and `TerrainRenderer` drawing doors from
+the static map posed by the fraction — never from the live map, so no door blinks.
 
 **D4 — Breakables are baked and re-baked.** A breakable wall is a full solid while intact, so it
 is part of the SDF (it really does cast shadows). When it is destroyed, the block leaves the map
@@ -303,11 +329,15 @@ re-deriving it.
 | `DOOR` open | passes | passes | passes | excluded | panel drawn swung aside |
 | `PLATFORM` (one-way) | blocks only a *falling* body from above, and only until drop-through starts | passes | passes | excluded | thin slab, top edge highlighted |
 
-**Implemented for every row above except the two `DOOR` rows** (milestone 4). The damage column is
+**Implemented for every row above** (the `DOOR` rows with milestone 4's door slice). The damage
+column is
 `MapDamageState` plus each system's own call — a round's walk, `ExplosionMath`/`DirectionalBlastMath
-.resolveBlocks`, `MeleeSystem.damageBlocks` — and every consumer reads the *live* map, so "gone"
-means gone from movement, sight, bullets, the picture and the next bake in the same tick the block
-leaves. The SDF half of the `BREAKABLE` row is the re-bake path of D4.
+.resolveBlocks`, `MeleeSystem.damageBlocks` — and every gameplay consumer reads the *live* map, so
+"gone" means gone from movement, sight, bullets and the next bake in the same tick the block
+leaves. The picture is the one place that reads the *static* map instead: `TerrainRenderer` poses
+an open door's panel from the machine's swing fraction rather than letting it vanish with the live
+map, and the re-bake path of D4 covers the SDF half of the `BREAKABLE` row while the `DOOR` rows'
+SDF column ("excluded") is the occluder array of D3.
 
 Consequences the table forces, spelled out because they are the places a plan usually lies:
 
@@ -361,6 +391,18 @@ should just swing (not planned; manual only). The server owns the state machine,
 blocks the swing. Client: predicts the swing from its own use press (optimistic), and reconciles
 when the authoritative state arrives — the same predict/reconcile discipline as movement. A door
 blocked by a body stops opening (server decision, replicated as a state, so both sides agree).
+
+**Implemented, with the two deviations from the sketch noted.** (1) The use key is `F`, not `E`
+— `E` is the E-gadget slot, and doubling one binding onto two presses was never an option;
+`F` is its own binding in the table and in the settings dialog. (2) The hold is in ticks
+(`DoorConfig.HOLD_TICKS`), not seconds — everything door-related measures against the
+simulation clock, so the wire carries only ticks and no wall-clock time ever crosses it (D3).
+Everything else is as sketched: `MapQueries.doorAt` resolves the press against the authored map
+on both sides within `USE_REACH`; the shared `MapDoorState` machine answers access (`DoorSpec`)
+and occupancy refusals; `server/world/DoorSystem` runs it against the true world (every live
+body by hitbox — the presser's included, so a press from inside the swing is refused; every
+thrown utility by position point); the client predicts optimistically through the same functions
+and reconciles on the authoritative record; and a blocked press is refused, never queued.
 
 **Breakables.** Durability lives in the material plus a per-block multiplier. Damage sources:
 explosion damage at the block's nearest point (scaled by distance and the material's blast
@@ -501,8 +543,15 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
 - **One-way rules:** a body rising through a platform is never blocked; a body falling onto it
   lands; a fresh crouch press (`S` alone) drops it through and it does not re-land while
   overlapping; a body already inside a platform is not ejected.
-- **Door rules:** closed blocks movement/bullets/sight, open does not, a blocked swing stops, and
-  the state machine's transitions are driven only through the server-side API.
+- **Door rules (implemented, milestone 4's door slice):** `MapDoorStateTest` pins the machine's
+  transitions, refusals and mirror-reconciliation rules; `MapDamageStateTest` pins the column
+  contract — a closed door fills every blocking column (movement, sight, bullets, blast) and an
+  open one leaves them all — beside the live-map parity with destruction; and in
+  `server/src/test`, `DoorSystemTest` pins the authority half the machine cannot know: the reach
+  resolution, the incapacitated-player gates, the team rule, bodies and thrown utilities as
+  occupancy (a dead body blocks nothing), the blocked-shutting-swing reopen, and that the press
+  during a swing is ignored identically on both sides. `PlayerSessionTest` pins the use edge's
+  one-shot latch and its dedupe by birth sequence.
 - **Breakable rules:** damage accumulates from the material's sources only; at zero the block
   leaves the collision, bullet and query sets in the same tick.
 - **Reachability:** a deterministic BFS over a coarse walkable grid (a cell is walkable when a
@@ -595,9 +644,18 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
 - **Handshake map guard (half landed):** the server states the map hash in the accept and the
   client verifies it before touching its mirror, which turns the first-live-run stale-process
   failure into a loud client error. Server-side rejection — the client stating its map or SDF in
-  the join request and being refused on mismatch — is still open, with the door slice.
-- **Door state (open):** a small reliable packet — door id, state, opening tick — sent on change
-  and re-sent in the join payload. Append-only registration.
+  the join request and being refused on mismatch — is deliberately deferred past the door slice:
+  it changes the join contract a *second* time for no present-player benefit, because a staged
+  client already fails loudly on the accept. It ships with the milestone's close-out, not here.
+- **Door state (landed):** `PacketDoorState` — dispatch tick, authored door id, state ordinal,
+  opening tick — broadcast reliably per change immediately after the tick's door step, and
+  replayed on the join accept as the every-door baseline; a refused blocked swing earns the
+  presser an authoritative correction unicast of the same record. Reliable for the same reason
+  the block event is: a lost record would leave a doorway open on one client and walled on
+  another, and doors change at human pace, so reliable transport costs nothing. The state rides
+  as a plain int ordinal with a defensive `DoorState.fromOrdinal` decode — the enum itself stays
+  off the registered list — because a door answer that cannot decode fails shut instead of
+  walking a body through a panel.
 - **Per-hit crack sync (open):** breaks travel; chips do not. A breakable shows its cracks only
   to the server until the hit that opens it — the client draws it pristine, then gone. Crack
   fractions need their own unreliable channel and are a later increment, not this one.
@@ -657,11 +715,16 @@ surface: `MapTool check maps/*.map` validates symmetry, ids, kinds and reachabil
    source: the protocol 13 → 14 contract (§8) — authored-index identity, the reliably broadcast
    `PacketBlockBreak`, the join baseline, the snapshot revision — the client's `MapDamageState`
    mirror feeding prediction, rendering, the minimap and the first `rebakeSdf` caller, and the
-   map-hash check that refuses a foreign index set. Still open in this milestone: the door state
-   machine and its collision/bullet/sight wiring, the occluder array in the visibility and light
-   shaders, the door packet, the server-side map-hash join rejection, per-hit crack sync and the
-   round-reset event. Gate: the destruction tests below plus door tests, and a manual two-client
-   pass (the acceptance document).
+   map-hash check that refuses a foreign index set. The door half has now followed: the door
+   state machine and its collision/bullet/sight wiring (in `MapDoorState`/`MapDamageState`),
+   the use key and its client prediction, the server `DoorSystem` authority with body-and-utility
+   occupancy and a refused-blocked correction unicast, the protocol-15 `PacketDoorState` wire
+   (join baseline included), the `DoorOccluders` array in the visibility and light shaders, and
+   `TerrainRenderer` posing doors from the static map while the SDF names the destruction-only
+   static map. Still open in this milestone: the server-side map-hash join rejection, per-hit
+   crack sync and the round-reset event. Gate: the destruction tests below plus door tests, and
+   a manual two-client pass (the acceptance document — whose door boxes also stay unreachable
+   until a door is authored into a playable map).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
    in a fresh session.
