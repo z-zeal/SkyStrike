@@ -35,6 +35,7 @@ import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.net.s2c.PacketRoundReset;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.text.ChatMessage;
 import io.github.skystrike.shared.text.ChatTarget;
@@ -130,7 +131,12 @@ public final class NetworkRegistration {
         // Map milestone 4 close-out, slice B (protocol 17): the authoritative chip — a block
         // damaged but still standing — carried live and replayed in the join payload as the crack
         // baseline (append-only)
-        PacketBlockDamage.class);
+        PacketBlockDamage.class,
+
+        // Map milestone 4 close-out, slice C (protocol 18): the round-reset event — the map is
+        // back and the doors are shut — broadcast reliably when the round layer puts the authored
+        // map back (append-only)
+        PacketRoundReset.class);
 
     private NetworkRegistration() {
     }

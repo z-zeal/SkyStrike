@@ -80,8 +80,15 @@ public final class NetConfig {
      * view, the live map and the SDF alone. The damage it carries is the authority's running
      * total, so the record is idempotent and order-tolerant and no fraction has to travel. No
      * Kryo registration was reordered or inserted.
+     *
+     * <p>18 — Map milestone 4 close-out, round-reset event: {@code PacketRoundReset} appended
+     * after {@code PacketBlockDamage} (appended only; 39 untouched). The event says "reset"
+     * rather than replaying the restored set, because the authored map and the door states both
+     * sides derive from are already identical — {@code MapDamageState.reset()} is the same call on
+     * both sides, so the instruction cannot be misapplied. No Kryo registration was reordered or
+     * inserted.
      */
-    public static final int PROTOCOL_VERSION = 17;
+    public static final int PROTOCOL_VERSION = 18;
 
     /** Reliable channel: handshake, chat, anything that must not be dropped. */
     public static final int DEFAULT_TCP_PORT = 54555;

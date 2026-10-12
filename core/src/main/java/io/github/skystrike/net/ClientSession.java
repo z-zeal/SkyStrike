@@ -20,6 +20,7 @@ import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.net.s2c.PacketRoundReset;
 import io.github.skystrike.shared.utility.StunMath;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -111,6 +112,13 @@ public final class ClientSession {
      * pristine until its next hit, which for a crate that is never hit again means forever.
      */
     private final List<PacketBlockDamage> pendingBlockDamages = new ArrayList<>();
+    private Consumer<PacketRoundReset> roundResetListener;
+    /**
+     * The same window for round resets (protocol 18), and the one where it matters most: a reset
+     * that lands before the play screen registers would leave that client playing the chewed map —
+     * the exact state the event exists to end — for the rest of the match.
+     */
+    private final List<PacketRoundReset> pendingRoundResets = new ArrayList<>();
 
     /**
      * The local player's blindness, decayed locally between snapshots so the whiteout recovers
@@ -256,6 +264,22 @@ public final class ClientSession {
         }
     }
 
+    /**
+     * Called on the render thread when the authority resets the round's destruction (protocol 18),
+     * with the same replay-the-window guarantee as {@link #setBlockBreakListener}. The event says
+     * "reset", not which blocks came back: the authored map and the door machine are identical on
+     * both sides, so the receiving end runs the same {@code MapDamageState.reset()} the sender did.
+     */
+    public void setRoundResetListener(Consumer<PacketRoundReset> listener) {
+        this.roundResetListener = listener;
+        if (listener != null && !pendingRoundResets.isEmpty()) {
+            for (PacketRoundReset pending : pendingRoundResets) {
+                listener.accept(pending);
+            }
+            pendingRoundResets.clear();
+        }
+    }
+
     /** Called whenever a connection attempt or joined session is torn down. */
     public void setSessionResetListener(Runnable listener) {
         this.sessionResetListener = listener;
@@ -386,6 +410,12 @@ public final class ClientSession {
             } else {
                 pendingBlockDamages.add(chip);
             }
+        } else if (payload instanceof PacketRoundReset reset) {
+            if (roundResetListener != null) {
+                roundResetListener.accept(reset);
+            } else {
+                pendingRoundResets.add(reset);
+            }
         } else if (payload instanceof PacketDamageEvent damage) {
             applyDamageEvent(damage);
         } else if (payload instanceof PacketKillEvent kill) {
@@ -499,6 +529,7 @@ public final class ClientSession {
         pendingBreaks.clear();
         pendingDoorStates.clear();
         pendingBlockDamages.clear();
+        pendingRoundResets.clear();
         serverPlayerCount = 0;
         latencyMillis = -1;
         latestSnapshot = null;

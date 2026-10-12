@@ -48,6 +48,7 @@ import io.github.skystrike.shared.net.s2c.PacketJoinAccept;
 import io.github.skystrike.shared.net.s2c.PacketJoinReject;
 import io.github.skystrike.shared.net.s2c.PacketKillEvent;
 import io.github.skystrike.shared.net.s2c.PacketPong;
+import io.github.skystrike.shared.net.s2c.PacketRoundReset;
 import io.github.skystrike.shared.text.ChatChannel;
 import io.github.skystrike.shared.text.ChatMessage;
 import io.github.skystrike.shared.text.ChatTarget;
@@ -232,11 +233,33 @@ class NetworkRegistrationTest {
     @Test
     @DisplayName("the protocol-17 chip packet is appended after the door-state packet")
     void protocolSeventeenBlockDamageIsAppended() {
-        // Registration order is the wire format: this index can never move again.
+        // Registration order is the wire format: this index can never move again. The size pin
+        // belongs to the newest protocol's test, so this one asserts only the append.
         List<Class<?>> types = NetworkRegistration.registeredTypes();
         assertEquals(PacketBlockDamage.class, types.get(38));
-        assertEquals(39, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
-        assertEquals(17, NetConfig.PROTOCOL_VERSION);
+        assertTrue(types.size() >= 39, "append only, never replace");
+        assertTrue(NetConfig.PROTOCOL_VERSION >= 17);
+    }
+
+    @Test
+    @DisplayName("the protocol-18 round-reset event is appended after the chip packet")
+    void protocolEighteenRoundResetIsAppended() {
+        // Registration order is the wire format: this index can never move again.
+        List<Class<?>> types = NetworkRegistration.registeredTypes();
+        assertEquals(PacketRoundReset.class, types.get(39));
+        assertEquals(40, types.size(), "append only; bump PROTOCOL_VERSION when this changes");
+        assertEquals(18, NetConfig.PROTOCOL_VERSION);
+    }
+
+    @Test
+    @DisplayName("a round reset survives the wire as an instruction, not a restored-set replay")
+    void roundResetPacketsRoundTrip() {
+        PacketRoundReset decoded = roundTrip(new PacketRoundReset(900L, 3));
+        assertEquals(900L, decoded.tick);
+        assertEquals(3, decoded.restoredBlocks);
+
+        PacketRoundReset onIntactMap = roundTrip(new PacketRoundReset(901L, 0));
+        assertEquals(0, onIntactMap.restoredBlocks, "resetting an intact map is still a reset");
     }
 
     @Test

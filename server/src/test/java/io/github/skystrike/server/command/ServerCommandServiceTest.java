@@ -91,8 +91,15 @@ class ServerCommandServiceTest {
         }
     }
 
+    /**
+     * What the command layer is told the round's reset did: the transaction itself is the
+     * server's, and no test in this file boots one.
+     */
+    private static final int MAP_RESET_RESTORES = 3;
+
     private PlayerRegistry players;
     private PermissionResolver resolver;
+    private int mapResetCount;
     private ServerCommandService service;
     private List<Packet> sent;
     private List<Integer> recipients;
@@ -136,8 +143,13 @@ class ServerCommandServiceTest {
                     session.applyRequestedLoadout();
                     loadoutSystem.resetForRespawn(session);
                 },
-                new DebugState(DebugFlags.enabled())));
+                new DebugState(DebugFlags.enabled()),
+                () -> {
+                    mapResetCount++;
+                    return MAP_RESET_RESTORES;
+                }));
 
+        mapResetCount = 0;
         rookConnection = new FakeConnection(2);
         players.register(new FakeConnection(1), 1, "Nova", 0, 100f, 200f);
         players.register(rookConnection, 2, "Rook", 1, 200f, 200f);
@@ -164,6 +176,29 @@ class ServerCommandServiceTest {
         // And the refusal changed nothing: no flag was set, no level was granted.
         assertFalse(players.byPlayerId(1).noclip());
         assertEquals(Permission.PLAYER, resolver.resolve(1, "Nova"));
+    }
+
+    @Test
+    @DisplayName("mapreset hands the round's transaction to the simulation and answers with the count")
+    void mapResetRunsTheRoundsTransaction() {
+        resolver.grant("Nova", Permission.ADMIN);
+
+        CommandResult result = run(1, "Nova", "mapreset");
+
+        assertTrue(result.ok(), result.lines().get(0));
+        assertEquals(1, mapResetCount, "the command hands the reset over exactly once");
+        assertTrue(result.lines().get(0).contains("3 blocks"), result.lines().get(0));
+        assertTrue(result.lines().get(0).contains("every door shut"), result.lines().get(0));
+    }
+
+    @Test
+    @DisplayName("mapreset is admin-only, like every command that changes the match for everyone")
+    void mapResetIsAdminOnly() {
+        CommandResult result = run(1, "Nova", "mapreset");
+
+        assertFalse(result.ok());
+        assertEquals(0, mapResetCount, "a refused command never reaches the simulation");
+        assertTrue(players.byPlayerId(1).player().alive, "and nothing about the round moved");
     }
 
     @Test
@@ -275,7 +310,8 @@ class ServerCommandServiceTest {
                 new ChatService(new RegistryRoster(offPlayers)),
                 (playerId, packet) -> { },
                 session -> { },
-                new DebugState(DebugFlags.enabled())));
+                new DebugState(DebugFlags.enabled()),
+                () -> 0));
 
         CommandResult noclip = offService.execute(5, "Zed", "noclip on", 1_000L);
         assertFalse(noclip.ok());
