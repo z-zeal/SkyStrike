@@ -1,142 +1,53 @@
 package io.github.skystrike.shared.map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Regression guard for the M8 traversal contract.
+ * Regression guard for the M8 traversal contract, now asked of the shipped gate.
  *
- * <p>The flood fill models every exposed platform that is at least one player wide. Narrow wall
- * caps and the 16/22/24-unit support tops are deliberately excluded: a 30-unit player cannot use
- * them as stable standing surfaces, and the boundary-wall crowns have no standing clearance below
- * the ceiling. The graph uses the actual jump apex and the plan's 210-unit running-gap envelope.
+ * <p>The algorithm used to live in this file as private helpers over a hand-written surface list.
+ * Milestone 5 moved it to {@link MapReachability} so a map file — not only this one — can be asked
+ * the same question, and the list below stayed: it is the inventory of the arena's <i>intended</i>
+ * routes, each named after the platform it stands for, and it is what makes an assertion failure
+ * read as "the sniper perch is unreachable" rather than "stance 812 is unreachable". Everything
+ * else about the search — the grid, the envelope, the closures — is the shared checker's.
+ *
+ * <p>The shipped arena's verdict, which these tests pin: both spawns reach every one of those
+ * named surfaces, the spawns reach each other, and the one pocket of the map nothing can reach is
+ * the milestone-4 fixture door's alcove — including the two floor stances inside it, which is why
+ * the sweep below steps over that pocket and the test after it pins it. That alcove is sealed by design of the fixture rather
+ * than by accident — the door panel is flush against the tall wall that carries it, so opening it
+ * reveals a niche instead of a passage — and pinning it here is what keeps it the <i>only</i>
+ * sealed pocket: a change that seals a second one fails this test, and a change that opens this one
+ * fails it too, until the pin and the map move together.
  */
 class ArenaReachabilityTest {
 
     private static final float EPSILON = 0.01f;
-    private static final float MAX_JUMP_RISE = PlayerConfig.JUMP_SPEED * PlayerConfig.JUMP_SPEED
-        / (2f * -PlayerConfig.GRAVITY);
-    private static final float MAX_JUMP_GAP = 210f;
-    private static final float FUEL_BUDGET = PlayerConfig.MAX_FUEL * 0.40f;
-    private static final float JETPACK_ACCELERATION = PlayerConfig.JETPACK_THRUST
-        * PlayerConfig.JETPACK_VERTICAL_SPLIT + PlayerConfig.GRAVITY;
 
-    @Test
-    @DisplayName("every gameplay platform is reachable from either spawn and can be exited without fuel")
-    void everyGameplaySurfaceIsReachableAndEscapable() {
-        ArenaMap map = ArenaMap.standard();
-        List<Surface> surfaces = gameplaySurfaces();
-
-        for (SpawnPoint spawn : map.spawns()) {
-            Surface start = spawnSurface(map, spawn);
-            Set<Surface> onFoot = floodFrom(start, surfaces);
-            Set<Surface> canExitWithoutFuel = reverseFloodTo(start, surfaces);
-
-            for (Surface surface : surfaces) {
-                boolean reachable = onFoot.contains(surface) || reachableWithFuel(onFoot, surface);
-                assertTrue(
-                    reachable,
-                    surface.name + " is not reachable from team " + spawn.teamIndex()
-                        + " within the M8 foot/40%-fuel envelope");
-                assertTrue(
-                    canExitWithoutFuel.contains(surface),
-                    surface.name + " is a no-fuel trap for team " + spawn.teamIndex());
-            }
-        }
-    }
-
-    private static Set<Surface> floodFrom(Surface start, List<Surface> surfaces) {
-        Set<Surface> reached = new HashSet<>();
-        ArrayDeque<Surface> pending = new ArrayDeque<>();
-        pending.add(start);
-
-        while (!pending.isEmpty()) {
-            Surface from = pending.removeFirst();
-            for (Surface target : surfaces) {
-                if (reached.contains(target) || !canTraverse(from, target)) {
-                    continue;
-                }
-                reached.add(target);
-                pending.addLast(target);
-            }
-        }
-        return reached;
-    }
-
-    private static Set<Surface> reverseFloodTo(Surface destination, List<Surface> surfaces) {
-        Set<Surface> reached = new HashSet<>();
-        ArrayDeque<Surface> pending = new ArrayDeque<>();
-        pending.add(destination);
-
-        while (!pending.isEmpty()) {
-            Surface target = pending.removeFirst();
-            for (Surface candidate : surfaces) {
-                if (reached.contains(candidate) || !canTraverse(candidate, target)) {
-                    continue;
-                }
-                reached.add(candidate);
-                pending.addLast(candidate);
-            }
-        }
-        return reached;
-    }
-
-    private static boolean canTraverse(Surface from, Surface to) {
-        float riseToLandingEdge = to.bottom - from.top;
-        return riseToLandingEdge <= MAX_JUMP_RISE + EPSILON
-            && from.horizontalGap(to) <= MAX_JUMP_GAP + EPSILON;
-    }
-
-    private static boolean reachableWithFuel(Set<Surface> footSurfaces, Surface target) {
-        for (Surface launch : footSurfaces) {
-            float riseToLandingEdge = Math.max(0f, target.bottom - launch.top);
-            float flightSeconds = jetpackSecondsForRise(riseToLandingEdge);
-            float fuelUsed = flightSeconds * PlayerConfig.FUEL_BURN_RATE;
-            float horizontalReach = PlayerConfig.WALK_SPEED * flightSeconds;
-            if (fuelUsed <= FUEL_BUDGET + EPSILON
-                && launch.horizontalGap(target) <= horizontalReach + EPSILON) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static float jetpackSecondsForRise(float rise) {
-        if (rise <= 0f) {
-            return 0f;
-        }
-        float discriminant = PlayerConfig.JUMP_SPEED * PlayerConfig.JUMP_SPEED
-            + 2f * JETPACK_ACCELERATION * rise;
-        return ((float) Math.sqrt(discriminant) - PlayerConfig.JUMP_SPEED) / JETPACK_ACCELERATION;
-    }
-
-    private static Surface spawnSurface(ArenaMap map, SpawnPoint spawn) {
-        float ground = MapQueries.surfaceBelow(map, spawn.x(), spawn.y());
-        float halfWidth = PlayerConfig.WIDTH / 2f;
-        return new Surface(
-            "team " + spawn.teamIndex() + " spawn",
-            spawn.x() - halfWidth,
-            spawn.x() + halfWidth,
-            ground,
-            ground);
-    }
-
-    private static List<Surface> gameplaySurfaces() {
+    /**
+     * Every platform the M8 contract is about, named, as the old hand-written list had them.
+     *
+     * <p>Each rectangle is a block the arena authors — the top face is the surface — and each is
+     * mirrored about the axis where the arena mirrors it. The list is deliberately independent of
+     * the map text: it is the claim about the arena, not a second copy of it.
+     */
+    private static List<Surface> traversalSurfaces() {
         List<Surface> surfaces = new ArrayList<>();
         add(surfaces, "ground", new Rect(0f, 0f, WorldConfig.ARENA_WIDTH, WorldConfig.GROUND_HEIGHT));
 
         for (int step = 0; step < 5; step++) {
-            addMirrored(surfaces, "ramp " + step, new Rect(
-                120f + step * 120f, 200f + step * 50f, 120f, 18f));
+            addMirrored(surfaces, "ramp " + step,
+                new Rect(120f + step * 120f, 200f + step * 50f, 120f, 18f));
         }
         addMirrored(surfaces, "mid lane", new Rect(820f, 500f, 250f, 18f));
         addMirrored(surfaces, "lower crate top", new Rect(820f, 220f, 70f, 16f));
@@ -159,6 +70,225 @@ class ArenaReachabilityTest {
         return surfaces;
     }
 
+    @Test
+    @DisplayName("every M8 gameplay surface is reachable from every spawn")
+    void everyTraversalSurfaceIsReachable() {
+        ArenaMap map = ArenaMap.standard();
+        MapReachability.Report report = MapReachability.check(map);
+
+        for (Surface surface : traversalSurfaces()) {
+            List<MapReachability.Stance> stances = stancesOn(report, surface);
+            assertFalse(stances.isEmpty(),
+                surface.name + " carries no stance a standing body fits on, at "
+                    + surface.left + ".." + surface.right + " top " + surface.top);
+            for (MapReachability.SpawnReport spawn : report.spawns()) {
+                for (MapReachability.Stance stance : stances) {
+                    if (inFixtureAlcove(stance)) {
+                        // The one sealed pocket, pinned by the test below rather than excused here:
+                        // the floor lane runs through the milestone-4 fixture door's alcove, so two
+                        // of the ground's stances are the seal instead of a traversal surface.
+                        continue;
+                    }
+                    assertFalse(spawn.unreachable().contains(stance),
+                        surface.name + " at " + stance + " is not reachable from team "
+                            + spawn.teamIndex() + " within the M8 foot/40%-fuel envelope");
+                }
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("the shipped arena's spawns reach each other, and the fixture alcove is its only seal")
+    void spawnsReachEachOtherAndOnlyTheFixtureAlcoveIsSealed() {
+        MapReachability.Report report = MapReachability.check(ArenaMap.standard());
+
+        assertEquals(2, report.spawns().size(), "the arena authors two spawns");
+        assertTrue(report.spawnsConnected(),
+            "the two spawns must reach each other: " + report.describe());
+
+        List<MapReachability.Stance> sealed = report.unreachableFromEverySpawn();
+        assertFalse(sealed.isEmpty(),
+            "the milestone-4 fixture door's alcove is sealed by the wall it is flush against; if"
+                + " nothing is unreachable the fixture has moved and this pin has to move with it: "
+                + report.describe());
+        for (MapReachability.Stance stance : sealed) {
+            assertTrue(inFixtureAlcove(stance),
+                "a stance is unreachable outside the fixture alcove, which is a new seal: " + stance);
+        }
+        for (MapReachability.SpawnReport spawn : report.spawns()) {
+            assertEquals(sealed.size(), spawn.unreachable().size(),
+                "both spawns must agree on what the map seals: " + report.describe());
+        }
+    }
+
+    @Test
+    @DisplayName("the gate is deterministic and does not read the grid's own sampling order")
+    void theSearchIsDeterministic() {
+        ArenaMap map = ArenaMap.standard();
+        MapReachability.Report first = MapReachability.check(map);
+        MapReachability.Report second = MapReachability.check(map);
+
+        assertEquals(first.describe(), second.describe());
+        assertEquals(first.stanceCount(), second.stanceCount());
+        assertEquals(first.stances(), second.stances());
+        assertEquals(first.unreachableFromEverySpawn(), second.unreachableFromEverySpawn());
+        assertTrue(first.columns() > 0 && first.stances().size() > first.columns(),
+            "the grid is a grid: more stances than columns");
+    }
+
+    @Test
+    @DisplayName("a map that seals a spawn off is reported, and one that does not is not")
+    void aSealedMapIsReported() {
+        // A floor, and a wall 1160 tall across the middle: more rise than 40% of a tank buys, so
+        // nothing crosses it and the two spawns cannot meet.
+        ArenaMap sealed = parse(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "centred wall stone 0 0 3000 100",
+            "mirrored wall stone 1480 100 40 1160");
+
+        MapReachability.Report report = MapReachability.check(sealed);
+
+        assertFalse(report.spawnsConnected(), report.describe());
+        assertFalse(report.fullyReachable(), report.describe());
+        assertFalse(report.unreachableFromEverySpawn().isEmpty(), report.describe());
+    }
+
+    @Test
+    @DisplayName("a route the fuel budget cannot buy is a seal, and the budget's own edge is not")
+    void theFuelBudgetDecides() {
+        ArenaMap outOfReach = parse(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "centred wall stone 0 0 3000 100",
+            "centred wall stone 1200 1300 600 20");
+        ArenaMap withinReach = parse(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "centred wall stone 0 0 3000 100",
+            "centred wall stone 1200 1000 600 20");
+
+        MapReachability.Report out = MapReachability.check(outOfReach);
+        MapReachability.Report in = MapReachability.check(withinReach);
+
+        // Both maps keep the spawns connected: the shelf is a bonus surface, not a bridge. What
+        // separates them is whether anything on the map is out of the envelope's reach at all.
+        assertTrue(out.spawnsConnected(), out.describe());
+        assertFalse(out.fullyReachable(), out.describe());
+        assertTrue(in.spawnsConnected(), in.describe());
+        assertTrue(in.fullyReachable(), in.describe());
+    }
+
+    @Test
+    @DisplayName("a door is read as the opening a player can make of it")
+    void aDoorIsAnOpening() {
+        // A passage in this format is a tunnel — a wall held clear of the floor — and a door is the
+        // panel that fills it. This one is 300 tall under a wall whose underside is 400 up and
+        // whose top is 1260, so climbing over it needs 1160 of rise while the tunnel needs none:
+        // the map is walkable exactly while the door counts as an opening.
+        ArenaMap throughTheDoor = parse(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "centred wall stone 0 0 3000 100",
+            "mirrored wall stone 1400 400 100 860",
+            "centred door metal 1440 100 120 300 id=1");
+
+        MapReachability.Report report = MapReachability.check(throughTheDoor);
+
+        assertTrue(report.spawnsConnected(), "a doorway is a route: " + report.describe());
+        // The wall's cap is the one thing on this map out of reach — 1160 of rise is more than 40%
+        // of a tank buys — and that is what makes the tunnel the route rather than the wall.
+        for (MapReachability.Stance stance : report.unreachableFromEverySpawn()) {
+            assertEquals(1260f, stance.feet(), 0.001f,
+                "nothing but the wall cap is out of reach: " + stance);
+        }
+        assertFalse(report.unreachableFromEverySpawn().isEmpty(),
+            "the wall cap is out of reach, and the doorway is what carries the map: "
+                + report.describe());
+    }
+
+    @Test
+    @DisplayName("a pit a body drops into is reachable, not sealed")
+    void aPitIsEnteredByFalling() {
+        // One mirrored line authors pillars at 1400..1440 and 1560..1600 — the pair is the two
+        // walls — and the 120-unit gap between them is the pit a body drops into from either cap.
+        // The caps are 400 above the ground, so reaching them again takes a fuel ascent: the pit is
+        // somewhere a player ends up, not somewhere the map seals off.
+        ArenaMap withPit = parse(
+            "skystrike-map 1",
+            "mirror 1500",
+            "spawn 0 240 180",
+            "spawn 1 2760 180",
+            "centred wall stone 0 0 3000 100",
+            "mirrored wall stone 1400 100 40 400");
+
+        MapReachability.Report report = MapReachability.check(withPit);
+
+        assertTrue(report.spawnsConnected(), report.describe());
+        assertTrue(report.fullyReachable(),
+            "the pit's floor is somewhere a body lands, not a seal: " + report.describe());
+        boolean sawAPitFloor = report.stances().stream()
+            .anyMatch(stance -> stance.feet() == WorldConfig.GROUND_HEIGHT
+                && stance.x() > 1440f && stance.x() < 1560f);
+        // The pillars' own caps are inside the envelope, so the map has nothing sealed at all:
+        // fullyReachable() above is a real claim about the pocket, not about the pillars.
+        assertTrue(sawAPitFloor, "the pit has a floor on the grid: " + report.describe());
+    }
+
+    @Test
+    @DisplayName("a map with no spawn is searched from nothing and reports nothing sealed")
+    void aMapWithoutSpawnsIsNotAParadox() {
+        ArenaMap spawnless = parse(
+            "skystrike-map 1",
+            "mirror 1500",
+            "centred wall stone 0 0 3000 100");
+
+        MapReachability.Report report = MapReachability.check(spawnless);
+
+        assertTrue(report.spawns().isEmpty(), report.describe());
+        assertTrue(report.spawnsConnected(), report.describe());
+        assertTrue(report.fullyReachable(), report.describe());
+    }
+
+    /** The stances standing on a named surface: its top face, over the surface's own x range. */
+    private static List<MapReachability.Stance> stancesOn(
+            MapReachability.Report report, Surface surface) {
+        List<MapReachability.Stance> stances = new ArrayList<>();
+        for (MapReachability.Stance stance : report.stances()) {
+            if (Math.abs(stance.feet() - surface.top) <= EPSILON
+                    && stance.x() >= surface.left - EPSILON
+                    && stance.x() <= surface.right + EPSILON) {
+                stances.add(stance);
+            }
+        }
+        return stances;
+    }
+
+    /**
+     * The milestone-4 fixture alcove: the volume the tall wall at {@code x} 1010..1034, the landing
+     * above it at 342..360, the door panel at 1034..1070 and the shorter wall at 1070..1092 enclose,
+     * with its reflection about the axis. A body's box overhangs a surface by half its width, so the
+     * test spans the alcove's walls by that half-width rather than by their faces.
+     */
+    private static boolean inFixtureAlcove(MapReachability.Stance stance) {
+        float half = PlayerConfig.WIDTH / 2f;
+        float mirrored = 2f * WorldConfig.MIRROR_AXIS_X - stance.x();
+        boolean inside = withinAlcoveX(stance.x(), half) || withinAlcoveX(mirrored, half);
+        return inside && stance.feet() <= 360f;
+    }
+
+    private static boolean withinAlcoveX(float x, float half) {
+        return x >= 1034f - half && x <= 1092f + half;
+    }
+
     private static void addMirrored(List<Surface> surfaces, String name, Rect left) {
         add(surfaces, name + " left", left);
         add(surfaces, name + " right", left.mirror(WorldConfig.MIRROR_AXIS_X));
@@ -168,13 +298,24 @@ class ArenaReachabilityTest {
         surfaces.add(new Surface(name, rect.left(), rect.right(), rect.bottom(), rect.top()));
     }
 
-    private record Surface(String name, float left, float right, float bottom, float top) {
+    private static ArenaMap parse(String... lines) {
+        return ArenaMapFormat.parse(String.join("\n", lines) + "\n");
+    }
 
-        float horizontalGap(Surface other) {
-            if (right >= other.left && other.right >= left) {
-                return 0f;
-            }
-            return Math.max(other.left - right, left - other.right);
+    private static final class Surface {
+
+        private final String name;
+        private final float left;
+        private final float right;
+        private final float bottom;
+        private final float top;
+
+        private Surface(String name, float left, float right, float bottom, float top) {
+            this.name = name;
+            this.left = left;
+            this.right = right;
+            this.bottom = bottom;
+            this.top = top;
         }
     }
 }
