@@ -93,12 +93,15 @@ class ArenaMapTest {
     }
 
     @Test
-    @DisplayName("the close-out's fixture door is a mirrored ALL pair through the ground lane")
+    @DisplayName("the close-out's fixture door is a mirrored ALL pair inside the crate-stack wall")
     void fixtureDoorsArePresent() {
-        assertMirroredPair(new Rect(1034f, 100f, 36f, 170f));
+        assertMirroredPair(new Rect(837f, 100f, 36f, 170f));
 
         // The pair the acceptance checklist's door boxes are walked through: ids 1 and 2, both ALL,
         // so either team may open either panel and the desktop run needs no team setup to reach it.
+        // The door sits inside the 70-wide mirrored wall at x 820..890 (and its mirror at 2110..2180),
+        // centred in that wall, so a body can reach the door's own stances from ground level on either
+        // side and through the door's upper stances from a jump off the ground below the wall.
         assertEquals(
             List.of(DoorSpec.all(1), DoorSpec.all(2)),
             map.blocks().stream().map(MapBlock::door).filter(DoorSpec::isDoor).toList(),

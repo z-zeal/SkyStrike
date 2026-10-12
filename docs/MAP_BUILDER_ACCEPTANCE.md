@@ -82,14 +82,29 @@ authors a door into the shipped arena. Every box above remains unchecked.
 
 **Update — the close-out's last slice has landed: the fixture door.** The shipped arena authors one
 mirrored metal door — ids 1 and 2, both `ALL` — sealing the ground lane between the tall wall at
-`x` 1010..1034 and the shorter one at 1070..1092, so the whole "Doors" section is attemptable in a
-running build, with one exception: no `TEAM` door is authored, so the team-refusal box (a team door
-opens for its own team and refuses the other) stays unreachable — a mirrored pair shares one access
-by construction, and per-side ownership would mean authoring two separate lines with their own ids.
-No protocol change came with it — doors have been stateful and broadcast since protocol 15 — but the
-map's identity moved and `assets/data/arena.sdf` was re-baked in the same change: a door is not
-baked geometry, so every texel stayed and only the header's hash moved. Every box above remains
-unchecked.
+`x` 1010..1034 and the shorter one at 1070..1092 (the pair stands at 1034..1070 and 1930..1966,
+`y` 100..270), so the whole "Doors" section is attemptable in a running build, with one exception: no
+`TEAM` door is authored, so the team-refusal box (a team door opens for its own team and refuses the
+other) stays unreachable — a mirrored pair shares one access by construction, and per-side ownership
+would mean authoring two separate lines with their own ids. No protocol change came with it — doors
+have been stateful and broadcast since protocol 15 — but the map's identity moved and
+`assets/data/arena.sdf` was re-baked in the same change: a door is not baked geometry, so every texel
+stayed and only the header's hash moved. Every box above remains unchecked.
+
+**Update — the fixture door has been moved to a reachable position (next slice, same branch, not
+milestone 6).** The door pair that sealed the ground lane at `x` 1034..1070 (and its mirror at
+1930..1966) has been moved to a reachable position inside the 70-wide mirrored wall at `x` 820..890:
+the door now stands at `x` 837..873 and its mirror at 2127..2163, `y` 100..270, centred in that wall.
+The map text changed, so `assets/data/arena.sdf` was re-baked under the new map hash
+`ed6b335d...e173e` (still 1500 × 1000 texels at 2.0 units/texel, 1,500,060 bytes) and
+`arena_sdf_check.py` re-confirmed the committed asset is the bake of the committed map. The door
+stances at `x` 837.5 (`y` 236, 518, 918) are reachable from both spawns, so a player can walk to the
+door and press `F` — the §Doors boxes now name a real doorway. The 10 unreachable stances the CI gate
+reports for the shipped arena are **not** eliminated by this move: they sit inside the volume the tall
+wall at `x` 1010..1034 and the shorter one at 1070..1092 enclose, blocked by that wall geometry, not
+by the door (the door is read as an opening by both the Java gate and the Python mirror, so it never
+blocks anything). They persist at their old positions, and the test pins that name them by those
+coordinates still hold. The team-refusal box stays unreachable for the same reason it was before.
 
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
@@ -553,6 +568,21 @@ checks run were:
   `686c9165aa23baecbd21c45e2139c16e13e3b43fc81be2e7ed16c7c0559da597`, 1500 × 1000 texels at 2.0
   units/texel, 1,500,060 bytes, every texel equal, with only the header's hash differing from the
   previous bake.
+
+**The fixture door has been moved to a reachable position (next slice, same branch, not milestone 6).**
+The door pair that sat inside the sealed alcove at `x` 1034..1070 (and its mirror at 1930..1966,
+`y` 100..270) has been moved to a reachable position inside the 70-wide mirrored wall at `x` 820..890:
+the door now stands at `x` 837..873 and its mirror at 2127..2163, `y` 100..270, centred in that wall.
+The map text changed, so `assets/data/arena.sdf` was re-baked under the new map hash
+`ed6b335d...e173e` (still 1500 × 1000 texels at 2.0 units/texel, 1,500,060 bytes) and
+`arena_sdf_check.py` re-confirmed the committed asset is the bake of the committed map. The door
+stances at `x` 837.5 (`y` 236, 518, 918) are reachable from both spawns, so a player can walk to the
+door and press `F` — the §Doors boxes now name a real doorway. The 10 unreachable stances the CI gate
+reports for the shipped arena are **not** eliminated by this move: they sit inside the volume the tall
+wall at `x` 1010..1034 and the shorter one at 1070..1092 enclose, blocked by that wall geometry, not
+by the door (the door is read as an opening by both the Java gate and the Python mirror, so it never
+blocks anything). They persist at their old positions, and the test pins that name them by those
+coordinates still hold. The team-refusal box stays unreachable for the same reason it was before.
 
 What those checks do and do not mean. They prove no syntax, boundary, gate or generated-table
 regression across the slice's edits, and the SDF check is the one that carries the most weight here:

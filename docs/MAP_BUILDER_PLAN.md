@@ -112,6 +112,25 @@ move, so `assets/data/arena.sdf` was re-baked in the same commit, the identity p
 prove the committed bytes are the bake of the committed map. Milestone 4 is complete in source; the
 desktop re-run is pending a human, and no acceptance box has been executed.
 
+**The fixture door has been moved out of the sealed alcove (next slice, same branch).** The door pair
+that sat inside the sealed alcove at `x` 1034..1070 (and its mirror at 1930..1966) has been moved to
+a reachable position inside the 70-wide mirrored wall at `x` 820..890 — the door now stands at `x`
+837..873 and its mirror at 2127..2163, `y` 100..270, centred in that wall so a body can reach the
+door's own stances from ground level on either side and through the door's upper stances from a jump
+off the ground below the wall. The map text changed, so `assets/data/arena.sdf` was re-baked in the
+same commit under the new map hash `ed6b335d...e173e` (still 1500 × 1000 texels at 2.0 units/texel,
+1,500,060 bytes) and `arena_sdf_check.py` re-confirmed the committed asset is the bake of the
+committed map. The door move does **not** eliminate the 10 unreachable stances the CI gate reports for
+the shipped arena: those stances sit inside the volume the tall wall at `x` 1010..1034 and the shorter
+one at 1070..1092 enclose, and they are blocked by that wall geometry, not by the door (the door is
+read as an opening by both the Java gate and the Python mirror, so it never blocks anything). They
+persist at their old positions — `x` 1052.5 @ 100 and `x` 1072.5..1087.5 @ 270 (plus mirrors) — and
+the test pins that name them by those coordinates still hold; the test pin that names the fixture alcove
+by its old `x` range likewise still holds, because the unreachable stances have not moved. What the
+move does accomplish is that the door itself is now reachable: a player can walk to it and press `F`,
+which is what the §Doors boxes of the acceptance checklist need. The section's team-refusal box stays
+unreachable for the same reason it was before — no `TEAM` door is authored.
+
 ## 1. What exists today
 
 Every consumer now reads the shared rule table, so authored geometry has one meaning across
