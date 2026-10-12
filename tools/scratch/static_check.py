@@ -26,7 +26,9 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MODULES = ["shared", "server", "core", "lwjgl3", "android"]
+# `tools` is the headless map CLI: it is scanned like any other module so its calls into the
+# map model are checked, and so nothing in it can name a block kind either.
+MODULES = ["shared", "server", "core", "lwjgl3", "android", "tools"]
 PKG_ROOT = "io.github.skystrike"
 
 findings: list[str] = []
@@ -72,9 +74,10 @@ def resolve_project_type(reference: str) -> str | None:
 
 
 FORBIDDEN_MODULE_DEPENDENCIES = {
-    "shared": {"core", "server"},
-    "server": {"core"},
-    "core": {"server"},
+    "shared": {"core", "server", "tools"},
+    "server": {"core", "tools"},
+    "core": {"server", "tools"},
+    "tools": {"core", "server"},
 }
 
 

@@ -31,7 +31,9 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MODULES = ["shared", "server", "core"]
+# `tools` too: the map CLI is the first cross-module consumer added outside the game modules,
+# so its calls into `shared` are exactly what this check exists to resolve.
+MODULES = ["shared", "server", "core", "tools"]
 
 findings: list[str] = []
 

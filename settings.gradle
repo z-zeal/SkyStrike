@@ -6,3 +6,7 @@ plugins {
 // You can remove Strings from the list and reload the Gradle project
 // if you want to temporarily disable a subproject.
 include 'lwjgl3', 'server', 'shared', 'core', 'android'
+// Headless map tooling: `MapTool check|bake` over the same shared core the in-game editor reads
+// (map plan §6). A module rather than a script so CI compiles it and `checkModuleDependencies`
+// keeps it below `core` and `server`, and not part of the shipped game at all.
+include 'tools'
