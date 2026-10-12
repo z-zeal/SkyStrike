@@ -29,6 +29,14 @@ public final class PacketGameState implements Packet {
     /** How many clients are currently joined. */
     public int playerCount;
 
+    /**
+     * How many blocks have been destroyed since the round started — the server's destruction
+     * revision this snapshot describes (map milestone 4). The client mirrors it against its own
+     * {@code MapDamageState}: a snapshot whose revision is behind the join accept's is stale, and
+     * a jump forward is a break the live path carried while this client was not looking.
+     */
+    public int mapRevision;
+
     /** Snapshot of the player states visible to the recipient. */
     public List<Player> players = new ArrayList<>();
 
