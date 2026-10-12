@@ -184,6 +184,21 @@ automated tests for that milestone are green in CI. The CI-side tests are listed
 - [ ] The editor cannot publish to a running match: a session's map changes only through a server
   revision.
 
+**Status — milestone 5 slice A (PR #63), appended 2026-10-12.** None of the five boxes above is
+ticked, and none is attemptable in this environment, which has no JDK: everything in this slice was
+written and not executed. What the slice does add is the half of the first four boxes that is not a
+screen: `MapReachability.check(ArenaMap)` returns a `Report` naming every stance nothing can reach,
+whether the spawns reach each other and the full list of sealed stances, so the editor's overlay and
+the CLI's listing both draw from one statement of what reachability means; and `MapDraft` holds the
+place / mirror / delete gestures as authored verbs, with `build()` going through the same
+`ArenaMap.Builder` the file format uses and `toText()` through the same canonical writer, so an
+in-game save and a saved file are the same bytes. Still missing for these boxes: `MapEditorScreen`
+and the debug-switch gating (slice C), the `MapTool check|bake` task and its CI step (slice B, which
+also has to decide where that task lives — `tools` is not a Gradle module), and a desktop build. The
+reachability report against the shipped arena, from the source-only mirror in `tools/scratch`, is
+1526 stances on 600 columns, spawns connected, 10 stances sealed in the fixture alcove; see §11.4 of
+the plan for why that last number is the decision slice B is waiting on rather than a defect.
+
 ## Performance
 
 - [ ] A map with the maximum shipped block count holds 60 Hz on the reference desktop with the

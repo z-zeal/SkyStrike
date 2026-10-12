@@ -972,3 +972,60 @@ own digest. No Java was compiled, no test, server, client, game or desktop build
 and no `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the fixture door makes the whole Doors section —
 except the team-refusal box, which no authored door can reach — attemptable in a build, but only a
 human with a desktop and two clients can tick it.
+
+**Map milestone 5, slice A (the reachability gate and the editor's draft; PR #63)** —
+implemented in source, with nothing deferred out of the slice and no wire change
+(`PROTOCOL_VERSION` stays 18; the draft builds a map and cannot publish one). Map plan §7's gate
+is now shared main source: `MapReachability` builds a walkable grid of *stances* — a column
+where the shared standing box (`PlayerConfig.WIDTH` by `STAND_HEIGHT`) clears every block whose
+`BlockRules` row is `MovementRule.SOLID`, and where a support really is under the feet the way
+`MapQueries.surfaceBelow` reads one — with one deliberate difference: a door leaves both the
+solids *and* the supports, because the map is searched in the state a player can always put it
+in, which is open. Two manoeuvres connect stances — the M8 step (`JUMP_SPEED² / (2 · -GRAVITY)`
+≈ 110.25 of rise over a 210-unit running gap, no fuel) and a jetpack hop (a rise 40% of a tank
+buys, with the horizontal reach that ascent's flight time buys at walk speed, repeatable after
+each landing) — and each passes through the body's own space in one of two shapes.
+`Report.spawnsConnected()` is the hard requirement and `Report.fullyReachable()` is §7's strict
+reading; both findings lists are complete rather than sampled, because a cap would have made the
+editor's overlay reconstruct the pocket it has to draw, and there is deliberately no "is this
+stance escapable without fuel" column: on a per-stance grid that question fires on ground a
+player walks across, and a signal that noisy is worse than none. `MapDraft` is the editor's data
+model: authored `mirrored`/`centred` verbs, so a block can never lose its twin and deleting
+either twin deletes the verb; `build()` through `ArenaMap.Builder`, so the in-game editor and
+the file parser cannot disagree about what a valid map is; and `isDirty()` by the map hash the
+SDF header and the join gate already use. `ArenaReachabilityTest` was rewritten to ask the
+shared gate — its M8 surface inventory is now a test of record against one statement of the
+algorithm rather than a private copy of it — and `MapDraftTest` was added beside it.
+
+The source-only mirror `tools/scratch/arena_reachability_check.py`, re-implemented from the
+committed Java, is the evidence this environment can produce: the shipped arena at a 5-unit
+pitch is 600 columns and 1526 stances, both spawns reach each other under either door reading,
+and 10 stances are reachable from no spawn — `(1052.5, 100)`,
+`1072.5`/`1077.5`/`1082.5`/`1087.5` at feet 270 and their mirrors, and `(1947.5, 100)` — all of
+them inside the milestone-4 fixture door's alcove, which is what makes §11.4 a decision rather
+than a defect. The probes the gate has to catch: an open map (clean), a 1160-tall wall (spawns
+DISCONNECTED, 8 stances sealed), a shelf 1220 up (connected, 120 unreachable), the same shelf at
+900 (clean) and a tunnel door — the format's real idiom, a wall held clear of the floor with the
+panel filling its mouth — which stays connected while the door is an opening and goes
+DISCONNECTED when a door is read as its movement row's solid panel. The slice was source-checked
+with exactly the permitted Python checks: `python3 tools/scratch/static_check.py` (clean: 438
+Java files scanned, 438 declared types, no findings — including both consumer gates), `python3
+tools/scratch/static_api_check.py` (clean: 546 project types indexed from 434 files), `python3
+tools/scratch/static_audio_check.py` (clean: 13 world entries, 6 weapon events, 1 loop, 14
+effect types, 30 manifest entries), `python3 tools/scratch/synth_sfx.py --check` (clean: 14
+generated sounds agree), `python3 tools/scratch/phase3_ballistics.py` (analytical report
+completed without findings), `python3 tools/weapons/generate_weapon_tables.py` (89 gun rows and
+21 melee rows regenerated with no tracked diff) and `python3 tools/scratch/arena_sdf_check.py`
+(clean: 64 blocks, map hash `686c9165…a597`, 1500 × 1000 texels at 2.0 units/texel, 1,500,060
+bytes, the shipped asset the bake of the committed map — no map text changed in this slice).
+`static_api_check.py` cannot see an instance call made through a field or a variable, so the
+slice's cross-module calls (`BlockRules.movement`, `ArenaMap.movementBlockers` and `Builder`'s
+three verbs, `MapBlock.mirror` and `door`, `DoorSpec.reflection`, `Rect.mirror`,
+`MapQueries.surfaceBelow`, the `PlayerConfig` and `WorldConfig` constants the envelope derives
+from, `MapHash` through `ArenaMap.mapHashHex`, and `ArenaMapFormat.write`/`parse`) were
+additionally read by hand. No Java was compiled, no test, server, client, game or desktop build
+was run or observed, and no `MAP_BUILDER_ACCEPTANCE.md` box was ticked: the tests in this slice
+were written and not executed, and the two decisions they lean on are surfaced in §11.3 (the
+gate reads a door as an opening, which a `TEAM` door would turn into a lower bound) and §11.4
+(the shipped arena fails the strict reading by one intended pocket, so slice B's CI step has to
+know which reading fails a build) rather than settled here.

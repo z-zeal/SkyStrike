@@ -833,7 +833,13 @@ landed, and the close-out's last slice needed no wire change)
    document).
 5. **Editor and CLI.** `MapDraft`, `MapEditorScreen` behind the debug switch, `MapTool check|bake`
    in CI, reachability in the gate. Gate: a map authored in-game saves, validates, bakes and loads
-   in a fresh session.
+   in a fresh session. **Slice A has landed** (branch `arena/2acaeacc-skystrike`, PR #63):
+   `MapReachability`, the §7 gate itself, and `MapDraft`, the editor's data model, both in `shared`
+   main source, with the M8 surface inventory rewritten to ask the shared gate and the draft's own
+   tests beside it. `MapEditorScreen` (slice C) and `MapTool` (slice B — which also has to decide
+   where that task lives, because `tools` is not a Gradle module) are untouched. Written and not
+   executed: this environment has no JDK. §11.3 and §11.4 below now carry the readings slice A had
+   to take to run at all, for confirmation rather than as settled answers.
 6. **Shipped maps.** The arena moves to `assets/maps/arena.map`; additional maps become possible,
    with the map list a server setting.
 
@@ -860,5 +866,29 @@ landed, and the close-out's last slice needed no wire change)
    hand that runs the server's reset transaction and every client hears about it through
    `PacketRoundReset` (protocol 18, §8).
 3. **Door access:** manual only, or also "open for the owning team" doors at spawn?
+
+   *Slice A's reading (PR #63), for confirmation.* The reachability gate reads a door as an
+   **opening** — out of the solids and out of the supports at once — because the map is searched
+   in the state a player can always put it in, and the only access authored today is `ALL`. A
+   `TEAM` door would make that a lower bound on what a *given* player can reach: the gate would
+   be answering for a player who may open everything. Finer readings (a closure per team, an
+   `allows(teamIndex)` gate, a report that says whose route it is) wait on this decision, and
+   none of them is in slice A. Worth noting while deciding: no `TEAM` door is authored anywhere
+   in the project, so the acceptance document's team-refusal box still has nothing to walk up
+   to.
 4. **Reachability strictness:** does a map that fails reachability ship with a warning or fail the
    build? (Recommendation: fail — the M8 gate already treats traversal as a hard requirement.)
+
+   *Slice A's evidence (PR #63), for confirmation.* Both readings are already available to the
+   caller, so the decision is the CLI's rather than the gate's: `Report.spawnsConnected()`
+   (every spawn reaches every other spawn) and `Report.fullyReachable()` (every stance reachable
+   from every spawn, §7's strict reading), each with the complete list of stances that failed.
+   On the shipped arena the two disagree by exactly one pocket. At the gate's 5-unit pitch the
+   map has 1526 stances on 600 columns and both spawns reach each other under either door
+   reading, while 10 stances are reachable from no spawn — all of them inside the milestone-4
+   fixture door's alcove, floor included, whose panel is flush against the tall wall that
+   carries it. That is a fixture artifact rather than a map defect, which is why the
+   recommendation above is worth softening to: **fail** a map whose spawns cannot reach each
+   other, and **warn** with the pocket named on one that is merely not fully reachable — unless
+   the map should be able to declare a pocket intended. Awaiting the decision before slice B
+   wires the CI step.
