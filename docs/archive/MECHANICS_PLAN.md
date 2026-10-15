@@ -1,3 +1,7 @@
+> **Archived 2026-10-14 — design/history reference, not an active progress tracker.**
+> Outstanding implementation and verification work is tracked in [NOT_DONE.md](../NOT_DONE.md).
+> Archiving does not mean every feature is implemented or runtime-verified.
+
 ## CONCEPT
 
 A side-view 2D multiplayer arena shooter. Two teams fight in a single symmetric arena. Players run, crouch, jump and fly with a limited-fuel jetpack, aim freely at 360° with the mouse independently of which way the body is tilted, and fight with a loadout of guns, a melee weapon, throwable utilities and deployable gadgets.
@@ -138,7 +142,7 @@ Friendly fire is **on by default, including self-damage**. Your own grenades, mo
 
 The roster is **89 guns across ten classes**, generated from the sprite catalog
 `assets/sprites/guns.json` by `tools/weapons/generate_weapon_tables.py`. The full stat table
-lives in [`docs/WEAPONS_TABLE.md`](WEAPONS_TABLE.md); the generated enums and registries are the
+lives in [`docs/WEAPONS_TABLE.md`](../WEAPONS_TABLE.md); the generated enums and registries are the
 single source of truth in code (`shared/weapons/WeaponId`, `WeaponRegistry`, `WeaponBallistics`).
 
 | Class | Count | Role |
@@ -172,7 +176,7 @@ swings deal damage in an arc in front of the player and apply knockback.
 
 The roster is **21 melee weapons**, generated from `assets/sprites/melee.json` into
 `shared/weapons/MeleeId` and `MeleeRegistry`; the full table is in
-[`docs/WEAPONS_TABLE.md`](WEAPONS_TABLE.md). Flavour spans knuckles, knives, machetes, tools and
+[`docs/WEAPONS_TABLE.md`](../WEAPONS_TABLE.md). Flavour spans knuckles, knives, machetes, tools and
 long blades. Representative rows:
 
 | Weapon | Damage | Swings/s | Range | Knockback |

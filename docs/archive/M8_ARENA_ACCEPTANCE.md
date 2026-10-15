@@ -1,5 +1,9 @@
 # M8 Arena Rework — Desktop Acceptance Checklist
 
+> **Archived 2026-10-14 — implemented-milestone reference; acceptance is still unverified.**
+> All 12 unchecked checks are tracked in [NOT_DONE.md](../NOT_DONE.md#10-milestone-acceptance-backlog--m6m14).
+> Keep setup instructions and historical limitations here; record new results in the active backlog.
+
 **Status: unverified in the Arena sandbox.** This environment has no JDK, so it cannot compile the
 shared tests, run the desktop client, or inspect SDF shadows and particle collision at runtime.
 The checks below are intentionally left unchecked for a human with a runnable desktop build.

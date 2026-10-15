@@ -1,5 +1,9 @@
 # Phase 7 Audit — HUD, Chat and Console
 
+> **Documentation layout (2026-10-14):** the older plans and M6–M14 checklists referenced below now live in
+> `docs/archive/`. See [NOT_DONE.md](NOT_DONE.md#8-archive-index) for the path mapping and
+> active backlog. The historical audit body below is unchanged.
+
 > Status snapshot taken at commit `bc081e9` (merge of PR #13, "Begin Phase 7 text foundation").
 > Compares the repository against `IMPLEMENTATION_ROADMAP.md` Phase 7 and
 > `CONSOLE_CHAT_PLAN.md` §11 build order / §12 definition of done.

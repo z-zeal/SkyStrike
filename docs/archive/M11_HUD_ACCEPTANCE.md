@@ -1,5 +1,9 @@
 # M11 HUD — Desktop Acceptance Checklist (the fog-gated minimap)
 
+> **Archived 2026-10-14 — implemented-milestone reference; acceptance is still unverified.**
+> All 56 unchecked checks are tracked in [NOT_DONE.md](../NOT_DONE.md#10-milestone-acceptance-backlog--m6m14).
+> Keep setup instructions and historical limitations here; record new results in the active backlog.
+
 These checks require a runnable desktop build with a local match and two clients. They were
 documented for manual verification; source-only sandbox checks cannot prove that a marker appears
 where the fog lights an enemy and nowhere else, that a lost sighting fades rather than blinks, or

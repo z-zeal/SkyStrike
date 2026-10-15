@@ -7,7 +7,7 @@
 > committed on `arena/365d2221-skystrike`). **Nothing below has been compiled, run, or observed in
 > the authoring sandbox** — it has no JDK or Gradle. Where a doc says "written and not executed",
 > that is the status recorded here. The only runtime evidence in the docs is one live run of
-> map milestone 3 on the user's desktop (see `MAP_BUILDER_PLAN.md` §9, milestone 3).
+> map milestone 3 on the user's desktop (see `archive/MAP_BUILDER_PLAN.md` §9, milestone 3).
 
 ---
 
@@ -77,7 +77,7 @@
 
 ## 6. Map building system — milestones 1–5 and the fixture door
 
-Source of truth: `docs/MAP_BUILDER_PLAN.md` §9 and `docs/PHASE7_AUDIT.md` §6.
+Source of truth: `docs/archive/MAP_BUILDER_PLAN.md` §9 and `docs/PHASE7_AUDIT.md` §6.
 
 | Milestone | What landed | PRs and evidence |
 | --- | --- | --- |
@@ -129,6 +129,6 @@ These are plans, so they count as completed only as documents. No phase in them 
 | --- | --- | --- |
 | `docs/MAP_BUILDER_V2_PLAN.md` | `50ad383` | Written. Decisions D1–D8 open. |
 | `docs/SERVER_LOBBY_PLAN.md` | `3839bb8`, decision in `02fdd00` | Written. L1 decided; L2–L10 open. |
-| `docs/MULTIPLAYER_MENU_PLAN.md` | `1e90d76`, decisions in `02fdd00`, link in `316a765` | Written. M1, M2, M5 decided; M3, M4, M6–M9 open. |
+| `docs/archive/MULTIPLAYER_MENU_PLAN.md` | `1e90d76`, decisions in `02fdd00`, link in `316a765` | Written. M1, M2, M5 decided; M3, M4, M6–M9 open. |
 | `docs/ACCOUNTS_PLAN.md` | `316a765`, decisions in `f7239d6` | Written. A1, A3 decided; A2, A4–A8 open. |
 | `PROTOCOL_VERSION` | — | Unchanged at 18 by all four plans. |

@@ -108,7 +108,7 @@ coordinates still hold. The team-refusal box stays unreachable for the same reas
 
 Tick a box only from a running desktop build (two clients where the check says so), after the
 automated tests for that milestone are green in CI. The CI-side tests are listed in
-`docs/MAP_BUILDER_PLAN.md` §7 and are the first gate; this document is the second.
+`docs/archive/MAP_BUILDER_PLAN.md` §7 and are the first gate; this document is the second.
 
 ## Format, load and save
 

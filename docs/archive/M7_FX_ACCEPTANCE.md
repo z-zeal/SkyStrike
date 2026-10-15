@@ -1,5 +1,9 @@
 # M7 FX — Desktop Acceptance Checklist
 
+> **Archived 2026-10-14 — implemented-milestone reference; acceptance is still unverified.**
+> All 23 unchecked checks are tracked in [NOT_DONE.md](../NOT_DONE.md#10-milestone-acceptance-backlog--m6m14).
+> Keep setup instructions and historical limitations here; record new results in the active backlog.
+
 These checks require a runnable desktop build with a local match. They were documented for manual
 verification; source-only sandbox checks do not prove shader compilation or visual behavior.
 
@@ -63,7 +67,7 @@ alongside all of this.
   occlusion is no longer one full-radius disc at the detonation point: the shared `SmokeCloud`
   cluster (three sagging circles, swollen by a growth factor over the cloud's first 40% of life)
   is derived identically by the server's sight queries and the visibility shader, so what blocks
-  sight is the cloud you see, growing as it billows. See `docs/M12_UTILITY_VISIBILITY_ACCEPTANCE.md`.
+  sight is the cloud you see, growing as it billows. See `docs/archive/M12_UTILITY_VISIBILITY_ACCEPTANCE.md`.
 - [ ] **Molotov:** glass sparks, a fire splash along the surface tangent (correct on floors,
   ramps and walls), one flickering attached light per fire zone that expires with the zone, and —
   from M12 — persistent flame rendering (`core/render/UtilityZoneRenderer`) that lives exactly

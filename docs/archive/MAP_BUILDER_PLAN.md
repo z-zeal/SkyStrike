@@ -1,5 +1,9 @@
 # Map building system — plan
 
+> **Archived 2026-10-14 — design/history reference, not an active progress tracker.**
+> Outstanding implementation and verification work is tracked in [NOT_DONE.md](../NOT_DONE.md).
+> Archiving does not mean every feature is implemented or runtime-verified.
+
 **Status: milestone 3's source has landed, its first live run has happened, and milestone 4 has
 landed in source — the close-out's last slice, the fixture door, closed it.** The shared
 `BlockKind`/`Material`/`MapBlock` model, central `BlockRules` table, strict version-1 text

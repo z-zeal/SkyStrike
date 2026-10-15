@@ -1,5 +1,9 @@
 # Multiplayer menu, room browser, rooms and pre-match lobby — plan
 
+> **Archived 2026-10-14 — design/history reference, not an active progress tracker.**
+> Outstanding implementation and verification work is tracked in [NOT_DONE.md](../NOT_DONE.md).
+> Archiving does not mean every feature is implemented or runtime-verified.
+
 **Status: plan only.** Nothing in this document is implemented. Nothing in it has been compiled,
 run or observed: this sandbox has no JDK and no Gradle, so every phase is to be written and not
 executed, with the first real run in CI and on the user's desktop build. Every acceptance box in
