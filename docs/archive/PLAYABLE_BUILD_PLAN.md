@@ -1,5 +1,9 @@
 # Playable Build Plan — debug toolkit, chat/console, menus, HUD, lighting, FX, map
 
+> **Archived 2026-10-14 — design/history reference, not an active progress tracker.**
+> Outstanding implementation and verification work is tracked in [NOT_DONE.md](../NOT_DONE.md).
+> Archiving does not mean every feature is implemented or runtime-verified.
+
 > Scope: the eight things asked for in this session. It completes most of roadmap **Phase 7**
 > (HUD, chat, console), takes a vertical slice of **Phase 8** (lights + particles), and pulls the
 > menu/debug parts of **Phase 11** forward because nothing else can be tested without them.

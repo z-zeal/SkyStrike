@@ -1,5 +1,9 @@
 # M13 HUD — Desktop Acceptance Checklist (gadget panel and floating damage numbers)
 
+> **Archived 2026-10-14 — implemented-milestone reference; acceptance is still unverified.**
+> All 33 unchecked checks are tracked in [NOT_DONE.md](../NOT_DONE.md#10-milestone-acceptance-backlog--m6m14).
+> Keep setup instructions and historical limitations here; record new results in the active backlog.
+
 These checks require a runnable desktop build with a local match and two clients. They were
 documented for manual verification; the source-only sandbox could compile none of this (no JDK), so
 the checks below are what a player will see, and the shared maths is covered by unit tests in

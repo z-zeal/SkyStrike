@@ -1,5 +1,9 @@
 # M14 Vision Bubble — Desktop Acceptance Checklist
 
+> **Archived 2026-10-14 — implemented-milestone reference; acceptance is still unverified.**
+> All 11 unchecked checks are tracked in [NOT_DONE.md](../NOT_DONE.md#10-milestone-acceptance-backlog--m6m14).
+> Keep setup instructions and historical limitations here; record new results in the active backlog.
+
 These checks require a runnable desktop build with a local match, ideally two clients. They were
 documented for manual verification; source-only sandbox checks do not prove shader compilation or
 visual behavior.

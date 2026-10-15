@@ -1,5 +1,9 @@
 # Console & Chat System — Build Plan
 
+> **Archived 2026-10-14 — design/history reference, not an active progress tracker.**
+> Outstanding implementation and verification work is tracked in [NOT_DONE.md](../NOT_DONE.md).
+> Archiving does not mean every feature is implemented or runtime-verified.
+
 > One dialog, one key. A button toggles ALL ↔ TEAM.
 > The console is not a mode — it is always live for anyone with permission.
 > Text must stay readable over a dark, fog-of-war game.

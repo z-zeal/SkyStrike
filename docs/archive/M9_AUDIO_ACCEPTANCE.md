@@ -1,5 +1,9 @@
 # M9 Audio — Desktop Acceptance Checklist
 
+> **Archived 2026-10-14 — implemented-milestone reference; acceptance is still unverified.**
+> All 24 unchecked checks are tracked in [NOT_DONE.md](../NOT_DONE.md#10-milestone-acceptance-backlog--m6m14).
+> Keep setup instructions and historical limitations here; record new results in the active backlog.
+
 These checks require a runnable desktop build with a local match, ideally two clients and a
 headset. They were documented for manual verification; source-only sandbox checks do not prove
 that a WAV loads, that a voice is stolen where it should be, or that the mix sounds right.

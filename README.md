@@ -26,10 +26,11 @@ Tests live in `shared/src/test` and `server/src/test`, so CI can run them.
 
 ## Status
 
-Phases 0–7 of `docs/IMPLEMENTATION_ROADMAP.md` have landed source; phases 8–11 are partly landed.
-`NetConfig.PROTOCOL_VERSION` is **13**. Progress chronology is in `docs/PHASE7_AUDIT.md` §6, and
-current-state summaries are the rebaselined `docs/IMPLEMENTATION_ROADMAP.md` §0 and
-`docs/PLAYABLE_BUILD_PLAN.md` §0.
+Phases 0–7 of `docs/archive/IMPLEMENTATION_ROADMAP.md` have landed source; phases 8–11 are partly landed.
+`NetConfig.PROTOCOL_VERSION` is **18**. Progress chronology is in `docs/PHASE7_AUDIT.md` §6.
+Use [COMPLETED_TASKS.md](docs/COMPLETED_TASKS.md) for the landed-work summary and
+[NOT_DONE.md](docs/NOT_DONE.md) for outstanding work. Archived plans are historical design
+references and may contain stale status snapshots.
 
 Nothing has been verified at runtime here: there is no JDK in the authoring sandbox, so the game,
 the server, Gradle and every manual acceptance checklist (M6–M14, `docs/DEBUG_LOCAL_TEST.md`,
@@ -72,13 +73,21 @@ for CI.
 
 ## Documentation
 
-- `docs/MECHANICS_PLAN.md` — what the game is (the spec).
+- [NOT_DONE.md](docs/NOT_DONE.md) — active backlog, remaining decisions and verification work;
+  includes an archive index mapping the former plan paths.
+- [COMPLETED_TASKS.md](docs/COMPLETED_TASKS.md) — landed-work summary (not runtime verification).
+- `docs/ANDROID_PLAN.md`, `docs/ACCOUNTS_PLAN.md`, `docs/MAP_BUILDER_V2_PLAN.md`,
+  `docs/SERVER_LOBBY_PLAN.md` — active plans excluded from the consolidation.
+- `docs/archive/` — preserved plans and historical references, including the effects and
+  multiplayer-menu designs whose outstanding work is now tracked in `NOT_DONE.md`.
+- `docs/archive/MECHANICS_PLAN.md` — what the game is (the spec).
 - `docs/PROJECT_STRUCTURE.md` — where code goes.
-- `docs/IMPLEMENTATION_ROADMAP.md` — build order and phase gates.
-- `docs/PLAYABLE_BUILD_PLAN.md`, `docs/EFFECTS_PLAN.md`, `docs/CONSOLE_CHAT_PLAN.md` — subsystem
+- `docs/archive/IMPLEMENTATION_ROADMAP.md` — build order and phase gates.
+- `docs/archive/PLAYABLE_BUILD_PLAN.md`, `docs/archive/EFFECTS_PLAN.md`, `docs/archive/CONSOLE_CHAT_PLAN.md` — subsystem
   build plans (plans, not status trackers).
 - `docs/PHASE7_AUDIT.md` — the Phase 7 audit and the chronological record of what has landed since.
-- `docs/M6_…`–`docs/M14_…_ACCEPTANCE.md`, `docs/DEBUG_LOCAL_TEST.md`,
-  `docs/VISION_AUDIO_DRONE_ACCEPTANCE.md` — manual desktop acceptance checklists, all currently
-  unexecuted.
+- `docs/archive/M6_…`–`docs/archive/M14_…_ACCEPTANCE.md` — original milestone acceptance
+  scripts; all 233 pending checks are tracked in `docs/NOT_DONE.md` §10.
+- `docs/DEBUG_LOCAL_TEST.md`, `docs/VISION_AUDIO_DRONE_ACCEPTANCE.md` and other remaining
+  acceptance checklists — manual desktop checks, currently unexecuted.
 - `docs/WEAPONS_TABLE.md` — generated weapon tables.

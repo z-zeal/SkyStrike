@@ -1,5 +1,9 @@
 # SkyStrike — Phase-by-Phase Implementation Roadmap
 
+> **Archived 2026-10-14 — design/history reference, not an active progress tracker.**
+> Outstanding implementation and verification work is tracked in [NOT_DONE.md](../NOT_DONE.md).
+> Archiving does not mean every feature is implemented or runtime-verified.
+
 > The master build order. `MECHANICS_PLAN.md` says *what the game is*, `PROJECT_STRUCTURE.md` says *where code goes*,
 > `EFFECTS_PLAN.md` and `CONSOLE_CHAT_PLAN.md` are deep dives into two subsystems.
 > **This document says what to build, in what order, and how to know a phase is finished.**
