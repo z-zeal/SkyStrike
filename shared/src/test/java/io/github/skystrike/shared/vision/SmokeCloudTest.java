@@ -47,6 +47,44 @@ class SmokeCloudTest {
     }
 
     @Test
+    @DisplayName("dispersal holds through the cloud's life and thins to nothing over the tail")
+    void dispersalThinsOverTheTail() {
+        float duration = 8f;
+        float tail = duration * SmokeCloud.DISPERSE_FRACTION;
+        assertEquals(1f, SmokeCloud.dispersal(duration, duration), 0.0001f);
+        assertEquals(1f, SmokeCloud.dispersal(tail + 1f, duration), 0.0001f,
+            "no thinning before the dispersal window opens");
+        assertEquals(0f, SmokeCloud.dispersal(0f, duration), 0.0001f,
+            "the occlusion is gone exactly when the zone expires");
+        float midTail = tail * 0.5f;
+        assertEquals(0.5f, SmokeCloud.dispersal(midTail, duration), 0.0001f,
+            "the smoothstep midpoint inside the dispersal window");
+        assertEquals(1f, SmokeCloud.dispersal(0f, 0f), 0.0001f);
+
+        // Monotonic as the zone ages toward expiry.
+        float previous = 2f;
+        for (int step = 0; step <= 20; step++) {
+            float remaining = duration * (1f - (float) step / 20f);
+            float dispersal = SmokeCloud.dispersal(remaining, duration);
+            assertTrue(dispersal <= previous, "dispersal never grows as the zone ages");
+            assertTrue(dispersal >= 0f && dispersal <= 1f, "dispersal stays in [0, 1]");
+            previous = dispersal;
+        }
+    }
+
+    @Test
+    @DisplayName("the envelope grows with the billow and disperses with the cloud")
+    void envelopeCombinesGrowthAndDispersal() {
+        float duration = 8f;
+        assertEquals(0f, SmokeCloud.envelope(duration, duration), 0.0001f);
+        float grownRemaining = duration * (1f - SmokeCloud.GROW_FRACTION);
+        assertEquals(1f, SmokeCloud.envelope(grownRemaining, duration), 0.0001f,
+            "mid-life the cluster is fully out");
+        assertEquals(0f, SmokeCloud.envelope(0f, duration), 0.0001f,
+            "at expiry nothing occludes");
+    }
+
+    @Test
     @DisplayName("a cloud that has not grown yields no occlusion circles at all")
     void ungrownCloudOccludesNothing() {
         assertTrue(SmokeCloud.volumes(X, Y, RADIUS, 0f).isEmpty());
@@ -54,7 +92,7 @@ class SmokeCloudTest {
     }
 
     @Test
-    @DisplayName("the fully grown cluster is a sagging three-circle blob around the detonation")
+    @DisplayName("the fully grown cluster is a five-circle blob: core, sagging lobes, rising crown")
     void grownClusterLayout() {
         List<SmokeVolume> volumes = SmokeCloud.volumes(X, Y, RADIUS, 1f);
         assertEquals(SmokeCloud.CIRCLES_PER_CLOUD, volumes.size());
@@ -72,12 +110,28 @@ class SmokeCloudTest {
             assertEquals(SmokeCloud.LOBE_RADIUS * RADIUS, lobe.radius(), 0.0001f);
         }
 
-        // The cluster sags below the detonation point like the cloud does under gravity, and
-        // stays inside the cloud's drift envelope: the widest lobe reaches furthest, and no
-        // circle reaches beyond it from the detonation point.
+        for (int side = -1; side <= 1; side += 2) {
+            SmokeVolume crown = volumes.get(side < 0 ? 3 : 4);
+            assertEquals(X + side * SmokeCloud.CROWN_OFFSET_X * RADIUS, crown.x(), 0.0001f);
+            assertEquals(Y + SmokeCloud.CROWN_OFFSET_Y * RADIUS, crown.y(), 0.0001f);
+            assertEquals(SmokeCloud.CROWN_RADIUS * RADIUS, crown.radius(), 0.0001f);
+        }
+
+        // The cluster's bulk sags below the detonation point like the cloud does under gravity —
+        // the core and the side lobes — while only the crown pair rises into the billow.
+        for (int i = 0; i < 3; i++) {
+            assertTrue(volumes.get(i).y() <= Y + 0.0001f,
+                "the occlusion blob's mass sags, it does not float");
+        }
+        for (int i = 3; i < SmokeCloud.CIRCLES_PER_CLOUD; i++) {
+            assertTrue(volumes.get(i).y() >= Y - 0.0001f,
+                "the crown pair is the part that billows upward");
+        }
+
+        // The widest lobe reaches furthest, and no circle reaches beyond it from the detonation
+        // point: the cluster stays inside the cloud's drift envelope.
         float envelope = (SmokeCloud.LOBE_OFFSET_X + SmokeCloud.LOBE_RADIUS) * RADIUS;
         for (SmokeVolume volume : volumes) {
-            assertTrue(volume.y() <= Y + 0.0001f, "the occlusion blob sags, it does not float");
             float reach = Math.abs(volume.x() - X) + volume.radius();
             assertTrue(reach <= envelope + 0.0001f,
                 "the cluster stays within the rendered cloud's envelope");

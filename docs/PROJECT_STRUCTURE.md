@@ -135,7 +135,8 @@ shared/src/main/java/io/github/skystrike/shared/
 │
 ├── utility/
 │   ├── UtilityType              Frag, impact, smoke, stun, molotov, poison, flash, claymore, drone
-│   └── UtilityDefinition        Per-type physical and gameplay parameters
+│   ├── UtilityDefinition        Per-type physical and gameplay parameters
+│   └── FireSurface              Which way fire licks off the surface a molotov patch burns on
 │
 ├── gadget/
 │   ├── GadgetId                 None, drone, shield, fuel tank, camera — frozen wire ordinal
@@ -159,6 +160,8 @@ shared/src/main/java/io/github/skystrike/shared/
 ├── vision/                      The one visibility maths, and the eyes it is asked about
 │   ├── VisionMath               Cone/distance/smoke factors, LOS, the lit-target bar
 │   ├── SmokeVolume              An opaque sight-blocking circle, server and shader alike
+│   ├── SmokeCloud               One cloud's occlusion cluster: layout fractions, growth, dispersal
+│   ├── SmokeField               Which clouds reach the bounded array, and in what order
 │   ├── Observer                 One eye: position, aim, reach, cone, feather, brightness
 │   └── ObserverSet              Every eye a viewer looks through, plus the sight query for them
 │
@@ -171,7 +174,8 @@ shared/src/main/java/io/github/skystrike/shared/
 │   ├── GadgetPanelModel         Durability, cooldown and state words for the Q/E gadget panel
 │   ├── DamageNumberModel        Which hits become floating numbers, how they fade and rise
 │   ├── WorldProjection          World-to-screen for the world-anchored HUD (damage numbers)
-│   └── MinimapModel             Which markers may exist, where, and how long a sighting lasts
+│   ├── MinimapModel             Which markers may exist, where, and how long a sighting lasts
+│   └── SightingFade             The enemy-body gate's anti-flicker fade, aged on the wall clock
 │
 ├── effect/
 │   ├── EffectType               The spawnable visual effect vocabulary

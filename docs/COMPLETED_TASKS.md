@@ -132,3 +132,16 @@ These are plans, so they count as completed only as documents. No phase in them 
 | `docs/archive/MULTIPLAYER_MENU_PLAN.md` | `1e90d76`, decisions in `02fdd00`, link in `316a765` | Written. M1, M2, M5 decided; M3, M4, M6–M9 open. |
 | `docs/ACCOUNTS_PLAN.md` | `316a765`, decisions in `f7239d6` | Written. A1, A3 decided; A2, A4–A8 open. |
 | `PROTOCOL_VERSION` | — | Unchanged at 18 by all four plans. |
+
+## 9. Presentation fixes — molotov fire, smoke occlusion, enemy body gate
+
+Landed on the session branch `arena/82c9fd49-skystrike`. **Protocol 18 and all wire packets
+untouched**; no gameplay numbers moved. `docs/NOT_DONE.md` §10's smoke/molotov acceptance
+bullets were rewritten to describe the new behaviour.
+
+| Work | What landed |
+| --- | --- |
+| Molotov fire picture | `UtilityZoneRenderer` rewritten: soft layered glow per patch (ember wash → ember bed → body → core → heart) that merges a cast into one burning line, deterministic zone-id-seeded tongues and flicker off the effect clock (the `System.currentTimeMillis()/1000f` float-precision flicker bug at the GameScreen call site is fixed), surface-aware flame direction (`shared/utility/FireSurface`) — rise off floors, climb walls, hang from ceilings. Sustained embers and heat smoke for the whole 6 s (`fx/particle/ZoneEmitter`, time-slice emission seeded per (zone, slice)). |
+| Smoke / poison clouds | Sustained wisps keep both clouds billowing for their whole zone lives with fade wisps across the tail; `SmokeCloud` reshaped to a five-circle cluster (sagging core, side lobes, rising crown) matching the puffs' real drift/turbulence envelope, `GROW_FRACTION` 0.4 → 0.55 and a new `dispersal` tail so occlusion and picture disperse together. New `shared/vision/SmokeField` fill policy (oldest-first, whole clouds only) shared verbatim by `UtilitySystem` and the client; `VisionConfig.MAX_SMOKE_VOLUMES` 8 → 16 with `visibility_cone.frag`'s array and loop raised to match. **Gameplay-feel consequence:** the occlusion now covers the cloud's real spread (~1.4× zone radius) instead of a smaller cluster. |
+| Enemy body gate | Per-entity, enemy-team-only, client-side presentation gate in `GameScreen` (composition root): `ObserverSet.isLit` — the minimap's exact question — smoothed by the new `shared/hud/SightingFade` envelope (0.12 s fade-in, 0.2 s hold, 0.5 s fade-out, exactly 0 when unlit, wall-clock aged, bounded, cleared on respawn/teardown). Alpha multiplies into every player draw (body, jetpack, flame, visor, health bar, utility marker, weapon sprite, barrel fallback, and the player-worn fuel tank/shield arc in `GadgetRenderer`). Teammates and the local player never gated; no local player (spectator) gates nobody. `AMBIENT_FLOOR` untouched. Enemy drones/cameras/throwables/projectiles deliberately left ungated. |
+| Tests | `SmokeCloudTest` updated deliberately and kept as the pin; new `SmokeFieldTest`, `SightingFadeTest`, `FireSurfaceTest`. `UtilitySystemTest`/`EffectEmissionTest`/`VisionMathTest`/`ObserverSetTest` unchanged and still pin their contracts. |

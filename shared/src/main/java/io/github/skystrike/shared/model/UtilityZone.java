@@ -92,13 +92,14 @@ public final class UtilityZone {
 
     /**
      * The shader/query representation of an opaque cloud: the deterministic circle cluster from
-     * {@link SmokeCloud} that follows the rendered cloud's shape, grown by how much of the
-     * zone's life is left. Fire deliberately does not become smoke circles, even though it is a
-     * persistent zone.
+     * {@link SmokeCloud} that follows the rendered cloud's shape, swelled over the first part of
+     * the zone's life and thinned back over the last, so the occlusion tracks when the puffs
+     * really spread and when they really disperse. Fire deliberately does not become smoke
+     * circles, even though it is a persistent zone.
      */
     public List<SmokeVolume> smokeVolumes() {
         float duration = UtilityRegistry.of(utility()).durationSeconds();
-        return SmokeCloud.volumes(x, y, radius, SmokeCloud.growth(remainingSeconds, duration));
+        return SmokeCloud.volumes(x, y, radius, SmokeCloud.envelope(remainingSeconds, duration));
     }
 
     @Override
