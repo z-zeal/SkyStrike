@@ -305,4 +305,58 @@ class ObserverSetTest {
         assertFalse(ObserverSet.of(List.of(device)).isLit(target, arena, null),
             "the device's own narrower cone is what judges it, not the player's");
     }
+    @Test
+    @DisplayName("living allies share fog and enemy admission; enemies, dead allies and Neutral do not")
+    void teamSightUsesLivingAlliesOnly() {
+        Player viewer = player(1, 0, 300f, 1500f, 180f);
+        Player ally = player(2, 0, 700f, 1500f, 0f);
+        Player target = player(3, 1, 850f, 1500f, 0f);
+        assertFalse(ObserverSet.forViewer(viewer, HIP, List.of(), null, List.of())
+            .isLit(target, arena, null));
+        ObserverSet team = ObserverSet.forTeam(viewer, HIP,
+            List.of(viewer, ally, ally, target), List.of(), null, List.of());
+        assertEquals(4, team.size(), "local snapshot and duplicate ally must not duplicate eyes");
+        assertTrue(team.isLit(target, arena, null));
+        assertFalse(team.isLit(target, arena,
+            List.of(new SmokeVolume(780f, 1525f, 250f, 1f))), "shared eyes still obey smoke");
+        ally.alive = false;
+        assertFalse(ObserverSet.forTeam(viewer, HIP, List.of(ally, target),
+            List.of(), null, List.of()).isLit(target, arena, null));
+        ally.alive = true;
+        ally.teamIndex = 1;
+        assertEquals(2, ObserverSet.forTeam(viewer, HIP, List.of(ally),
+            List.of(), null, List.of()).size());
+        viewer.teamIndex = 2;
+        ally.teamIndex = 2;
+        assertEquals(2, ObserverSet.forTeam(viewer, HIP, List.of(ally),
+            List.of(), null, List.of()).size(), "Neutral is FFA, not a third sharing team");
+        assertTrue(ObserverSet.forTeam(null, HIP, List.of(ally),
+            List.of(), null, List.of()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("shared devices obey owner, surveillance and stuck-camera rules")
+    void teamDevicesKeepTheSingleViewerRules() {
+        Player viewer = player(1, 0, 300f, 1500f, 180f);
+        Player ally = player(2, 0, 700f, 1500f, 0f);
+        DroneEntity device = drone(8, 2, 0, 800f, 1500f, 0f);
+        CameraEntity stuck = camera(9, 2, 0, 850f, 1500f, 0f, true);
+        CameraEntity flying = camera(10, 2, 0, 900f, 1500f, 0f, false);
+        DroneEntity hostile = drone(11, 99, 1, 1000f, 1500f, 0f);
+        ObserverSet team = ObserverSet.forTeam(viewer, HIP, List.of(ally),
+            List.of(device, hostile), null, List.of(stuck, flying));
+        assertEquals(8, team.size());
+        assertEquals(2, team.deviceBubbles().size());
+        ally.surveillanceView = SurveillanceView.DRONE.ordinal();
+        assertEquals(6, ObserverSet.forTeam(viewer, HIP, List.of(ally),
+            List.of(device), null, List.of(stuck)).size(), "a piloting ally lends devices, not body eyes");
+        ally.surveillanceView = SurveillanceView.SELF.ordinal();
+        ally.ads = true;
+        team = ObserverSet.forTeam(viewer, HIP, List.of(ally), List.of(), null, List.of());
+        assertEquals(VisionConfig.REACH_ADS, team.observers().get(2).reach());
+        ally.alive = false;
+        assertEquals(2, ObserverSet.forTeam(viewer, HIP, List.of(ally),
+            List.of(device), null, List.of(stuck)).size(), "dead owners lend no device eyes");
+    }
+
 }

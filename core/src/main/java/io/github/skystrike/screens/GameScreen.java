@@ -902,9 +902,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         audio.updateListener(listenerX, listenerY);
 
-        // M11: the viewer's eyes are assembled once, here, before anything consumes them. The
+        // The team's shared eyes are assembled once, here, before anything consumes them. The
         // rule — a body's cone unless the view has moved into a device, plus every device the
-        // viewer owns, with the piloted drone at its predicted position — lives in
+        // viewer owns, plus the same eyes from each living ally — lives in
         // shared/vision/ObserverSet, and both consumers read that one set: the visibility pass
         // draws a cone per observer, and the minimap asks the same set what it lights. A marker
         // for something the fog is hiding would be a cheat sheet, and two implementations of
@@ -914,7 +914,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             ? surveillance.predictedDrone()
             : null;
         List<DroneEntity> dronesToDraw = renderedDrones(drones, pilotedDrone);
-        eyes = ObserverSet.forViewer(localPlayer, visionReach, drones, pilotedDrone, cameras);
+        // Team union feeds fog, enemy admission, minimap and light admission together.
+        eyes = ObserverSet.forTeam(localPlayer, visionReach, remotePlayers, drones, pilotedDrone, cameras);
         observers.clear();
         for (Observer observer : eyes.observers()) {
             observers.add(ObserverState.of(observer));

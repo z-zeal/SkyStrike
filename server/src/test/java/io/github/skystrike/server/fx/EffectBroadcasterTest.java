@@ -275,4 +275,28 @@ class EffectBroadcasterTest {
         player.aimAngle = aimDegrees;
         return player;
     }
+    @Test
+    @DisplayName("an ally-only effect reaches both teammates once, but not enemies or dead owners")
+    void sharedEffectDelivery() {
+        Player viewer = new Player(1, "Viewer", 0, 300f, 1500f);
+        viewer.aimAngle = 180f;
+        Player ally = new Player(2, "Ally", 0, 700f, 1500f);
+        ally.aimAngle = 0f;
+        EffectBroadcaster.Recipient local = EffectBroadcaster.Recipient.of(viewer);
+        EffectBroadcaster.Recipient remote = EffectBroadcaster.Recipient.of(ally);
+        List<EffectSpawn> batch = List.of(
+            new EffectSpawn(EffectType.BULLET_IMPACT_CONCRETE, 850f, 1525f, 0f, 1f));
+        assertTrue(broadcaster.cullFor(batch, local, arena, null).isEmpty());
+        assertEquals(batch, broadcaster.cullForTeam(batch, local, List.of(local, remote, remote), arena, null));
+        assertEquals(batch, broadcaster.cullForTeam(batch, remote, List.of(local, remote), arena, null));
+        ally.alive = false;
+        assertTrue(broadcaster.cullForTeam(batch, local, List.of(remote), arena, null).isEmpty());
+        ally.alive = true;
+        ally.teamIndex = 1;
+        assertTrue(broadcaster.cullForTeam(batch, local, List.of(remote), arena, null).isEmpty());
+        viewer.teamIndex = 2;
+        ally.teamIndex = 2;
+        assertTrue(broadcaster.cullForTeam(batch, local, List.of(remote), arena, null).isEmpty());
+    }
+
 }

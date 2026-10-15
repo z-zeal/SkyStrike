@@ -74,12 +74,21 @@ SIDEARM_MUZZLE_OFFSET = 800.0
 SIDEARM_MUZZLE_MIN = 1200.0
 SIDEARM_MUZZLE_MAX = 1550.0
 
+# Provisional shotgun flight correction after the same premature-drop report as sidearms.
+# Keep damage/range/spread intact: the penalty for distance is already pellet dispersion and
+# 35% floor damage, not rounds slowing to a lob. Preserve cartridge ordering above the floor.
+SHOTGUN_MUZZLE_MIN = 1200.0
+SHOTGUN_DRAG_MIN = 0.995
+SHOTGUN_GRAVITY_RAMP_SECONDS = 1.0
+
 # Drag per 60 Hz tick, fitted through (370 m/s -> 0.980) and (910 m/s -> 0.998). The fit is
 # appropriate for long guns but bled low-velocity handgun rounds to player speed before their
 # effective range. Sidearms retain at least 0.995 per tick, keeping even the slowest above the
 # player movement cap throughout ordinary combat range without changing range/falloff.
 def drag_per_tick(mv, cls):
     drag = clamp(0.980 + 3.3e-5 * (mv - 370.0), 0.980, 0.998)
+    if cls == "shotgun":
+        return max(drag, SHOTGUN_DRAG_MIN)
     return max(drag, 0.995) if cls in ("pistol", "revolver") else drag
 
 # Hip spread: the catalog 0-1 scalar maps to degrees; 0.58 is the widest short gospel at
@@ -119,7 +128,7 @@ CLASS_TUNING = {
     "battle_rifle":  (0.26, 2.2, 3.2, 6.0, 1.3, 0.70, 4),
     "dmr":           (0.22, 2.4, 3.4, 5.5, 1.5, 0.72, 5),
     "sniper":        (0.18, 2.7, 4.0, 4.0, 1.8, 0.80, 5),
-    "shotgun":       (0.52, 1.9, 2.7, 6.0, 0.5, 0.35, 8),
+    "shotgun":       (0.52, 1.9, 2.7, 6.0, SHOTGUN_GRAVITY_RAMP_SECONDS, 0.35, 8),
     "lmg":           (0.34, 2.1, 3.0, 6.5, 1.2, 0.70, 2),
 }
 
@@ -183,6 +192,9 @@ def convert_gun(g, scale):
             SIDEARM_MUZZLE_MAX))
     else:
         speed = round(clamp(MUZZLE_UNITS_PER_MPS * mv, MUZZLE_MIN, MUZZLE_MAX))
+    if cls == "shotgun":
+        speed = round(clamp(SIDEARM_MUZZLE_UNITS_PER_MPS * mv + SIDEARM_MUZZLE_OFFSET,
+                            SHOTGUN_MUZZLE_MIN, SIDEARM_MUZZLE_MAX))
     drag = round(drag_per_tick(mv, cls), 4)
     max_range = round(
         RANGE_UNITS_PER_METER * min(meters, RANGE_KNEE_METERS)
@@ -425,7 +437,7 @@ import java.util.Map;
  *
  * @param weaponClass    family, which fixes the relative drop weight
  * @param muzzleSpeed    units per second at the muzzle; sidearms have a dedicated 1200 floor
- * @param dragPerTick    speed retained per 60 Hz tick, 0.980 (shotguns) to 0.998 (snipers)
+ * @param dragPerTick    speed retained per 60 Hz tick, 0.980 (slow long guns) to 0.998 (snipers)
  * @param gravityRampSeconds time over which drop ramps in, so rounds fly flat up close
  * @param maxRange       distance at which damage reaches its floor, from the weapon table
  * @param minDamageRatio damage retained at maximum range, 0.35 (shotguns) to 0.80 (snipers)

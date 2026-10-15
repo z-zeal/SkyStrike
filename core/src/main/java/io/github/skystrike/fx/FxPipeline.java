@@ -158,7 +158,7 @@ public final class FxPipeline implements Disposable {
      * bubble and dimmed by the bubble's brightness, so a drone or a stuck camera lights the space it
      * can see just as the body's light does.
      *
-     * @param eyes the viewer's observers for this frame, from {@code ObserverSet.forViewer}
+     * @param eyes the viewer's observers for this frame, from {@code ObserverSet.forTeam}
      */
     public void syncPlayerLights(
             Player localPlayer,

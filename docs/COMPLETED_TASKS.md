@@ -145,3 +145,24 @@ bullets were rewritten to describe the new behaviour.
 | Smoke / poison clouds | Sustained wisps keep both clouds billowing for their whole zone lives with fade wisps across the tail; `SmokeCloud` reshaped to a five-circle cluster (sagging core, side lobes, rising crown) matching the puffs' real drift/turbulence envelope, `GROW_FRACTION` 0.4 → 0.55 and a new `dispersal` tail so occlusion and picture disperse together. New `shared/vision/SmokeField` fill policy (oldest-first, whole clouds only) shared verbatim by `UtilitySystem` and the client; `VisionConfig.MAX_SMOKE_VOLUMES` 8 → 16 with `visibility_cone.frag`'s array and loop raised to match. **Gameplay-feel consequence:** the occlusion now covers the cloud's real spread (~1.4× zone radius) instead of a smaller cluster. |
 | Enemy body gate | Per-entity, enemy-team-only, client-side presentation gate in `GameScreen` (composition root): `ObserverSet.isLit` — the minimap's exact question — smoothed by the new `shared/hud/SightingFade` envelope (0.12 s fade-in, 0.2 s hold, 0.5 s fade-out, exactly 0 when unlit, wall-clock aged, bounded, cleared on respawn/teardown). Alpha multiplies into every player draw (body, jetpack, flame, visor, health bar, utility marker, weapon sprite, barrel fallback, and the player-worn fuel tank/shield arc in `GadgetRenderer`). Teammates and the local player never gated; no local player (spectator) gates nobody. `AMBIENT_FLOOR` untouched. Enemy drones/cameras/throwables/projectiles deliberately left ungated. |
 | Tests | `SmokeCloudTest` updated deliberately and kept as the pin; new `SmokeFieldTest`, `SightingFadeTest`, `FireSurfaceTest`. `UtilitySystemTest`/`EffectEmissionTest`/`VisionMathTest`/`ObserverSetTest` unchanged and still pin their contracts. |
+
+
+## 10. Follow-up: shotgun flight and teammate shared vision
+
+- **Shotgun flight:** the generator now maps pellet muzzle speed with the handgun-style
+  arena offset (currently 1340–1430 u/s instead of 720–840), retains at least 0.995 velocity per
+  tick, and ramps gravity over 1 s instead of 0.5 s. These are **provisional** flight tuning
+  decisions responding to the premature-drop report, not measured playtest results. Terminal
+  gravity weight (5.0), damage, 35% damage floor, range, spread, pellet count and cadence are
+  unchanged. Regenerated `WeaponBallistics` and `WEAPONS_TABLE`; trajectory regression tests
+  pin the effective-range and room-width behavior.
+- **Shared team sight:** `ObserverSet.forTeam` unions living allied owners' body cones, bubbles,
+  drones and stuck cameras. It preserves local eased ADS reach and drone prediction; allies use
+  snapshot ADS reach. Duplicate ids, dead owners, enemies and Neutral/FFA peers add no eyes.
+  Surveillance still suppresses the owner's body, not their devices. Fog, enemy-body admission,
+  minimap and light admission consume the same set. Each eye still respects walls, doors and smoke.
+- **Shared effect delivery:** the server unions existing conservative effect culling per living
+  allied owner, including owned devices, and sends each event once in batch order. Audio rules
+  are unchanged. No protocol or wire packet changes (`PROTOCOL_VERSION` remains 18).
+- **Validation:** source/API checks and generator reproducibility only in this sandbox. Added
+  shared/server tests have not been executed: no JDK, Gradle installation or display; no CI polling.

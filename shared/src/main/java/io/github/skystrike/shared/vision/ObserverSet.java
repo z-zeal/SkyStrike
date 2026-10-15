@@ -5,6 +5,10 @@ import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Team;
+import io.github.skystrike.shared.config.VisionConfig;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +28,10 @@ import java.util.List;
  * device's bubble exists whenever the device does. Bubbles are ordinary observers in
  * {@link #observers()}, so the visibility pass draws them with the cones and the minimap's blip
  * gate sees them without a second rule.
+ *
+ * <p>Team sharing is assembled by {@link #forTeam}: each living ally contributes the same body,
+ * bubble and owned-device rules. {@code forViewer} remains the single-owner primitive. The local
+ * predicted drone and eased reach are retained, while allies use their snapshot state.
  *
  * <p>Putting that rule in {@code shared} is what lets a second consumer trust it. The visibility
  * pass draws the cones; anything that must not contradict the picture those cones produce — today
@@ -122,6 +130,46 @@ public final class ObserverSet {
             addDevice(eyes, devices, Observer.camera(camera), Observer.cameraBubble(camera));
         }
         return eyes.isEmpty() ? EMPTY : new ObserverSet(eyes, devices);
+    }
+
+    /**
+     * Union of the viewer's eyes and every living ally's eyes. All presentation consumers must
+     * receive this finished set: sharing only enemy admission would reveal sprites in black fog,
+     * while sharing only fog would leave the enemy gate and minimap blind to teammates' reports.
+     *
+     * <p>The local copy retains eased reach and predicted drone position. Allies use snapshot ADS
+     * reach and devices. Ownership, surveillance body suppression, and stuck-camera rules remain
+     * those of {@link #forViewer}; dead owners contribute nothing, and Neutral has no allies.
+     * Duplicate local entries in an unculled snapshot are ignored by id. No sight passes through
+     * walls or smoke: each eye is still tested from its own position against the live map.
+     */
+    public static ObserverSet forTeam(
+            Player viewer, float viewerReach, List<Player> players,
+            List<DroneEntity> drones, DroneEntity pilotedDrone, List<CameraEntity> cameras) {
+        if (viewer == null) {
+            return EMPTY;
+        }
+        List<Observer> eyes = new ArrayList<>();
+        List<Observer> devices = new ArrayList<>();
+        Set<Integer> included = new HashSet<>();
+        included.add(viewer.id);
+        if (viewer.alive) {
+            append(forViewer(viewer, viewerReach, drones, pilotedDrone, cameras), eyes, devices);
+        }
+        for (Player ally : players == null ? List.<Player>of() : players) {
+            if (ally == null || !ally.alive || !Team.areAllies(viewer.teamIndex, ally.teamIndex)
+                    || !included.add(ally.id)) {
+                continue;
+            }
+            float reach = ally.ads ? VisionConfig.REACH_ADS : VisionConfig.REACH_HIP;
+            append(forViewer(ally, reach, drones, null, cameras), eyes, devices);
+        }
+        return eyes.isEmpty() ? EMPTY : new ObserverSet(eyes, devices);
+    }
+
+    private static void append(ObserverSet source, List<Observer> eyes, List<Observer> devices) {
+        eyes.addAll(source.observers);
+        devices.addAll(source.deviceBubbles);
     }
 
     /** A device's cone and bubble go into the draw list together; the bubble also joins the lights. */

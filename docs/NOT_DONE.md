@@ -929,3 +929,20 @@ Full setup and historical context: [M14_VISION_BUBBLE_ACCEPTANCE.md](archive/M14
   the same disc. Raising the cvar (for example to 220) enlarges the glow only where the bubble
   already sees. Light beyond the bubble is still masked by visibility, so the cvar cannot widen
   what you see.
+
+
+### Follow-up acceptance: pellet flight and team sight
+
+- [ ] Fire Door Hymn, Short Gospel and Iron Goose horizontally across a room (about 400 u):
+  pellets should no longer arc into the floor early. Confirm damage still weakens with distance
+  and pellet dispersion still limits hits; this flight fix does not buff damage or damage range.
+- [ ] With two Team A clients facing different directions, an enemy seen only by player 1 must
+  appear for player 2 too, together with the revealed terrain, minimap marker and visible FX.
+  Repeat in the opposite direction and on Team B.
+- [ ] Close a door, move behind solid cover, and deploy smoke: shared sight must obey each
+  contributing eye's own LOS, not grant wallhack vision through the receiving player's position.
+- [ ] Test a teammate's drone and stuck camera, ADS, surveillance body suppression, device
+  destruction, death, disconnect, respawn and team changes. Removed eyes must stop contributing;
+  the existing enemy fade/hold and minimap memory still apply after sight is lost.
+- [ ] Neutral/FFA players do not share sight. Gunfire/explosion FX seen by both teammates must
+  emit once per client, not twice. Check frame cost with multiple teammates and devices.

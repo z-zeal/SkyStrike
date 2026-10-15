@@ -9,6 +9,9 @@ import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.Team;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.shared.vision.VisionMath;
 import io.github.skystrike.shared.weapons.WeaponId;
@@ -159,6 +162,41 @@ public final class EffectBroadcaster implements EffectSink {
             }
         }
         return visible;
+    }
+
+    /**
+     * Shared-team delivery. Reuse the existing conservative effect-disc query for each living
+     * owner, including that owner's devices, rather than sending only the local player's share.
+     * The GPU still clips particles to the team fog. A set preserves event identity and order:
+     * an explosion seen by two teammates is delivered once, not emitted twice on the client.
+     * Neutral recipients have no allies. No packet layout or audio delivery rule changes here.
+     */
+    public List<EffectSpawn> cullForTeam(
+            List<EffectSpawn> spawns, Recipient viewer, List<Recipient> candidates,
+            ArenaMap arena, List<SmokeVolume> smoke) {
+        if (viewer == null || viewer.player() == null) {
+            return List.of();
+        }
+        Set<EffectSpawn> visible = new LinkedHashSet<>();
+        if (viewer.player().alive) {
+            visible.addAll(cullFor(spawns, viewer, arena, smoke));
+        }
+        for (Recipient ally : candidates == null ? List.<Recipient>of() : candidates) {
+            if (ally == null || ally.player() == null || !ally.player().alive
+                    || ally.player().id == viewer.player().id
+                    || !Team.areAllies(viewer.player().teamIndex, ally.player().teamIndex)) {
+                continue;
+            }
+            visible.addAll(cullFor(spawns, ally, arena, smoke));
+        }
+        // Preserve the original batch ordering, including when only an ally saw early events.
+        List<EffectSpawn> ordered = new ArrayList<>(visible.size());
+        for (EffectSpawn spawn : spawns == null ? List.<EffectSpawn>of() : spawns) {
+            if (visible.remove(spawn)) {
+                ordered.add(spawn);
+            }
+        }
+        return ordered;
     }
 
     /**
