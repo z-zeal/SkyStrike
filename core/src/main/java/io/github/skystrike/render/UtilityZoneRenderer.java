@@ -242,8 +242,10 @@ public final class UtilityZoneRenderer implements Disposable {
 
     /**
      * One soft stretched glow, centred at {@code (x, y)} with its long axis rotated
-     * {@code rotationDegrees} off vertical (the sprite's local up), premultiplied-free ordinary
-     * alpha like the rest of the scene pass.
+     * {@code rotationDegrees} off vertical (the sprite's local up), under the same ordinary
+     * scene-pass alpha as the rest of the layer. The rotated {@code draw} overload takes a
+     * {@code TextureRegion} in libGDX; for a plain {@code Texture} the equivalent is this
+     * 16-argument form with the full source rectangle and no flip.
      */
     private void drawTongue(
             float x, float y, float halfWidth, float height, float rotationDegrees, Color color,
@@ -259,7 +261,13 @@ public final class UtilityZoneRenderer implements Disposable {
             height,
             1f,
             1f,
-            rotationDegrees);
+            rotationDegrees,
+            0,
+            0,
+            glow.getWidth(),
+            glow.getHeight(),
+            false,
+            false);
     }
 
     /** Deterministic per-(zone, tongue) offset in {@code [0, 1)}; the same on every client. */
