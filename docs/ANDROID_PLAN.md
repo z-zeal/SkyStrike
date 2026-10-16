@@ -1,6 +1,9 @@
 # Android compatibility, touch controls, UI/UX and mobile hardening — plan
 
-**Status: AN-1 foundation and AN-2 shared touch models are implemented in source, not compiled or device-verified.**
+**Status: AN-1 foundation, AN-2 shared touch models, AN-3 touch input wiring and AN-4 HUD touch
+drawing are implemented in source. None of it is compiled, run or device-verified; there is no JDK
+or Android SDK in the sandbox.** Source status is recorded per slice below; the §10 boxes stay
+unchecked.
 
 AN-1 (still the limit of the platform work, not a completed device port):
 - Six platform contracts and lazy, headless-construction-safe defaults, injected through `Main`,
@@ -23,9 +26,10 @@ AN-2 source, distinct from verification:
   Focused tests sit beside them in `shared/src/test`. They were written and not executed — there
   is no JDK here. `static_check.py`, `static_api_check.py` and `git diff --check` are source
   checks, not compilation or runtime verification.
-- Not started, and not implied by the types above: `core/input/TouchControls`, `InputSampler`
-  wiring, `cl_touch_hud`, screen projection of the reticle, HUD drawing, and any phone or tablet
-  run. Desktop controls are unchanged. `NetConfig.PROTOCOL_VERSION` stays 18.
+- At AN-2 these were not started: `core/input/TouchControls`, `InputSampler` wiring,
+  `cl_touch_hud`, screen projection of the reticle, and HUD drawing. AN-3 and AN-4 below now
+  implement them in source. This AN-2 record is kept as written. Desktop controls are unchanged,
+  and `NetConfig.PROTOCOL_VERSION` stays 18.
 - **Provisional, not confirmed by a design answer:** the optional Jump double-tap / slide-up
   jetpack gesture is not implemented — the plan gives it no timing, and the decided jetpack
   control is the dedicated button. Left-handed mode mirrors the sticks, crouch and the action
@@ -35,7 +39,35 @@ AN-2 source, distinct from verification:
   down by `0.05` until the 48 dp / 6 dp rules hold) and opacity `0.35–1` (default `0.72`;
   geometry ignores it).
 
-AN-3–AN-7 remain planned. The baseline audit below describes the pre-implementation tree, not
+AN-3 and AN-4 source, distinct from verification (both written, not compiled, not run):
+- **AN-3 (input):** `core/input/TouchControls` is an `InputAdapter` that feeds
+  `TouchControlModel` from LibGDX touch events; `InputSampler` takes a `TouchSample` and reads no
+  keyboard or mouse gameplay binding when it is present. `LoadoutController`, `SurveillanceController`
+  and `DoorUseController` each take a touch edge. Slot taps, Q/E, view cycle, surveillance exit and
+  the contextual door press go through the existing controller paths and retransmission.
+  `cl_touch_hud` is a `--dev`-only BOOL, default `false`; `GameScreen` reads it live.
+- **AN-4 (visibility):** `HudStage` draws the sticks, the action plates and the captions in its
+  existing two passes, after the loadout dock. Layout comes from `TouchHudLayout`, and the widgets
+  move through `placeAt` and `LoadoutBar.placeTouch`. The touch reticle is the crosshair's pointer:
+  the aim ray from the surveillance aim anchor, projected through the same `WorldProjection`.
+- **Touch rule:** on a touch device, touch is the control path, and the match reads no keyboard or
+  mouse gameplay binding. The §7 AN-3 wording "merges keyboard/mouse and `TouchControls`" is
+  superseded by this. Dialog and system keys keep their routing.
+- **Phone build, from source:** on touch-primary devices `touchHudOn()` is true, the layout is
+  refreshed each frame, and the overlay is drawn, so the source path shows touch controls. This is
+  not verified: nothing compiled, no device run. A desktop build shows them only with
+  `cl_touch_hud true`, and then desktop mouse aim and keyboard movement stop until it is turned off.
+- **Known limits at this point:** `CHAT`, `QUICK CHAT` and `LOADOUT` are drawn dim and their taps
+  have no consumer yet (AN-5/AN-6); `PAUSE` is consumed through the Escape path. Whether
+  `ConsoleDialog` closes on touch is unresolved. The passive console chat strip is not repositioned
+  by the touch layout, so on a phone it can sit under the controls. The desktop-unchanged claim
+  (pixel-identical with the flag off) is unverified. `SurveillanceController.exitSurveillance(Player)`
+  is called and its signature is unverified until compile.
+- **AN-1 limitations still apply:** auth is a persistence hook only, the older Android IME
+  heuristic needs device verification, and the safe-area and keyboard services are not read by
+  the HUD or chat.
+
+AN-5–AN-7 remain planned. The baseline audit below describes the pre-implementation tree, not
 current status. No project launch, Gradle invocation or CI wait was performed. Phone layouts are
 the first priority; tablet support remains in scope. AN-3 must call the existing door query.
 `DoorConfig.USE_REACH` is `72f`; an earlier draft of this plan said `90 u`, and this slice does
@@ -627,10 +659,15 @@ AN-7 Shaders, Tiers & Lifecycle ◄── AN-6 Mobile Chat & QuickChat ◄──
   - `core/src/main/java/io/github/skystrike/screens/GameScreen.java`
 - **Dependencies:** AN-2.
 - **Gate:** On touch devices (and in a desktop `--dev` touch-preview toggle `cl_touch_hud` for
-  desktop testing!), `InputSampler` merges keyboard/mouse and `TouchControls`; slot taps (including
+  desktop testing!), touch replaces keyboard and mouse gameplay bindings in `InputSampler`
+  (superseding "merges"); slot taps (including
   1/2 melee quick-swap), Q/E gadget presses, contextual door use `F`, view cycle `6` and surveillance
   exit all travel through the existing birth-sequence retransmission channels without changing
   `PROTOCOL_VERSION` (18). Written and not executed.
+- **Source status:** Implemented in source: `TouchControls`, the `InputSampler` touch overload,
+  the three controller `applyTouch` entry points, `cl_touch_hud`, and the `GameScreen` handoff.
+  Pending verification: compile, unit run, and a phone or desktop-preview run. Commits
+  `79b0e64`, `c5f233f`, `8f17c49`, `be0a1ca` and `ed3d9a0` on `arena/73a592d8-skystrike`.
 
 ### Slice AN-4 — Phone and tablet HUD layout, touch crosshair, and `LoadoutBar` touch slots (`core/ui/hud/`)
 
@@ -648,6 +685,11 @@ AN-7 Shaders, Tiers & Lifecycle ◄── AN-6 Mobile Chat & QuickChat ◄──
   - `core/src/main/java/io/github/skystrike/ui/hud/SurveillanceBanner.java`
   - `core/src/main/java/io/github/skystrike/ui/hud/TouchHudOverlay.java` (package-private widget
     sharing `HudStage`'s `ShapeRenderer` and `SpriteBatch`)
+- **Source status:** Implemented in source: `TouchHudFrame`, `TouchHudOverlay`, the 14th `HudFrame`
+  component (the 13-argument constructor is kept), the `HudStage` show flags, `placeOnTouch` and the
+  overlay in both passes, `LoadoutBar.placeTouch` and `clearTouch`, the widgets' `placeAt`, and the
+  `GameScreen` touch frame and reticle. Commits `1b01b45`, `3a4ad14`, `abca27c` and `5e17a07`.
+  Pending verification: compile, runtime, and both a phone and a tablet layout on device.
 - **Dependencies:** AN-3, AN4.
 - **Gate:** `HudStage` still opens `ShapeRenderer` once and `SpriteBatch` once per frame; on
   desktop (with `cl_touch_hud false`) layout is pixel-identical to M14; on touch (or `cl_touch_hud true`),
