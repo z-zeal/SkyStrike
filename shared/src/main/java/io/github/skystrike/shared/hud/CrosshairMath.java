@@ -1,5 +1,7 @@
 package io.github.skystrike.shared.hud;
 
+import io.github.skystrike.shared.config.TouchConfig;
+import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 
 /**
@@ -89,6 +91,44 @@ public final class CrosshairMath {
     public static float hitMarkerGapPixels(float markerAlpha) {
         float alpha = clamp01(markerAlpha);
         return HIT_MARKER_GAP_PIXELS + (1f - alpha) * HIT_MARKER_EXPANSION_PIXELS;
+    }
+
+    /**
+     * World point the touch reticle stands on: {@code lookDistance} units from the anchor along
+     * {@code aimAngleDeg}.
+     *
+     * <p>Y is up and degrees run counter-clockwise from +X, the same convention as
+     * {@link Angles#ofVector}. The aim stick and this helper therefore agree about where the
+     * next round goes. The caller blends {@code lookDistance} with {@link #touchLookDistance};
+     * projecting that point onto the screen, and clamping it inside the margin, is the client's
+     * job because it owns the camera.
+     */
+    public static WorldPoint touchReticleWorldPoint(
+        float anchorX,
+        float anchorY,
+        float aimAngleDeg,
+        float lookDistance
+    ) {
+        float angle = Float.isFinite(aimAngleDeg) ? aimAngleDeg : 0f;
+        float distance = Math.max(0f, finite(lookDistance));
+        float radians = Angles.toRadians(angle);
+        return new WorldPoint(
+            finite(anchorX) + distance * (float) Math.cos(radians),
+            finite(anchorY) + distance * (float) Math.sin(radians));
+    }
+
+    /**
+     * Reticle distance blended from hip to ADS by {@code adsAlpha}. Out-of-range and non-finite
+     * alphas clamp, so a half-finished aim transition cannot throw the reticle.
+     */
+    public static float touchLookDistance(float adsAlpha) {
+        float ads = clamp01(adsAlpha);
+        return TouchConfig.RETICLE_DISTANCE_HIP
+            + (TouchConfig.RETICLE_DISTANCE_ADS - TouchConfig.RETICLE_DISTANCE_HIP) * ads;
+    }
+
+    /** A world point. Y is up, matching the simulation and the HUD. */
+    public record WorldPoint(float x, float y) {
     }
 
     private static float clamp01(float value) {
