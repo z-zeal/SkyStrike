@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import io.github.skystrike.shared.hud.GadgetPanelModel;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +50,12 @@ final class GadgetPanel {
         this.scale = scale;
         this.right = screenWidth - theme.margin * scale;
         this.bottom = bottomInset;
+    }
+
+    /** Touch layout: the panel sits on the layout's gadget strip, above Q and E. */
+    void placeAt(Rect rect) {
+        this.right = rect.right();
+        this.bottom = rect.y();
     }
 
     void drawShapes(ShapeRenderer shapes, BitmapFont font, HudFrame frame) {
