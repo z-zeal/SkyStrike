@@ -1,6 +1,6 @@
 package io.github.skystrike.screens;
 
-import com.badlogic.gdx.Application;
+import io.github.skystrike.platform.PlatformServices;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
@@ -263,6 +263,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     private final int udpPort;
 
     private float adsAlpha;
+    private final PlatformServices platform;
 
     public GameScreen(String playerName, String host, int tcpPort, int udpPort) {
         this(new ClientSession(playerName), host, tcpPort, udpPort, new KeyBindings(), null, null, new Settings());
@@ -298,6 +299,15 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             Runnable disconnectToMenu,
             Consumer<GameScreen> settingsOpener,
             Settings settings) {
+        this(session, host, tcpPort, udpPort, bindings, disconnectToMenu, settingsOpener,
+            settings, PlatformServices.defaults());
+    }
+
+    public GameScreen(
+            ClientSession session, String host, int tcpPort, int udpPort, KeyBindings bindings,
+            Runnable disconnectToMenu, Consumer<GameScreen> settingsOpener, Settings settings,
+            PlatformServices platform) {
+        this.platform = java.util.Objects.requireNonNull(platform, "platform");
         if (session == null || bindings == null) {
             throw new IllegalArgumentException("session and bindings are required");
         }
@@ -395,7 +405,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
         // The HUD borrows the player renderer's weapon atlas rather than loading a second copy,
         // and sends picker requests down the same reliable channel as every other c2s packet.
-        this.hud = new HudStage(inputRouter, session::sendReliable, playerRenderer.weaponSprites());
+        this.hud = new HudStage(inputRouter, session::sendReliable, playerRenderer.weaponSprites(), platform.device());
         this.hud.picker().setCloseRequest(() -> {
             pickerClosedFrameId = Gdx.graphics.getFrameId();
             setUiLoadout(false);
@@ -1171,7 +1181,7 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
      */
     private PointerPosition pointerPosition() {
         if (Gdx.app == null || Gdx.input == null || Gdx.graphics == null
-                || Gdx.app.getType() != Application.ApplicationType.Desktop) {
+                || !platform.device().hasHardwareCursor()) {
             return null;
         }
         return new PointerPosition(Gdx.input.getX(), Gdx.graphics.getHeight() - Gdx.input.getY());

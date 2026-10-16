@@ -1,6 +1,7 @@
 package io.github.skystrike.ui.hud;
 
-import com.badlogic.gdx.Application;
+import io.github.skystrike.platform.DeviceInfo;
+import io.github.skystrike.platform.PlatformServices;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Cursor;
@@ -114,6 +115,14 @@ public final class HudStage implements Disposable {
             InputRouter router,
             Consumer<PacketLoadoutUpdate> loadoutSender,
             WeaponSprites sprites) {
+        this(router, loadoutSender, sprites, PlatformServices.defaults().device());
+    }
+
+    private final DeviceInfo device;
+
+    public HudStage(InputRouter router, Consumer<PacketLoadoutUpdate> loadoutSender,
+            WeaponSprites sprites, DeviceInfo device) {
+        this.device = java.util.Objects.requireNonNull(device, "device");
         this.router = router;
         this.sprites = sprites;
         this.picker = new LoadoutPicker(theme, sprites, router, loadoutSender);
@@ -274,7 +283,7 @@ public final class HudStage implements Disposable {
 
     private void applyPointerCursor(boolean hide) {
         if (hide == pointerHidden || Gdx.graphics == null || Gdx.app == null
-            || Gdx.app.getType() != Application.ApplicationType.Desktop) {
+            || !device.hasHardwareCursor()) {
             return;
         }
         pointerHidden = hide;

@@ -27,17 +27,12 @@
 # Needed by the gdx-controllers official extension.
 -keep class com.badlogic.gdx.controllers.android.AndroidControllers
 
-# Needed by the Box2D official extension.
--keepclassmembers class com.badlogic.gdx.physics.box2d.World {
-   boolean contactFilter(long, long);
-   boolean getUseDefaultContactFilter();
-   void    beginContact(long);
-   void    endContact(long);
-   void    preSolve(long, long);
-   void    postSolve(long, long);
-   boolean reportFixture(long);
-   float   reportRayFixture(long, float, float, float, float, float);
-}
+# Kryo FieldSerializer reflects over wire-model fields and no-arg constructors.
+# Keep names and members identical to the desktop/server build in minified APKs.
+# Keep all shared types, including enums and nested payloads referenced by packets.
+-keep class io.github.skystrike.shared.** { *; }
+-keep class com.esotericsoftware.kryo.** { *; }
+-keep class com.esotericsoftware.kryonet.** { *; }
 
 # You will need the next three lines if you use scene2d for UI or gameplay.
 # If you don't use scene2d at all, you can remove or comment out the next line:

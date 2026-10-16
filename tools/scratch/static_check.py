@@ -334,6 +334,13 @@ def check_renderer_covers_every_treatment() -> None:
             add(path, f"no drawing code for BlockRenderStyle.{style}")
 
 
+# Core consumes capabilities, never launcher/application-type branches.
+for path in FILES:
+    relative = path.relative_to(ROOT).as_posix()
+    if relative.startswith("core/src/") and "/platform/" not in relative:
+        if re.search(r"\bApplicationType\b", path.read_text(encoding="utf-8")):
+            add(path, "core must query platform capabilities, not ApplicationType")
+
 check_no_consumer_names_a_block_kind()
 check_renderer_covers_every_treatment()
 

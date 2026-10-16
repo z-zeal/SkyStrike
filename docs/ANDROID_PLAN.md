@@ -1,9 +1,26 @@
 # Android compatibility, touch controls, UI/UX and mobile hardening — plan
 
-**Status: plan only.** Nothing in this document is implemented. Nothing in it has been compiled,
-run or observed: this sandbox has no JDK, no Gradle and no Android SDK, so every slice below is to
-be written and not executed, with the first real run in CI and on the user's desktop and Android
-builds. Every acceptance box in §10 is unchecked.
+**Status: AN-1 foundation implemented in source, not compiled or device-verified.**
+- Added the six platform contracts and lazy, headless-construction-safe defaults; injected services
+  through `Main`, `GameScreen`, `HudStage` and application `ClientPreferences`.
+- Desktop launcher supplies desktop services. Android launcher supplies Android capabilities,
+  safe-area/IME snapshots, app-specific map storage and the planned preferences-backed auth hook.
+  The adapters are grouped in `DesktopPlatformServices` and `AndroidPlatformServices`, rather than
+  one class per interface. Auth persistence is a stub, not secure account storage or login.
+- Manifest now declares `INTERNET`, uses `sensorLandscape`, and opts into short-edge cutouts via
+  an API-28-qualified theme. Release rules retain shared wire models and Kryo/KryoNet; unused
+  Box2D rules are removed.
+- Removed direct application-type branches in core; the source checker now forbids them outside
+  `platform/`. `static_check.py`, `static_api_check.py`, manifest XML assertions and
+  `git diff --check` pass. These are source checks, not compilation or runtime verification.
+
+AN-2–AN-7 remain planned. Safe-area and keyboard services are available but their HUD/chat
+consumers land in later slices. Older Android IME detection uses a visible-frame heuristic and
+needs device checks in fullscreen mode. The baseline audit below describes the pre-implementation
+tree, not current status. No project launch, Gradle invocation or CI wait was performed, per the
+working agreement. Every acceptance box in §10 remains unchecked. Phone layouts are the first
+priority for touch implementation; tablet support remains in scope.
+
 
 This plan covers Phases 10–11's mobile and platform items from `docs/IMPLEMENTATION_ROADMAP.md`
 (`core/platform/`, `TouchControls`, `QuickChat`, responsive phone and tablet HUD layouts, and

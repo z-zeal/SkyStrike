@@ -3,6 +3,7 @@ package io.github.skystrike.lwjgl3;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import io.github.skystrike.Main;
+import io.github.skystrike.lwjgl3.platform.DesktopPlatformServices;
 import io.github.skystrike.shared.config.DebugFlags;
 
 /** Launches the desktop (LWJGL3) application. */
@@ -16,7 +17,7 @@ public class Lwjgl3Launcher {
     }
 
     private static Lwjgl3Application createApplication() {
-        return new Lwjgl3Application(new Main(new EmbeddedLocalHost()), getDefaultConfiguration());
+        return new Lwjgl3Application(new Main(new EmbeddedLocalHost(), DesktopPlatformServices.create()), getDefaultConfiguration());
     }
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {
