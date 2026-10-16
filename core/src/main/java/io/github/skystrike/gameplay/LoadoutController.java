@@ -8,6 +8,7 @@ import io.github.skystrike.shared.model.GadgetSlot;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.Packet;
+import io.github.skystrike.shared.input.TouchSample;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -136,6 +137,26 @@ public final class LoadoutController {
         }
         if (bindings.isGadgetEJustPressed()) {
             pressGadget(PacketPlayerInput.GADGET_E_PRESS, localPlayer);
+        }
+    }
+
+    /**
+     * Touch entry for one sample's loadout edges (AN-3). A slot tap and Q/E take the same
+     * {@code press} and {@code pressGadget} paths the keys do, so quick-swap, the birth-sequence
+     * retransmission and the surveillance prediction are shared. The touch path has no wheel and
+     * no weapon-cycle key, so those are not read here. Call in place of {@link #update} while
+     * touch is the control path. A {@code null} sample, or gameplay input being inactive, does
+     * nothing.
+     */
+    public void applyTouch(TouchSample touch, Player localPlayer) {
+        if (touch == null || !router.isGameplayActive()) {
+            return;
+        }
+        if (touch.slotPress() != PacketPlayerInput.NO_SLOT_PRESS) {
+            press(touch.slotPress(), localPlayer);
+        }
+        if (touch.gadgetPress() != PacketPlayerInput.NO_GADGET_PRESS) {
+            pressGadget(touch.gadgetPress(), localPlayer);
         }
     }
 

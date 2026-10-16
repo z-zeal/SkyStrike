@@ -13,6 +13,7 @@ import io.github.skystrike.shared.math.Lerp;
 import io.github.skystrike.shared.model.CameraEntity;
 import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.GadgetSlot;
+import io.github.skystrike.shared.input.TouchSample;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import java.util.ArrayDeque;
@@ -132,12 +133,38 @@ public final class SurveillanceController {
             return;
         }
         if (bindings.isViewCycleJustPressed()) {
-            SurveillanceView next = SurveillanceView.cycle(
-                localPlayer.surveillance(), devices.droneLive(), devices.cameraReady());
-            localPlayer.surveillanceView = next.ordinal();
-            outstanding.addLast(new PendingViewAction(PacketPlayerInput.VIEW_CYCLE, next, -1L));
-            trimOutstanding();
+            cycleView(localPlayer);
         }
+    }
+
+    /**
+     * Touch entry for one sample's view edges (AN-3): the view-cycle button and the exit button
+     * run the same prediction and birth-sequence queue as the key. Call in place of
+     * {@link #update} while touch is the control path. Nothing happens while gameplay input is
+     * inactive or the player is dead.
+     */
+    public void applyTouch(TouchSample touch, Player localPlayer) {
+        if (touch == null || !router.isGameplayActive() || localPlayer == null || !localPlayer.alive) {
+            return;
+        }
+        if (touch.viewAction() == PacketPlayerInput.VIEW_CYCLE) {
+            cycleView(localPlayer);
+        } else if (touch.viewAction() == PacketPlayerInput.VIEW_EXIT) {
+            exitSurveillance(localPlayer);
+        }
+    }
+
+    /** The owned devices the latest snapshot reports, for the touch HUD's view-cycle context. */
+    public OwnedDevices ownedDevices() {
+        return devices;
+    }
+
+    private void cycleView(Player localPlayer) {
+        SurveillanceView next = SurveillanceView.cycle(
+            localPlayer.surveillance(), devices.droneLive(), devices.cameraReady());
+        localPlayer.surveillanceView = next.ordinal();
+        outstanding.addLast(new PendingViewAction(PacketPlayerInput.VIEW_CYCLE, next, -1L));
+        trimOutstanding();
     }
 
     /**

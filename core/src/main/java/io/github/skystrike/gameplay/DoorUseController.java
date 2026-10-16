@@ -91,13 +91,38 @@ public final class DoorUseController {
         if (!bindings.isUseJustPressed()) {
             return;
         }
+        press(localPlayer);
+    }
+
+    /**
+     * Touch entry for the use button (AN-3): the same resolution, prediction and carry as the key,
+     * taking the sample's press edge instead of polling the key. Call in place of {@link #update}
+     * while touch is the control path.
+     */
+    public void applyTouch(boolean usePressed, Player localPlayer) {
+        if (!usePressed || !router.isGameplayActive()) {
+            return;
+        }
+        press(localPlayer);
+    }
+
+    /**
+     * The door a use press would answer right now, or {@code null}. The same gates as a press
+     * (alive, not stunned, not piloting) and the same resolution rule, without making the press.
+     * The touch HUD reads this to show USE only when pressing it would do something.
+     */
+    public MapBlock doorInReach(Player localPlayer) {
         if (localPlayer == null || !localPlayer.alive || localPlayer.isSlowed()
             || localPlayer.isSurveillanceLocked()) {
             // A piloting view owns the whole keyboard; a stunned or dead player simply cannot act.
-            return;
+            return null;
         }
-        MapBlock door = MapQueries.doorAt(
+        return MapQueries.doorAt(
             arena, localPlayer.centerX(), localPlayer.centerY(), DoorConfig.USE_REACH);
+    }
+
+    private void press(Player localPlayer) {
+        MapBlock door = doorInReach(localPlayer);
         if (door == null) {
             return;
         }
