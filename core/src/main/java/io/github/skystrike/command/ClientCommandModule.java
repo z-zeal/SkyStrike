@@ -254,6 +254,11 @@ public final class ClientCommandModule {
             .description("four-background text legibility check (console plan §5.2) (F12)")
             .onChange((prev, next) -> deps.debugState().setContrastTest(Boolean.parseBoolean(next)))
             .build());
+        // Dev-only: draws and drives the phone touch HUD on desktop so it can be previewed with a
+        // mouse (Android plan AN-3/AN-4). Read live by GameScreen; never registered without --dev.
+        cvars.register(Cvar.builder("cl_touch_hud", ArgTypes.BOOL, "false")
+            .description("preview the phone touch HUD on desktop; touch replaces keyboard and mouse in match (dev)")
+            .build());
     }
 
     /** The quality tiers the FX budget will consume in milestone M7. */
