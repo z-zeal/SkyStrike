@@ -36,7 +36,10 @@ import java.util.List;
  * @param pointer           where the OS pointer is this frame, or {@code null} when there is no
  *                          cursor to follow — a touch device, or the loadout screen. The
  *                          crosshair is drawn under it when present, and the screen centre is
- *                          the anchor when it is not
+ *                          the anchor when it is not. On touch the reticle is passed here
+ *                          instead, projected from the aim
+ * @param touch             the touch controls and their layout, or {@code null} when touch is not
+ *                          the control path this frame; the touch widgets are then not drawn
  */
 public record HudFrame(
     Player player,
@@ -51,11 +54,32 @@ public record HudFrame(
     List<String> debugLines,
     MinimapModel.View minimap,
     WorldProjection worldView,
-    PointerPosition pointer
+    PointerPosition pointer,
+    TouchHudFrame touch
 ) {
 
     public HudFrame {
         debugLines = debugLines == null ? List.of() : List.copyOf(debugLines);
+    }
+
+    /** A frame with no touch controls: every desktop caller and the loadout screen. */
+    public HudFrame(
+        Player player,
+        float adsAlpha,
+        boolean hitMarkerActive,
+        float hitMarkerAlpha,
+        boolean hitMarkerHeadshot,
+        boolean hitMarkerLethal,
+        long nowMillis,
+        float deltaSeconds,
+        boolean debugPanelVisible,
+        List<String> debugLines,
+        MinimapModel.View minimap,
+        WorldProjection worldView,
+        PointerPosition pointer
+    ) {
+        this(player, adsAlpha, hitMarkerActive, hitMarkerAlpha, hitMarkerHeadshot, hitMarkerLethal,
+            nowMillis, deltaSeconds, debugPanelVisible, debugLines, minimap, worldView, pointer, null);
     }
 
     /** The predicted loadout, or {@code null} when there is no player yet. */
