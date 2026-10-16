@@ -1,6 +1,8 @@
 package io.github.skystrike.settings;
 
 import io.github.skystrike.shared.settings.Settings;
+import io.github.skystrike.platform.StorageProvider;
+import io.github.skystrike.platform.PlatformServices;
 import io.github.skystrike.shared.text.ChatTarget;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,7 +25,14 @@ public final class ClientPreferences {
     private ChatTarget memoryChatTarget = ChatTarget.ALL;
     private final Map<String, String> memorySettings = new LinkedHashMap<>();
 
+    private final StorageProvider storage;
+
     public ClientPreferences() {
+        this(PlatformServices.defaults().storage());
+    }
+
+    public ClientPreferences(StorageProvider storage) {
+        this.storage = java.util.Objects.requireNonNull(storage, "storage");
     }
 
     public ChatTarget chatTarget() {
@@ -97,8 +106,8 @@ public final class ClientPreferences {
         }
     }
 
-    private static com.badlogic.gdx.Preferences store() {
+    private com.badlogic.gdx.Preferences store() {
         com.badlogic.gdx.Application app = com.badlogic.gdx.Gdx.app;
-        return app == null ? null : app.getPreferences(STORE_NAME);
+        return app == null ? null : storage.preferences(STORE_NAME);
     }
 }

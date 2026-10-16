@@ -1,0 +1,7 @@
+<resources>
+    <style name="GdxTheme" parent="android:Theme.Material.Light.NoActionBar.Fullscreen">
+        <item name="android:colorBackground">@color/background</item>
+        <!-- HUD placement uses platform safe-area insets, not hardcoded notch offsets. -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

@@ -3,6 +3,7 @@ package io.github.skystrike;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
 import io.github.skystrike.input.KeyBindings;
+import io.github.skystrike.platform.PlatformServices;
 import io.github.skystrike.net.ClientSession;
 import io.github.skystrike.screens.ConnectingScreen;
 import io.github.skystrike.screens.GameScreen;
@@ -34,8 +35,9 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
     private static final String NAME = "skystrike.name";
 
     private final LocalHost localHost;
+    private final PlatformServices platform;
     private final Settings settings = new Settings();
-    private final ClientPreferences preferences = new ClientPreferences();
+    private final ClientPreferences preferences;
     /** One bindings instance is shared by settings, the console and every game screen. */
     private final KeyBindings bindings = new KeyBindings();
 
@@ -54,7 +56,18 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
 
     /** Injects the optional desktop local-host adapter; core has no dependency on its server. */
     public Main(LocalHost localHost) {
+        this(localHost, PlatformServices.defaults());
+    }
+
+    /** Explicit launcher injection; services are lazy and need no Gdx globals here. */
+    public Main(LocalHost localHost, PlatformServices platform) {
         this.localHost = localHost;
+        this.platform = java.util.Objects.requireNonNull(platform, "platform");
+        this.preferences = new ClientPreferences(platform.storage());
+    }
+
+    public PlatformServices platform() {
+        return platform;
     }
 
     @Override
@@ -186,7 +199,8 @@ public final class Main extends de.eskalon.commons.core.ManagedGame<
             bindings,
             this::showMenu,
             this::showGameSettings,
-            settings);
+            settings,
+            platform);
         if (!pendingLoadout.isEmpty()) {
             game.requestLoadout(pendingLoadout);
             pendingLoadout = new PacketLoadoutUpdate();
