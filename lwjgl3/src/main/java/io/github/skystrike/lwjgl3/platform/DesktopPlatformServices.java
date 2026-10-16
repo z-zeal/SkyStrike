@@ -1,6 +1,7 @@
 package io.github.skystrike.lwjgl3.platform;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import io.github.skystrike.platform.AuthProvider;
 import io.github.skystrike.platform.PlatformServices;
 import java.util.Objects;
@@ -24,7 +25,10 @@ public final class DesktopPlatformServices {
                         .putString("refreshToken", Objects.requireNonNull(token)).flush();
                 }
                 public void clearRefreshToken() {
-                    Gdx.app.getPreferences("skystrike.auth").remove("refreshToken").flush();
+                    // remove() returns void, unlike putString(), so flush cannot be chained.
+                    Preferences preferences = Gdx.app.getPreferences("skystrike.auth");
+                    preferences.remove("refreshToken");
+                    preferences.flush();
                 }
             });
     }
