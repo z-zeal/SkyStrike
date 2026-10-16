@@ -97,6 +97,15 @@ public final class WeaponConfig {
     /** Handguns retain at least this fraction of velocity per 60 Hz simulation tick. */
     public static final float SIDEARM_DRAG_MIN = 0.995f;
 
+    /** <b>Provisional</b> shotgun flight floor, following the handgun premature-drop fix. */
+    public static final float SHOTGUN_MUZZLE_SPEED_MIN = 1200f;
+
+    /** <b>Provisional</b> pellet speed retention: dispersion, not a lob, limits distant hits. */
+    public static final float SHOTGUN_DRAG_MIN = 0.995f;
+
+    /** <b>Provisional</b> one-second pellet drop ramp; the terminal class weight stays unchanged. */
+    public static final float SHOTGUN_GRAVITY_RAMP_SECONDS = 1f;
+
     /** Per-shot drag coefficient bounds, quoted per simulation tick. */
     public static final float DRAG_MIN = 0.980f;
     public static final float DRAG_MAX = 0.998f;

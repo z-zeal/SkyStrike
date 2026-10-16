@@ -899,8 +899,15 @@ public final class GameServer {
             session.player(),
             droneSystem.ownedBy(entry.playerId()),
             cameraSystem.ownedBy(entry.playerId()));
-        List<EffectSpawn> visible = effectBroadcaster.cullFor(
-            effectSpawns, recipient, damageState.liveMap(), utilitySystem.smokeVolumes());
+        // Snapshots already contain every player; FX must reach the same shared team view.
+        List<EffectBroadcaster.Recipient> teamEyes = new ArrayList<>();
+        for (PlayerSession member : players.all()) {
+            int id = member.player().id;
+            teamEyes.add(new EffectBroadcaster.Recipient(
+                member.player(), droneSystem.ownedBy(id), cameraSystem.ownedBy(id)));
+        }
+        List<EffectSpawn> visible = effectBroadcaster.cullForTeam(
+            effectSpawns, recipient, teamEyes, damageState.liveMap(), utilitySystem.smokeVolumes());
         if (!visible.isEmpty()) {
             endpoint.sendUnreliable(entry.connection(), new PacketEffectSpawn(tick, visible));
         }

@@ -120,8 +120,20 @@ public final class VisionConfig {
     public static final int MARCH_STEPS_LOW = 12;
 
     // --- Smoke volumes (effects §6.2, mechanics §3) ----------------------------------------------
-    /** Maximum number of concurrent smoke volumes uploaded to the visibility shader uniform array. */
-    public static final int MAX_SMOKE_VOLUMES = 8;
+    /**
+     * Maximum number of concurrent smoke volumes uploaded to the visibility shader uniform array.
+     * The shader's {@code u_smokeCircles} array and loop bound are exactly this size, and
+     * {@code SmokeVolumes}' upload buffer is {@code MAX_SMOKE_VOLUMES * 4} floats — the three
+     * must move together.
+     *
+     * <p>16 is the smallest size that holds three whole {@code SmokeCloud} clusters of five
+     * circles each with a slot to spare. Which clouds make the cut is not insertion order by
+     * accident: {@link io.github.skystrike.shared.vision.SmokeField} fills the array oldest-first
+     * and whole-clouds-only, identically on the server's sight queries and the client's shader.
+     * More simultaneous clouds than that cannot be covered — {@code UtilityConfig.MAX_ACTIVE_ZONES}
+     * is 64 — so the policy favours the clouds the fight is already living inside.
+     */
+    public static final int MAX_SMOKE_VOLUMES = 16;
 
     // --- Dynamic door occluders (plan D3) -------------------------------------------------------
     /**

@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.config.WorldConfig;
+import io.github.skystrike.shared.config.WeaponConfig;
 import io.github.skystrike.shared.model.Projectile;
 import io.github.skystrike.shared.weapons.WeaponBallistics;
 import io.github.skystrike.shared.weapons.WeaponId;
+import io.github.skystrike.shared.weapons.WeaponClass;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -184,4 +186,33 @@ class BallisticsMathTest {
         assertEquals(1000f, BallisticsMath.muzzleVelocityY(90f, 1000f), 0.01f);
         assertEquals(-1000f, BallisticsMath.muzzleVelocityY(-90f, 1000f), 0.01f);
     }
+    @Test
+    @DisplayName("pellets stay flat through effective range instead of lobbing like old handguns")
+    void shotgunFlightDoesNotCompoundDamageFalloff() {
+        for (WeaponId id : WeaponId.values()) {
+            WeaponBallistics b = WeaponBallistics.of(id);
+            if (b.weaponClass() != WeaponClass.SHOTGUN) {
+                continue;
+            }
+            assertTrue(b.muzzleSpeed() >= WeaponConfig.SHOTGUN_MUZZLE_SPEED_MIN);
+            assertTrue(b.dragPerTick() >= WeaponConfig.SHOTGUN_DRAG_MIN);
+            assertEquals(WeaponConfig.SHOTGUN_GRAVITY_RAMP_SECONDS,
+                b.gravityRampSeconds(), EPSILON);
+            Projectile round = new Projectile(1, 1, 0, id.ordinal(), 0f, 1000f, b.muzzleSpeed(), 0f);
+            while (round.distanceTravelled < b.maxRange() && round.age < 2f) {
+                BallisticsMath.step(round, b, WorldConfig.TICK_SECONDS);
+            }
+            assertTrue(round.distanceTravelled >= b.maxRange(), id + " did not reach effective range");
+            assertTrue(1000f - round.y < 2f, id + " dropped too far at effective range");
+            // A room-width flight must remain a bullet, not fall below a whole standing body.
+            // Short Gospel expires at 448u; this check deliberately stays inside that limit.
+            while (round.distanceTravelled < 400f && round.age < 2f) {
+                BallisticsMath.step(round, b, WorldConfig.TICK_SECONDS);
+            }
+            assertTrue(1000f - round.y < 10f, id + " lobs across a room");
+            assertTrue(round.vx > PlayerConfig.MAX_VERTICAL_SPEED, id + " too slow across a room");
+            assertEquals(0.35f, b.minDamageRatio(), EPSILON, "flight fix must not buff floor damage");
+        }
+    }
+
 }

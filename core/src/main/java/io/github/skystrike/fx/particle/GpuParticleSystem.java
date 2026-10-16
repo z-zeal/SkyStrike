@@ -218,43 +218,75 @@ public final class GpuParticleSystem implements Disposable {
 
     // --- Spawning --------------------------------------------------------------------------------
 
-    private void spawnParticles(EffectSpawn spawn, EmitterConfig config) {
-        int count = Math.round(config.count() * Math.max(0.1f, spawn.scale));
+    /**
+     * Spawns one burst of {@code config} at a world position with an explicit deterministic
+     * seed — the continuous-emission path the zone emitter drives from the snapshot zones, where
+     * there is no {@link EffectSpawn} event behind the burst. The seed is mixed with the preset
+     * name exactly as the event path does, so a given (seed, preset) pair lays out the same
+     * particles on every client; callers derive the seed from stable data (zone id and emission
+     * slice), never from the frame counter, or the layouts drift apart.
+     *
+     * <p>All the ordinary rules apply unchanged: the tier budget drops what does not fit, and
+     * occlusion-tested spawns are projected out of solids and refused across walls.
+     */
+    public void spawnBurst(
+            EmitterConfig config, float x, float y, float angleDegrees, float scale, int seed) {
+        spawnBurst(config, x, y, angleDegrees, scale, 1f, seed);
+    }
+
+    /**
+     * The same burst with an explicit count multiplier on top of the size scale — how the zone
+     * emitter scales wave density by quality tier without scaling the particles themselves.
+     * {@code scale} multiplies size, speed and count as an event's scale does; {@code countScale}
+     * multiplies the count alone.
+     */
+    public void spawnBurst(
+            EmitterConfig config,
+            float x,
+            float y,
+            float angleDegrees,
+            float scale,
+            float countScale,
+            int seed) {
+        if (config == null) {
+            return;
+        }
+        int count = Math.round(config.count() * Math.max(0.1f, scale) * Math.max(0f, countScale));
         if (count <= 0) {
             return;
         }
-        // One deterministic random source per (event, emitter): every client that received the
+        // One deterministic random source per (burst, emitter): every client that received the
         // same seed lays out the same burst.
-        random.setSeed(spawn.seed * 7919L + config.name().hashCode());
+        random.setSeed(seed * 7919L + config.name().hashCode());
         if (config.tier() == EmitterConfig.Tier.CPU) {
             for (int i = 0; i < count; i++) {
-                cpuParticles.spawn(config, spawn.x, spawn.y, spawn.angle, spawn.scale, random);
+                cpuParticles.spawn(config, x, y, angleDegrees, scale, random);
             }
             return;
         }
         ParticleBuffer buffer =
             config.blend() == EmitterConfig.Blend.ALPHA ? alphaBuffer : additiveBuffer;
         float now = clock.time();
-        float jitter = 2f * Math.max(0.1f, spawn.scale);
+        float jitter = 2f * Math.max(0.1f, scale);
         for (int i = 0; i < count; i++) {
-            float angleDegrees;
+            float particleAngle;
             if (config.spreadDegrees() >= 359.9f) {
-                angleDegrees = random.nextFloat() * 360f;
+                particleAngle = random.nextFloat() * 360f;
             } else {
-                angleDegrees = spawn.angle + (random.nextFloat() - 0.5f) * config.spreadDegrees();
+                particleAngle = angleDegrees + (random.nextFloat() - 0.5f) * config.spreadDegrees();
             }
             float speed = lerp(config.speedMin(), config.speedMax(), random.nextFloat())
-                * Math.max(0.1f, spawn.scale);
-            spawnScratch[0] = spawn.x + (random.nextFloat() - 0.5f) * 2f * jitter;
-            spawnScratch[1] = spawn.y + (random.nextFloat() - 0.5f) * 2f * jitter;
+                * Math.max(0.1f, scale);
+            spawnScratch[0] = x + (random.nextFloat() - 0.5f) * 2f * jitter;
+            spawnScratch[1] = y + (random.nextFloat() - 0.5f) * 2f * jitter;
             if (config.occlusionTested()
-                && !resolveSpawnPoint(spawn.x, spawn.y, spawnScratch)) {
+                && !resolveSpawnPoint(x, y, spawnScratch)) {
                 continue;
             }
             float lifetime = lerp(
                 config.lifetimeMinSeconds(), config.lifetimeMaxSeconds(), random.nextFloat());
-            double radians = Math.toRadians(angleDegrees);
-            float scale = Math.max(0.1f, spawn.scale);
+            double radians = Math.toRadians(particleAngle);
+            float particleScale = Math.max(0.1f, scale);
             boolean spawned = buffer.spawn(now, new ParticleBuffer.ParticleDescriptor(
                 spawnScratch[0],
                 spawnScratch[1],
@@ -262,8 +294,8 @@ public final class GpuParticleSystem implements Disposable {
                 (float) Math.sin(radians) * speed,
                 now,
                 lifetime,
-                config.startSize() * scale,
-                config.endSize() * scale,
+                config.startSize() * particleScale,
+                config.endSize() * particleScale,
                 config.startColor().r,
                 config.startColor().g,
                 config.startColor().b,
@@ -280,6 +312,11 @@ public final class GpuParticleSystem implements Disposable {
                 return;
             }
         }
+    }
+
+    /** The event path's view of {@link #spawnBurst}: one burst per scheduled phase. */
+    private void spawnParticles(EffectSpawn spawn, EmitterConfig config) {
+        spawnBurst(config, spawn.x, spawn.y, spawn.angle, spawn.scale, spawn.seed);
     }
 
     /**

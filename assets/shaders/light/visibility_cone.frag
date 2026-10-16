@@ -19,7 +19,10 @@ uniform float u_shadowK;
 uniform int u_maxMarchSteps;
 
 uniform int u_smokeCount;
-uniform vec4 u_smokeCircles[8]; // xy = center, z = radius, w = density
+// Sized by VisionConfig.MAX_SMOKE_VOLUMES (16): three whole five-circle SmokeCloud clusters
+// plus a slot to spare. SmokeField fills it oldest-first, whole clouds only, identically on the
+// server's sight queries; the zero-filled tail keeps u_smokeCount the only bound the loop obeys.
+uniform vec4 u_smokeCircles[16]; // xy = center, z = radius, w = density
 
 const float PI = 3.141592653589793;
 
@@ -28,7 +31,7 @@ float calculateSmokeAttenuation(vec2 p0, vec2 p1) {
     vec2 seg = p1 - p0;
     float segLenSq = dot(seg, seg);
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         if (i >= u_smokeCount) break;
         vec2 center = u_smokeCircles[i].xy;
         float radius = u_smokeCircles[i].z;

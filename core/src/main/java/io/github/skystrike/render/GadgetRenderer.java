@@ -3,6 +3,7 @@ package io.github.skystrike.render;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.IntFloatMap;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.GadgetConfig;
 import io.github.skystrike.shared.config.PlayerConfig;
@@ -26,6 +27,12 @@ import java.util.List;
  * <p>The tank's rectangle reuses the exact fractions {@code HitZoneMath} resolves the rear zone
  * with, so what the renderer shows and what a bullet can hit are the same strip. The arc's angle
  * comes from {@code GadgetConfig} the same way {@code ShieldArcMath} absorbs with it.
+ *
+ * <p>The two player-worn pieces ride the composition root's enemy gate ({@code remoteAlphas}, the
+ * same finished per-player alpha {@code PlayerRenderer} receives): a fuel tank or shield arc is
+ * part of the enemy body's picture, and a gated body must not leave its gear floating in the fog.
+ * Enemy drones and cameras are their own entities and are deliberately not gated here — the
+ * player-body fix is the one the visibility gate covers.
  */
 public final class GadgetRenderer implements Disposable {
 
@@ -47,6 +54,8 @@ public final class GadgetRenderer implements Disposable {
     private static final float SHIELD_ARC_RADIUS = PlayerConfig.WIDTH / 2f + 10f;
 
     private final ShapeRenderer shapes = new ShapeRenderer();
+    /** Reused per draw, so the enemy gate never allocates colours per frame. */
+    private final Color scratch = new Color();
 
     public GadgetRenderer() {
     }
@@ -58,13 +67,16 @@ public final class GadgetRenderer implements Disposable {
      * @param localPlayer   the local player, or null before spawn
      * @param drones        interpolated drones (the piloted one is the local prediction)
      * @param cameras       interpolated cameras
+     * @param remoteAlphas  the composition root's finished per-player draw alpha, keyed by
+     *                      {@link Player#id}; missing entries read as 1 (ungated)
      */
     public void render(
             GameCamera camera,
             List<Player> remotePlayers,
             Player localPlayer,
             List<DroneEntity> drones,
-            List<CameraEntity> cameras) {
+            List<CameraEntity> cameras,
+            IntFloatMap remoteAlphas) {
         if (camera == null) {
             return;
         }
@@ -73,13 +85,14 @@ public final class GadgetRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         if (remotePlayers != null) {
             for (Player player : remotePlayers) {
-                if (player != null && player.alive) {
-                    drawFuelTank(player);
+                float alpha = alphaFor(player, remoteAlphas);
+                if (player != null && player.alive && alpha > 0f) {
+                    drawFuelTank(player, alpha);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
-            drawFuelTank(localPlayer);
+            drawFuelTank(localPlayer, 1f);
         }
         if (drones != null) {
             for (DroneEntity drone : drones) {
@@ -100,13 +113,14 @@ public final class GadgetRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         if (remotePlayers != null) {
             for (Player player : remotePlayers) {
-                if (player != null && player.alive) {
-                    drawShieldArc(player);
+                float alpha = alphaFor(player, remoteAlphas);
+                if (player != null && player.alive && alpha > 0f) {
+                    drawShieldArc(player, alpha);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
-            drawShieldArc(localPlayer);
+            drawShieldArc(localPlayer, 1f);
         }
         if (drones != null) {
             for (DroneEntity drone : drones) {
@@ -190,12 +204,22 @@ public final class GadgetRenderer implements Disposable {
 
     // --- Player-worn gadgets ------------------------------------------------------------------------
 
+    /** The gate's finished alpha for this player: 1 when nothing is known (ungated). */
+    private static float alphaFor(Player p, IntFloatMap remoteAlphas) {
+        return p == null ? 0f : (remoteAlphas == null ? 1f : remoteAlphas.get(p.id, 1f));
+    }
+
+    /** The palette entry at the gate's alpha, in the shared scratch colour. */
+    private Color tint(Color base, float alpha) {
+        return scratch.set(base.r, base.g, base.b, base.a * alpha);
+    }
+
     /**
      * The shield's arc: front when equipped, rear when stowed, nothing when broken or absent.
      * Centred on the aim, exactly where {@code ShieldArcMath} tests absorption, so what the
      * player sees is what protects them.
      */
-    private void drawShieldArc(Player player) {
+    private void drawShieldArc(Player player, float alpha) {
         if (player.loadout == null) {
             return;
         }
@@ -208,7 +232,7 @@ public final class GadgetRenderer implements Disposable {
             ? GadgetConfig.SHIELD_FRONT_ARC_DEGREES
             : GadgetConfig.SHIELD_REAR_ARC_DEGREES;
         float centre = equipped ? player.aimAngle : player.aimAngle + 180f;
-        shapes.setColor(COLOR_SHIELD);
+        shapes.setColor(tint(COLOR_SHIELD, alpha));
         shapes.arc(
             player.centerX(),
             player.centerY(),
@@ -222,7 +246,7 @@ public final class GadgetRenderer implements Disposable {
      * side the aim points away from, between 30% and 72% of the body's height. Drawn only while
      * the tank is worn and intact; a detonated tank is gone.
      */
-    private void drawFuelTank(Player player) {
+    private void drawFuelTank(Player player, float alpha) {
         if (player.loadout == null || !player.loadout.hasFuelTank()) {
             return;
         }
@@ -234,7 +258,7 @@ public final class GadgetRenderer implements Disposable {
             ? player.x - PlayerConfig.WIDTH / 2f
             : player.x + PlayerConfig.WIDTH / 2f;
         float x = player.isFacingRight() ? rearEdge : rearEdge - tankWidth;
-        shapes.setColor(COLOR_TANK);
+        shapes.setColor(tint(COLOR_TANK, alpha));
         shapes.rect(x, bottom, tankWidth, top - bottom);
     }
 

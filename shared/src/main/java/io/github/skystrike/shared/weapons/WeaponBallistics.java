@@ -16,7 +16,7 @@ import java.util.Map;
  *
  * @param weaponClass    family, which fixes the relative drop weight
  * @param muzzleSpeed    units per second at the muzzle; sidearms have a dedicated 1200 floor
- * @param dragPerTick    speed retained per 60 Hz tick, 0.980 (shotguns) to 0.998 (snipers)
+ * @param dragPerTick    speed retained per 60 Hz tick, 0.980 (slow long guns) to 0.998 (snipers)
  * @param gravityRampSeconds time over which drop ramps in, so rounds fly flat up close
  * @param maxRange       distance at which damage reaches its floor, from the weapon table
  * @param minDamageRatio damage retained at maximum range, 0.35 (shotguns) to 0.80 (snipers)
@@ -225,27 +225,27 @@ public record WeaponBallistics(
         table.put(WeaponId.TIDE_NEEDLE,
             new WeaponBallistics(WeaponClass.SNIPER, 1680f, 0.9955f, 1.8f, 1575f, 0.8f));
         table.put(WeaponId.DOOR_HYMN,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 800f, 0.981f, 0.5f, 196f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1400f, 0.995f, 1f, 196f, 0.35f));
         table.put(WeaponId.ROOM_SWEEPER,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 780f, 0.9807f, 0.5f, 168f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1385f, 0.995f, 1f, 168f, 0.35f));
         table.put(WeaponId.IRON_GOOSE,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 840f, 0.9817f, 0.5f, 308f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1430f, 0.995f, 1f, 308f, 0.35f));
         table.put(WeaponId.SCATTER_BENCH,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 810f, 0.9812f, 0.5f, 224f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1408f, 0.995f, 1f, 224f, 0.35f));
         table.put(WeaponId.PUMP_CHAPEL,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 770f, 0.9805f, 0.5f, 140f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1378f, 0.995f, 1f, 140f, 0.35f));
         table.put(WeaponId.MAGPIE_12,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 830f, 0.9815f, 0.5f, 280f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1422f, 0.995f, 1f, 280f, 0.35f));
         table.put(WeaponId.HARBOR_GATE,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 800f, 0.981f, 0.5f, 210f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1400f, 0.995f, 1f, 210f, 0.35f));
         table.put(WeaponId.CINDER_TUBE,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 740f, 0.98f, 0.5f, 126f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1355f, 0.995f, 1f, 126f, 0.35f));
         table.put(WeaponId.SHORT_GOSPEL,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 720f, 0.98f, 0.5f, 112f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1340f, 0.995f, 1f, 112f, 0.35f));
         table.put(WeaponId.TWIN_BARREL,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 790f, 0.9808f, 0.5f, 224f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1392f, 0.995f, 1f, 224f, 0.35f));
         table.put(WeaponId.ASH_HOPPER_12,
-            new WeaponBallistics(WeaponClass.SHOTGUN, 770f, 0.9805f, 0.5f, 182f, 0.35f));
+            new WeaponBallistics(WeaponClass.SHOTGUN, 1378f, 0.995f, 1f, 182f, 0.35f));
         table.put(WeaponId.MILLSTONE,
             new WeaponBallistics(WeaponClass.LMG, 1640f, 0.9949f, 1.2f, 868f, 0.7f));
         table.put(WeaponId.BELT_HYMN,

@@ -65,6 +65,8 @@ public final class EmitterLibrary {
     private static final Color DEBRIS_END = new Color(0.3f, 0.27f, 0.24f, 0f);
     private static final Color SMOKE = new Color(0.16f, 0.16f, 0.18f, 0.85f);
     private static final Color SMOKE_END = new Color(0.1f, 0.1f, 0.12f, 0f);
+    private static final Color HEAT = new Color(0.30f, 0.22f, 0.18f, 0.32f);
+    private static final Color HEAT_END = new Color(0.18f, 0.14f, 0.12f, 0f);
     private static final Color CLOUD = new Color(0.62f, 0.65f, 0.68f, 0.55f);
     private static final Color CLOUD_END = new Color(0.5f, 0.53f, 0.56f, 0f);
     private static final Color POISON = new Color(0.35f, 0.6f, 0.3f, 0.5f);
@@ -283,44 +285,122 @@ public final class EmitterLibrary {
     // --- Clouds ---------------------------------------------------------------------------------
 
     /**
-     * The smoke grenade: a billowing alpha cloud whose puffs grow into the zone's own radius, so
-     * the visual and the vision-blocking shader circle are the same thing (they already share
-     * {@code SmokeVolume}). Long-lived, heavily turbulent, occlusion-tested — particles spawn
-     * only where unoccluded.
+     * The smoke grenade's birth billow: a one-shot alpha cloud whose puffs grow into the zone's
+     * own radius, fired by the detonation event. This is only the ignition look — the puffs die
+     * with their lifetimes, and a grenade lives 8 s. {@code ZoneEmitter} keeps the cloud alive
+     * for the whole zone with {@link #smokeWisp()} waves and disperses it with
+     * {@link #smokeFadeWisp()} across the zone's tail, from the snapshot zones, so the visible
+     * cloud never thins out before the occlusion does.
+     *
+     * <p>Sizes are the radius the cluster contract is tuned against: end size 190 with the
+     * burst's drift (speed/drag ≈ 53) and curl wander (≈ 110) puts the puff mass out to about
+     * 310 world units — the 1.25× zone-radius fringe {@code SmokeCloud}'s fractions cover. The
+     * whole recipe scales with the event's {@code cloudScale} (zone radius ÷ 250).
      */
     private static EffectRecipe smokeBurst() {
         return new EffectRecipe(List.of(
             phase(0.00f, EmitterConfig.builder("smoke.cloud")
-                .count(46)
-                .lifetime(2.5f, 7.5f)
-                .size(26f, 320f)
+                .count(34)
+                .lifetime(2.2f, 5.0f)
+                .size(30f, 190f)
                 .color(CLOUD, CLOUD_END)
-                .speed(20f, 55f)
+                .speed(18f, 48f)
                 .gravity(-10f)
                 .drag(0.9f)
-                .turbulence(130f)
+                .turbulence(110f)
                 .blend(EmitterConfig.Blend.ALPHA)
                 .occlusionTested(true)
                 .build())),
             null);
     }
 
-    /** The poison cloud: smaller, greener, same growth rule. */
+    /** The poison cloud's birth billow: smaller, greener, same growth rule as the smoke. */
     private static EffectRecipe poisonBurst() {
         return new EffectRecipe(List.of(
             phase(0.00f, EmitterConfig.builder("poison.cloud")
-                .count(40)
-                .lifetime(2.5f, 6.5f)
-                .size(24f, 280f)
+                .count(28)
+                .lifetime(2.2f, 4.8f)
+                .size(28f, 165f)
                 .color(POISON, POISON_END)
-                .speed(20f, 50f)
+                .speed(16f, 44f)
                 .gravity(-10f)
                 .drag(0.9f)
-                .turbulence(120f)
+                .turbulence(100f)
                 .blend(EmitterConfig.Blend.ALPHA)
                 .occlusionTested(true)
                 .build())),
             null);
+    }
+
+    /**
+     * One sustained wisp wave of a smoke zone's rolling billow, spawned per time slice while the
+     * zone lives. Shorter-lived and more compact than the birth puffs so the cloud keeps turning
+     * over without drifting past the occlusion cluster's envelope.
+     */
+    public static EmitterConfig smokeWisp() {
+        return EmitterConfig.builder("smoke.wisp")
+            .count(5)
+            .lifetime(1.8f, 3.4f)
+            .size(40f, 150f)
+            .color(CLOUD, CLOUD_END)
+            .speed(12f, 34f)
+            .gravity(-10f)
+            .drag(0.9f)
+            .turbulence(100f)
+            .blend(EmitterConfig.Blend.ALPHA)
+            .occlusionTested(true)
+            .build();
+    }
+
+    /**
+     * The smoke zone's dispersal tail: thin, fast-fading wisps across the zone's last moments, so
+     * the visible cloud dies with the occlusion instead of outliving it (or fading long before).
+     */
+    public static EmitterConfig smokeFadeWisp() {
+        return EmitterConfig.builder("smoke.fade")
+            .count(3)
+            .lifetime(0.6f, 1.3f)
+            .size(30f, 110f)
+            .color(CLOUD, CLOUD_END)
+            .speed(10f, 26f)
+            .gravity(-6f)
+            .drag(1.0f)
+            .turbulence(80f)
+            .blend(EmitterConfig.Blend.ALPHA)
+            .occlusionTested(true)
+            .build();
+    }
+
+    /** The poison cloud's sustained wisp wave; keeps the two clouds' behaviour consistent. */
+    public static EmitterConfig poisonWisp() {
+        return EmitterConfig.builder("poison.wisp")
+            .count(5)
+            .lifetime(1.6f, 3.2f)
+            .size(36f, 130f)
+            .color(POISON, POISON_END)
+            .speed(12f, 30f)
+            .gravity(-10f)
+            .drag(0.9f)
+            .turbulence(90f)
+            .blend(EmitterConfig.Blend.ALPHA)
+            .occlusionTested(true)
+            .build();
+    }
+
+    /** The poison cloud's dispersal tail, matched to the smoke's. */
+    public static EmitterConfig poisonFadeWisp() {
+        return EmitterConfig.builder("poison.fade")
+            .count(3)
+            .lifetime(0.6f, 1.3f)
+            .size(28f, 100f)
+            .color(POISON, POISON_END)
+            .speed(10f, 24f)
+            .gravity(-6f)
+            .drag(1.0f)
+            .turbulence(70f)
+            .blend(EmitterConfig.Blend.ALPHA)
+            .occlusionTested(true)
+            .build();
     }
 
     // --- Molotov --------------------------------------------------------------------------------
@@ -367,7 +447,9 @@ public final class EmitterLibrary {
 
     /**
      * One patch of molotov fire: small rising flames plus a flickering attached light that lives
-     * for the zone's own duration, so the light and the damage zone expire together.
+     * for the zone's own duration, so the light and the damage zone expire together. The flames
+     * are the ignition pop only — the persistent fire picture and the sustained embers live in
+     * {@code UtilityZoneRenderer} and {@code ZoneEmitter} off the snapshot zones.
      */
     private static EffectRecipe fireZone() {
         float zoneDuration = UtilityRegistry.of(UtilityId.MOLOTOV).durationSeconds();
@@ -393,6 +475,49 @@ public final class EmitterLibrary {
                 zoneDuration,
                 0.3f,
                 false));
+    }
+
+    /**
+     * One sustained ember wave off a burning fire zone, spawned per time slice for the zone's
+     * whole life. Additive, so the sparks glow through darkness the way the flame body does,
+     * gated by the visibility texture like every additive particle. Embers rise with buoyancy and
+     * arc back down under gravity — the classic look of a fire that never stops sparking.
+     */
+    public static EmitterConfig fireEmbers() {
+        return EmitterConfig.builder("fire.embers")
+            .count(4)
+            .lifetime(0.8f, 1.8f)
+            .size(4f, 1f)
+            .color(EMBER, SPARK_END)
+            .speed(30f, 90f)
+            .spread(70f)
+            .gravity(-140f)
+            .drag(0.6f)
+            .turbulence(30f)
+            .occlusionTested(true)
+            .build();
+    }
+
+    /**
+     * One sustained heat-smoke wave off a burning fire zone: faint, warm, alpha-blended, so the
+     * fog composite darkens it like the rest of the scene. Hot air rises — the wave's spawn
+     * direction is the surface-aware flame direction, with a touch of positive gravity so the
+     * wisps keep climbing as they thicken.
+     */
+    public static EmitterConfig fireHeatSmoke() {
+        return EmitterConfig.builder("fire.smoke")
+            .count(2)
+            .lifetime(1.2f, 2.4f)
+            .size(12f, 46f)
+            .color(HEAT, HEAT_END)
+            .speed(14f, 32f)
+            .spread(60f)
+            .gravity(25f)
+            .drag(1.2f)
+            .turbulence(40f)
+            .blend(EmitterConfig.Blend.ALPHA)
+            .occlusionTested(true)
+            .build();
     }
 
     // --- Flash / stun ---------------------------------------------------------------------------

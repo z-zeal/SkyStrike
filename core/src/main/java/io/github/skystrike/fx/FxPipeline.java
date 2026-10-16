@@ -15,6 +15,7 @@ import io.github.skystrike.fx.lighting.VisibilitySystem;
 import io.github.skystrike.fx.lighting.VisibilitySystem.ObserverState;
 import io.github.skystrike.fx.particle.FxClock;
 import io.github.skystrike.fx.particle.GpuParticleSystem;
+import io.github.skystrike.fx.particle.ZoneEmitter;
 import io.github.skystrike.fx.post.BlindnessPass;
 import io.github.skystrike.fx.post.CompositePass;
 import io.github.skystrike.fx.sdf.SdfCache;
@@ -25,6 +26,7 @@ import io.github.skystrike.render.GameCamera;
 import io.github.skystrike.shared.effect.EffectSpawn;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.model.Player;
+import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.net.s2c.PacketEffectSpawn;
 import io.github.skystrike.shared.sdf.SdfField;
 import io.github.skystrike.shared.vision.Observer;
@@ -68,6 +70,8 @@ public final class FxPipeline implements Disposable {
     private final DoorOccluders doorOccluders;
     /** M7: particles and attached effect lights, sharing the light pool and the SDF field. */
     private final GpuParticleSystem particles;
+    /** Sustained per-zone emission (billowing clouds, sparking fire) driven off the snapshots. */
+    private final ZoneEmitter zoneEmitter;
     /** M7: the flashbang whiteout post pass. */
     private final BlindnessPass blindnessPass;
     /**
@@ -103,6 +107,7 @@ public final class FxPipeline implements Disposable {
         this.doorOccluders = new DoorOccluders();
         this.particles = new GpuParticleSystem(
             new FxClock(), new FxBudget(), this.lightPool, this.sdfTexture.field(), this.shaders);
+        this.zoneEmitter = new ZoneEmitter();
         this.blindnessPass = new BlindnessPass(this.shaders);
     }
 
@@ -153,7 +158,7 @@ public final class FxPipeline implements Disposable {
      * bubble and dimmed by the bubble's brightness, so a drone or a stuck camera lights the space it
      * can see just as the body's light does.
      *
-     * @param eyes the viewer's observers for this frame, from {@code ObserverSet.forViewer}
+     * @param eyes the viewer's observers for this frame, from {@code ObserverSet.forTeam}
      */
     public void syncPlayerLights(
             Player localPlayer,
@@ -306,6 +311,19 @@ public final class FxPipeline implements Disposable {
         applyRebakedSdf();
         effectQueue.drain(this::dispatchEffect);
         particles.update(deltaSeconds);
+    }
+
+    /**
+     * One frame of sustained zone emission: the billowing that keeps smoke and poison alive for
+     * their whole zone lives and the embers and heat smoke that keep molotov fire sparkling for
+     * its, spawned from the same snapshot zones the damage clock and the occlusion field read.
+     * Call once per frame after {@link #updateFx(float)}, before the scene pass.
+     *
+     * @param zones the snapshot's persistent zones (smoke, poison and fire)
+     * @param map   the live map, for the fire patches' surface probes
+     */
+    public void updateZoneEffects(List<UtilityZone> zones, ArenaMap map) {
+        zoneEmitter.update(zones, map, particles);
     }
 
     /**

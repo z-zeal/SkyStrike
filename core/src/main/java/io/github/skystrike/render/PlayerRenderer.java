@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.IntFloatMap;
 import io.github.skystrike.shared.config.PlayerConfig;
 import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
@@ -17,19 +18,30 @@ import java.util.List;
  * Renders players, body rotation, crouch posture, team tint, jetpack flames and aim direction in
  * {@link RenderLayers#ENTITIES}.
  *
- * <p>Every player received in a snapshot is drawn into the scene. The lighting composite then
- * shades the complete player continuously, just like terrain, instead of abruptly adding or
- * removing the player when a visibility threshold is crossed.
+ * <p>Every player received in a snapshot is <i>eligible</i> to be drawn — the snapshot is
+ * deliberately not vision-culled — but an enemy the fog is hiding must not appear on the screen
+ * at all: the composite's ambient floor would otherwise paint 4–6% of their sprite, and the user
+ * is right that "barely visible" is visible. The composition root therefore gates each remote
+ * player once per frame — the same {@code ObserverSet.isLit} question the minimap's blips ask —
+ * smooths the answer through the shared {@code SightingFade} envelope (fast fade-in, brief hold,
+ * slower fade-out, exactly 0 when unlit), and hands this renderer the finished per-player alpha
+ * as data. Teammates and the local player are never gated and always draw at 1.
  *
- * <p>Corpses are the one exception: a dead player is not drawn at all. Combat state reaches the
- * renderer the same way position does — through the snapshot — so the weapon is drawn at
- * {@link Player#renderedGunAngle()} rather than the raw aim. That is the aim plus the recoil
- * kick, and it is what makes a burst look like it climbs.
+ * <p>Anti-flicker is part of the gate, not a nicety: a target straddling the cone edge eases
+ * through the envelope instead of blinking, and the alpha is multiplied into <b>everything</b>
+ * that player draws — body, jetpack, flame, visor, health bar, held utility, held weapon sprite
+ * and the barrel fallback — so no outline, bar or glow leaks a body the fog is meant to hide.
+ * At exactly 0 the player is skipped entirely: unlit means not one pixel.
+ *
+ * <p>Corpses are the one exception to being drawn: a dead player is not drawn at all. Combat
+ * state reaches the renderer the same way position does — through the snapshot — so the weapon
+ * is drawn at {@link Player#renderedGunAngle()} rather than the raw aim. That is the aim plus the
+ * recoil kick, and it is what makes a burst look like it climbs.
  *
  * <p>The held weapon is a catalog sprite ({@link WeaponSprites}), anchored at its grip over the
- * hands, rotated with the aim, flipped vertically when aiming left so the top rail stays up,
- * and drawn into the scene pass so the fog composite shades it like everything else. A missing
- * sprite falls back to the Phase-4 barrel line rather than an invisible gun.
+ * hands, rotated with the aim, flipped vertically when aiming left so the top rail stays up, and
+ * drawn into the scene pass so the fog composite shades it like everything else. A missing sprite
+ * falls back to the Phase-4 barrel line rather than an invisible gun.
  */
 public final class PlayerRenderer implements Disposable {
 
@@ -53,6 +65,8 @@ public final class PlayerRenderer implements Disposable {
     private final ShapeRenderer shapes = new ShapeRenderer();
     private final SpriteBatch batch = new SpriteBatch();
     private final WeaponSprites weaponSprites = new WeaponSprites();
+    /** Reused per draw, so gating never allocates colours per frame. */
+    private final Color scratch = new Color();
 
     public PlayerRenderer() {
     }
@@ -66,31 +80,43 @@ public final class PlayerRenderer implements Disposable {
         return weaponSprites;
     }
 
-    /** Renders all active players in world space; the composite pass supplies illumination. */
-    public void render(GameCamera camera, List<Player> remotePlayers, Player localPlayer) {
+    /**
+     * Renders all active players in world space; the composite pass supplies illumination.
+     *
+     * @param remoteAlphas finished per-player draw alpha from the composition root's enemy gate,
+     *                     keyed by {@link Player#id}; missing entries read as 1 (ungated). The
+     *                     renderer reads it as data and reaches back into nothing
+     */
+    public void render(
+            GameCamera camera,
+            List<Player> remotePlayers,
+            Player localPlayer,
+            IntFloatMap remoteAlphas) {
         shapes.setProjectionMatrix(camera.combined());
 
         // 1. Draw solid shapes (bodies, jetpacks, health bars)
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive) {
-                    drawPlayerFilled(p);
+                float alpha = alphaFor(p, remoteAlphas);
+                if (p.alive && alpha > 0f) {
+                    drawPlayerFilled(p, alpha);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
-            drawPlayerFilled(localPlayer);
+            drawPlayerFilled(localPlayer, 1f);
         }
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive) {
-                    drawHeldUtility(p);
+                float alpha = alphaFor(p, remoteAlphas);
+                if (p.alive && alpha > 0f) {
+                    drawHeldUtility(p, alpha);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
-            drawHeldUtility(localPlayer);
+            drawHeldUtility(localPlayer, 1f);
         }
         shapes.end();
 
@@ -99,13 +125,14 @@ public final class PlayerRenderer implements Disposable {
         batch.begin();
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive) {
-                    drawHeldWeapon(p);
+                float alpha = alphaFor(p, remoteAlphas);
+                if (p.alive && alpha > 0f) {
+                    drawHeldWeapon(p, alpha);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive) {
-            drawHeldWeapon(localPlayer);
+            drawHeldWeapon(localPlayer, 1f);
         }
         batch.end();
 
@@ -113,18 +140,29 @@ public final class PlayerRenderer implements Disposable {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         if (remotePlayers != null) {
             for (Player p : remotePlayers) {
-                if (p.alive && !UtilityId.isUtilityWireId(p.weaponId)
+                float alpha = alphaFor(p, remoteAlphas);
+                if (p.alive && alpha > 0f && !UtilityId.isUtilityWireId(p.weaponId)
                     && !weaponSprites.hasTexture(p.weaponId)) {
-                    drawPlayerLines(p);
+                    drawPlayerLines(p, alpha);
                 }
             }
         }
         if (localPlayer != null && localPlayer.alive
             && !UtilityId.isUtilityWireId(localPlayer.weaponId)
             && !weaponSprites.hasTexture(localPlayer.weaponId)) {
-            drawPlayerLines(localPlayer);
+            drawPlayerLines(localPlayer, 1f);
         }
         shapes.end();
+    }
+
+    /** The gate's finished alpha for this player: 1 when nothing is known (ungated). */
+    private static float alphaFor(Player p, IntFloatMap remoteAlphas) {
+        return p == null ? 0f : (remoteAlphas == null ? 1f : remoteAlphas.get(p.id, 1f));
+    }
+
+    /** The palette entry at the gate's alpha, in the shared scratch colour. */
+    private Color tint(Color base, float alpha) {
+        return scratch.set(base.r, base.g, base.b, base.a * alpha);
     }
 
     /**
@@ -133,7 +171,7 @@ public final class PlayerRenderer implements Disposable {
      * The frame size comes from the scale catalog — the sprites themselves are all fitted to
      * their 512px frame, so without that multiplier a pocket pistol would draw rifle-sized.
      */
-    private void drawHeldWeapon(Player p) {
+    private void drawHeldWeapon(Player p, float alpha) {
         if (UtilityId.isUtilityWireId(p.weaponId)) {
             return;
         }
@@ -150,6 +188,8 @@ public final class PlayerRenderer implements Disposable {
         float handX = p.eyeX() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.cos(rad);
         float handY = p.eyeY() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.sin(rad);
 
+        // The sprite carries its own colours; the gate only scales them.
+        batch.setColor(1f, 1f, 1f, alpha);
         batch.draw(
                 texture,
                 handX - originX,
@@ -170,7 +210,7 @@ public final class PlayerRenderer implements Disposable {
     }
 
     /** Draws a colour-coded marker at the hand instead of falling back to the default gun sprite. */
-    private void drawHeldUtility(Player p) {
+    private void drawHeldUtility(Player p, float alpha) {
         UtilityId utility = UtilityId.fromWireId(p.weaponId);
         if (utility == null) {
             return;
@@ -178,7 +218,7 @@ public final class PlayerRenderer implements Disposable {
         float angle = Angles.toRadians(p.renderedGunAngle());
         float handX = p.eyeX() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.cos(angle);
         float handY = p.eyeY() + HeldWeaponGeometry.HAND_FORWARD_OFFSET * (float) Math.sin(angle);
-        shapes.setColor(utilityColor(utility));
+        shapes.setColor(tint(utilityColor(utility), alpha));
         shapes.circle(handX, handY, 3.5f, 8);
     }
 
@@ -194,7 +234,7 @@ public final class PlayerRenderer implements Disposable {
         };
     }
 
-    private void drawPlayerFilled(Player p) {
+    private void drawPlayerFilled(Player p, float alpha) {
         float width = PlayerConfig.WIDTH;
         float height = p.currentHeight();
         float halfW = width / 2f;
@@ -217,7 +257,7 @@ public final class PlayerRenderer implements Disposable {
         float jetpackWorldX = centerX + (jetpackOffsetLocalX * cosR);
         float jetpackWorldY = centerY + (jetpackOffsetLocalX * sinR);
 
-        shapes.setColor(COLOR_JETPACK);
+        shapes.setColor(tint(COLOR_JETPACK, alpha));
         shapes.rect(
                 jetpackWorldX - 3f,
                 jetpackWorldY - halfH * 0.5f,
@@ -231,7 +271,7 @@ public final class PlayerRenderer implements Disposable {
 
         // Jetpack flame
         if (p.jetpacking && p.fuel > 0f) {
-            shapes.setColor(COLOR_FLAME);
+            shapes.setColor(tint(COLOR_FLAME, alpha));
             float flameLen = 14f + MathUtils.random(0f, 6f);
             float flameBottomX = jetpackWorldX - (flameLen * sinR);
             float flameBottomY = jetpackWorldY - (flameLen * cosR);
@@ -245,7 +285,7 @@ public final class PlayerRenderer implements Disposable {
         }
 
         // Body rectangle rotated around its center
-        shapes.setColor(teamColor);
+        shapes.setColor(tint(teamColor, alpha));
         shapes.rect(
                 centerX - halfW,
                 centerY - halfH,
@@ -258,7 +298,7 @@ public final class PlayerRenderer implements Disposable {
                 p.rotation);
 
         // Visor in head zone
-        shapes.setColor(COLOR_VISOR);
+        shapes.setColor(tint(COLOR_VISOR, alpha));
         float visorLocalX = facingRight ? halfW * 0.3f : -halfW * 0.8f;
         float visorLocalY = halfH * 0.55f;
         float visorWorldX = centerX + (visorLocalX * cosR - visorLocalY * sinR);
@@ -278,15 +318,15 @@ public final class PlayerRenderer implements Disposable {
         float barY = p.y + height + 6f;
         float barW = 28f;
         float barH = 4f;
-        shapes.setColor(COLOR_HEALTH_BG);
+        shapes.setColor(tint(COLOR_HEALTH_BG, alpha));
         shapes.rect(centerX - barW / 2f, barY, barW, barH);
 
         float healthRatio = MathUtils.clamp(p.health / PlayerConfig.MAX_HEALTH, 0f, 1f);
-        shapes.setColor(COLOR_HEALTH_FG);
+        shapes.setColor(tint(COLOR_HEALTH_FG, alpha));
         shapes.rect(centerX - barW / 2f, barY, barW * healthRatio, barH);
     }
 
-    private void drawPlayerLines(Player p) {
+    private void drawPlayerLines(Player p, float alpha) {
         float eyeX = p.eyeX();
         float eyeY = p.eyeY();
         // Aim plus visual recoil: the barrel climbs, the crosshair does not.
@@ -299,7 +339,7 @@ public final class PlayerRenderer implements Disposable {
         float gunEndY = eyeY + barrelLen * (float) Math.sin(gunRad);
 
         // Gun barrel pointing at 360° aim
-        shapes.setColor(COLOR_GUN);
+        shapes.setColor(tint(COLOR_GUN, alpha));
         shapes.line(eyeX, eyeY, gunEndX, gunEndY);
     }
 

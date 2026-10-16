@@ -345,9 +345,10 @@ public final class Interpolator {
      * from mutating the historical network buffer while preparing shader smoke uniforms.
      *
      * <p>The snapshot stores zones in a hash map, so this sorts by id — the server assigns ids in
-     * creation order — to hand callers the same order the server's own smoke list is filled in.
-     * Both sides cap that list at {@code VisionConfig.MAX_SMOKE_VOLUMES}, and only identical
-     * fill order keeps the truncated set identical too.
+     * creation order — to hand callers the same order the server's own zone list has. The smoke
+     * field itself is derived from this list through the shared {@code SmokeField} policy (which
+     * sorts the same way and caps at {@code VisionConfig.MAX_SMOKE_VOLUMES}), so the truncated
+     * occlusion set is identical on both sides even if a caller shuffles the list first.
      */
     public List<UtilityZone> latestUtilityZones() {
         List<StateBuffer.Snapshot> snaps = buffer.snapshots();

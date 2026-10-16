@@ -283,15 +283,23 @@ Full setup and historical context: [M7_FX_ACCEPTANCE.md](archive/M7_FX_ACCEPTANC
 
 - [ ] **Frag / impact:** the phased schedule at 0.00/0.03/0.05/0.08/0.10 s, with the white-yellow
   flash and a light that is never culled while ordinary effect lights are.
-- [ ] **Smoke grenade:** a billowing alpha cloud that grows into its vision-blocking shape. The
-  occlusion is no longer one full-radius disc at the detonation point: the shared `SmokeCloud`
-  cluster (three sagging circles, swollen by a growth factor over the cloud's first 40% of life)
-  is derived identically by the server's sight queries and the visibility shader, so what blocks
-  sight is the cloud you see, growing as it billows. See `docs/archive/M12_UTILITY_VISIBILITY_ACCEPTANCE.md`.
+- [ ] **Smoke grenade:** a billowing alpha cloud that grows into its vision-blocking shape and
+  keeps billowing for the whole 8 s zone — the detonation burst is the birth look only; the
+  snapshot zones drive sustained wisp waves (`fx/particle/ZoneEmitter`) and short-lived fade
+  wisps across the tail. The occlusion is the shared `SmokeCloud` cluster (five circles — a
+  sagging core, two side lobes and a rising crown, swollen over the first 55% of life and thinned
+  over the final 20%), derived identically by the server's sight queries and the visibility
+  shader through the shared `SmokeField` fill policy (oldest clouds first, whole clusters only,
+  three clouds deep in the 16-slot array), so what blocks sight is the cloud you see. See
+  `docs/archive/M12_UTILITY_VISIBILITY_ACCEPTANCE.md`.
 - [ ] **Molotov:** glass sparks, a fire splash along the surface tangent (correct on floors,
   ramps and walls), one flickering attached light per fire zone that expires with the zone, and —
-  from M12 — persistent flame rendering (`core/render/UtilityZoneRenderer`) that lives exactly
-  as long as the zone burns and covers exactly the circle the damage-over-time resolves.
+  from M12, rewritten — persistent fire rendering (`core/render/UtilityZoneRenderer`): soft
+  layered glow per patch (ember wash → ember bed → orange body → hot core) that merges into one
+  burning line, flame tongues and sustained embers/heat smoke (`ZoneEmitter`) for the whole 6 s,
+  licking along the surface the server spread on (rising off floors, climbing walls, hanging from
+  ceilings — `shared/utility/FireSurface`), animating off the effect clock (`FxClock`), fading in
+  and out with the zone, deterministic per zone id.
 - [ ] **Flashbang / stun:** a white burst and residual wisps at the detonation, plus the full-screen
   whiteout scaled by the server's distance band and line of sight (`StunMath`). The whiteout
   recovers exponentially — overwhelming at first, clearing fast — and the HUD, chat and console
@@ -752,37 +760,47 @@ Full setup and historical context: [M12_UTILITY_VISIBILITY_ACCEPTANCE.md](archiv
 #### Smoke / poison occlusion follows the cloud
 
 - [ ] **Growth:** throw a smoke grenade into open ground and watch it from the first frame. No
-  vision is blocked at the detonation instant; the blocked area swells with the billowing cloud
-  and is fully out about 3 seconds in (40% of the 8 s zone life), not instantly.
-- [ ] **Shape:** the occluded region reads as a sagging blob, not a perfect disc centred on the
-  impact — denser and lower than the detonation point, matching where the puffs actually are.
-  Stand behind the cloud's far edge with an enemy on the other side: you cannot see them once the
-  cloud is grown.
-- [ ] **Poison:** the poison cloud occludes the same way (same cluster, 7 s life, full at ~2.8 s),
-  and its damage-over-time still applies inside it.
+  vision is blocked at the detonation instant; the blocked area swells with the billowing cloud,
+  is fully out about 4.4 seconds in (55% of the 8 s zone life, when the birth puffs have really
+  reached full spread), and thins back over the final 1.6 s so sight opens as the cloud
+  disperses — never before it, never after.
+- [ ] **Shape:** the occluded region reads as a sagging blob with a small rising crown, not a
+  perfect disc centred on the impact — the core and side lobes sit denser and lower than the
+  detonation point, the crown covers the part that billows upward, and the whole cluster follows
+  the puffs' drift and turbulent fringe out to about 1.4× the zone radius. Stand behind the
+  cloud's far edge with an enemy on the other side: you cannot see them once the cloud is grown.
+- [ ] **Poison:** the poison cloud occludes the same way (same cluster, 7 s life, full at ~3.85 s),
+  and its damage-over-time still applies inside it. Both clouds keep billowing for their whole
+  zone lives (sustained wisps) and disperse with the occlusion.
 - [ ] **Server/client agreement:** with client B standing in the grown smoke, client A's view of
   B is cut exactly where the cloud is — never earlier (empty ground blocked) and never through
   the cloud's core. The stun grenade's and flashbang's line-of-sight checks agree with what is
   drawn (detonate one inside the smoke; the blind applies only where the occlusion is).
-- [ ] **Cap behaviour:** throw three smoke grenades in quick succession (two slots, carried
-  count 2). The first two clouds occlude fully; the third is partially truncated — identically
-  for the shader and for gameplay sight queries, so what you see is what the server resolves.
+- [ ] **Cap behaviour:** throw four smoke grenades in quick succession. The three oldest clouds
+  occlude fully (five circles each fit the 16-slot array exactly three deep); the fourth waits
+  for room rather than tearing a cluster or popping an old cloud's occlusion — identically for
+  the shader and for gameplay sight queries, so what you see is what the server resolves.
 
 #### Molotov fire persists and matches the damage zone
 
-- [ ] **Persistence:** throw a molotov on open ground. Flames and the ember bed are visible for the
-  full 6 s of the zone's life, flickering, fading out over the final second — not just the ~1.5 s
-  the ignition burst's particles live.
-- [ ] **Coverage:** the flames sit inside the zone's 40-unit circle, so the fire you see is the
-  fire that burns: stand at the flame line's edge and confirm the damage-over-time starts exactly
-  there.
-- [ ] **Spread:** on a floor the fire reads as one continuous line along the surface — one central
-  patch plus three overlapping patches each side at 50-unit spacing (±0.35 jitter), roughly 230
-  units long end to end. The outward patches deal 17 per tick against the central 21, and a
-  player standing in two overlapping patches still takes one hit per tick, not two.
+- [ ] **Persistence:** throw a molotov on open ground. The layered fire (ember wash, ember bed,
+  orange body, hot core) and its flame tongues are visible for the full 6 s of the zone's life,
+  flickering on the effect clock, fading out over the final second — and embers and faint heat
+  smoke keep rising for the whole burn (sustained waves from the snapshot zones), not just the
+  ~1.5 s the ignition burst's particles live.
+- [ ] **Coverage:** the roaring body of the flames sits inside the zone's 40-unit circle, so the
+  fire you see is the fire that burns: stand at the flame line's edge and confirm the
+  damage-over-time starts exactly there. Only the dim ember wash feathers ~25% past the rim, to
+  merge the patches into one line.
+- [ ] **Spread:** on a floor the fire reads as one continuous burning line along the surface — one
+  central patch plus three overlapping patches each side at 50-unit spacing (±0.35 jitter),
+  roughly 230 units long end to end, with the washes merging the patches into one glow. The
+  outward patches deal 17 per tick against the central 21, and a player standing in two
+  overlapping patches still takes one hit per tick, not two.
 - [ ] **Surfaces:** the spread follows the tangent on a ramp and on a vertical wall (throw at a
-  wall; the line runs vertically). Flames rise in world-up regardless of the surface, matching the
-  ignition burst.
+  wall; the line runs vertically). The flames now lick along the surface instead of always
+  rising in world-up: they rise off a floor, climb a wall leaning slightly off it, and hang and
+  crawl along a ceiling (`shared/utility/FireSurface`, probed against the live map).
 - [ ] **Terrain stop:** aim one side of the tangent at a wall or solid platform. The last clear
   patch remains, no patch appears beyond the first blocked segment, and the unobstructed side still
   spreads normally.
@@ -911,3 +929,20 @@ Full setup and historical context: [M14_VISION_BUBBLE_ACCEPTANCE.md](archive/M14
   the same disc. Raising the cvar (for example to 220) enlarges the glow only where the bubble
   already sees. Light beyond the bubble is still masked by visibility, so the cvar cannot widen
   what you see.
+
+
+### Follow-up acceptance: pellet flight and team sight
+
+- [ ] Fire Door Hymn, Short Gospel and Iron Goose horizontally across a room (about 400 u):
+  pellets should no longer arc into the floor early. Confirm damage still weakens with distance
+  and pellet dispersion still limits hits; this flight fix does not buff damage or damage range.
+- [ ] With two Team A clients facing different directions, an enemy seen only by player 1 must
+  appear for player 2 too, together with the revealed terrain, minimap marker and visible FX.
+  Repeat in the opposite direction and on Team B.
+- [ ] Close a door, move behind solid cover, and deploy smoke: shared sight must obey each
+  contributing eye's own LOS, not grant wallhack vision through the receiving player's position.
+- [ ] Test a teammate's drone and stuck camera, ADS, surveillance body suppression, device
+  destruction, death, disconnect, respawn and team changes. Removed eyes must stop contributing;
+  the existing enemy fade/hold and minimap memory still apply after sight is lost.
+- [ ] Neutral/FFA players do not share sight. Gunfire/explosion FX seen by both teammates must
+  emit once per client, not twice. Check frame cost with multiple teammates and devices.

@@ -5,6 +5,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.utils.IntFloatMap;
 import io.github.skystrike.chat.ChatClient;
 import io.github.skystrike.chat.ChatMuteList;
 import io.github.skystrike.command.ClientCapabilities;
@@ -48,6 +49,7 @@ import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.hud.MinimapModel;
+import io.github.skystrike.shared.hud.SightingFade;
 import io.github.skystrike.shared.hud.WorldProjection;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
@@ -61,11 +63,13 @@ import io.github.skystrike.shared.model.DroneEntity;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Projectile;
+import io.github.skystrike.shared.model.Team;
 import io.github.skystrike.shared.model.ThrownUtility;
 import io.github.skystrike.shared.model.UtilityZone;
 import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.vision.Observer;
 import io.github.skystrike.shared.vision.ObserverSet;
+import io.github.skystrike.shared.vision.SmokeField;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.settings.ClientPreferences;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
@@ -93,7 +97,9 @@ import io.github.skystrike.ui.text.MessageBuffer;
 import io.github.skystrike.ui.text.MessageSeverity;
 import io.github.skystrike.world.TerrainRenderer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -236,6 +242,21 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
     /** The viewer's eyes this frame — one set, read by the visibility pass and the map alike. */
     private ObserverSet eyes = ObserverSet.empty();
+
+    /**
+     * The enemy-body gate: the same {@link ObserverSet#isLit} question the minimap's blips ask,
+     * smoothed through the shared {@link SightingFade} envelope so a body at the cone edge eases
+     * in and out instead of blinking, and reaching exactly 0 — not one pixel — when the fog hides
+     * it. Stateful and owned here beside the other per-frame systems; the entity renderers are
+     * handed the finished alphas and reach back into nothing.
+     */
+    private final SightingFade enemyGates = new SightingFade();
+
+    /** Finished per-player draw alpha for this frame, keyed by {@link Player#id}. */
+    private final IntFloatMap remoteAlphas = new IntFloatMap();
+
+    /** Scratch set of the alive remote players' ids, for the gate's per-frame retention. */
+    private final Set<Integer> presentEnemyIds = new HashSet<>();
 
     private final String host;
     private final int tcpPort;
@@ -850,16 +871,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         List<DroneEntity> drones = interpolator.interpolateDrones();
         List<CameraEntity> cameras = interpolator.interpolateCameras();
 
-        // The snapshot zones are the sole source for the shader's smoke circles. Each cloud
-        // contributes its whole shared SmokeCloud cluster — the same list the server's
-        // UtilitySystem builds for gameplay sight queries — rather than a client-only cloud.
+        // The snapshot zones are the sole source for the shader's smoke circles. The list comes
+        // from the shared SmokeField policy — oldest clouds first, whole SmokeCloud clusters
+        // only — so it is the server's gameplay sight list verbatim, truncation included.
         pipeline.smokeVolumes().clear();
-        for (UtilityZone zone : utilityZones) {
-            if (zone.blocksVision()) {
-                for (SmokeVolume volume : zone.smokeVolumes()) {
-                    pipeline.smokeVolumes().add(volume);
-                }
-            }
+        for (SmokeVolume volume : SmokeField.volumes(utilityZones)) {
+            pipeline.smokeVolumes().add(volume);
         }
 
         // Map plan D3: doors occlude through their own array because they never enter the SDF.
@@ -885,9 +902,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         }
         audio.updateListener(listenerX, listenerY);
 
-        // M11: the viewer's eyes are assembled once, here, before anything consumes them. The
+        // The team's shared eyes are assembled once, here, before anything consumes them. The
         // rule — a body's cone unless the view has moved into a device, plus every device the
-        // viewer owns, with the piloted drone at its predicted position — lives in
+        // viewer owns, plus the same eyes from each living ally — lives in
         // shared/vision/ObserverSet, and both consumers read that one set: the visibility pass
         // draws a cone per observer, and the minimap asks the same set what it lights. A marker
         // for something the fog is hiding would be a cheat sheet, and two implementations of
@@ -897,7 +914,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             ? surveillance.predictedDrone()
             : null;
         List<DroneEntity> dronesToDraw = renderedDrones(drones, pilotedDrone);
-        eyes = ObserverSet.forViewer(localPlayer, visionReach, drones, pilotedDrone, cameras);
+        // Team union feeds fog, enemy admission, minimap and light admission together.
+        eyes = ObserverSet.forTeam(localPlayer, visionReach, remotePlayers, drones, pilotedDrone, cameras);
         observers.clear();
         for (Observer observer : eyes.observers()) {
             observers.add(ObserverState.of(observer));
@@ -908,6 +926,10 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // to the particles and to audio, then fires due phases.
         pipeline.setQualityTier(resolveFxTier());
         pipeline.updateFx(delta);
+        // Sustained zone emission: the smoke keeps billowing and the fire keeps sparking for the
+        // whole authoritative zone life, seeded per (zone, time slice) so every client emits the
+        // same waves at the same times regardless of frame rate.
+        pipeline.updateZoneEffects(utilityZones, liveMap());
 
         // Player-light radius and intensity come from the same live cvar registry as the other
         // graphics controls. Remote sources are filtered by shared vision/LOS before entering
@@ -927,18 +949,52 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 isPlayerLightShadowsOn());
 
         // 4. Multi-pass rendering pipeline (effects §5)
+        // The enemy-body gate, computed once per frame before anything draws. Snapshots are
+        // deliberately not vision-culled — every enemy's true position is in memory here — so
+        // what may be *drawn* is asked of the very set the minimap's blips ask: eyes.isLit on the
+        // target's hitbox, with the live map and this frame's smoke. The boolean is smoothed per
+        // player through the shared SightingFade envelope (fast fade-in, brief hold, slower
+        // fade-out, exactly 0 when unlit) so a body straddling the cone edge eases instead of
+        // blinking. Teammates and the local player are never gated; with no local player
+        // (spectator, pre-spawn) there is no opposite team to hide, so nobody is. The finished
+        // alphas are handed to the entity renderers as data.
+        long nowMillis = System.currentTimeMillis();
+        enemyGates.onViewerAlive(localPlayer != null && localPlayer.alive);
+        remoteAlphas.clear();
+        presentEnemyIds.clear();
+        for (Player p : remotePlayers) {
+            if (p == null) {
+                continue;
+            }
+            if (!isEnemy(localPlayer, p)) {
+                enemyGates.forget(p.id);
+                remoteAlphas.put(p.id, 1f);
+                continue;
+            }
+            boolean lit = p.alive
+                && eyes.isLit(p.hitbox(), liveMap(), pipeline.smokeVolumes().all());
+            remoteAlphas.put(p.id, enemyGates.alphaFor(p.id, lit, nowMillis));
+            if (p.alive) {
+                presentEnemyIds.add(p.id);
+            }
+        }
+        enemyGates.retain(presentEnemyIds);
+
         // Pass 1: SCENE (Terrain + Entities into scene buffer)
         pipeline.beginScene();
         terrain.render(camera);
         trajectoryRenderer.render(camera, localPlayer, liveMap());
-        playerRenderer.render(camera, remotePlayers, localPlayer);
+        playerRenderer.render(camera, remotePlayers, localPlayer, remoteAlphas);
         // The piloted drone is drawn from the local prediction so it never lags the view.
-        gadgetRenderer.render(camera, remotePlayers, localPlayer, dronesToDraw, cameras);
+        gadgetRenderer.render(camera, remotePlayers, localPlayer, dronesToDraw, cameras, remoteAlphas);
         projectileRenderer.render(camera, projectiles);
         thrownUtilityRenderer.render(camera, thrownUtilities);
         // Persistent molotov fire, drawn from the same snapshot zones the damage clock uses, so
-        // the flames live exactly as long as the zone burns and cover exactly what it covers.
-        utilityZoneRenderer.render(camera, utilityZones, System.currentTimeMillis() / 1000f);
+        // the flames live exactly as long as the zone burns and cover exactly what it covers. The
+        // clock handed over is the effect clock: monotonic and frame-rate independent, so the
+        // flicker animates smoothly instead of quantising against epoch seconds in a float.
+        utilityZoneRenderer.render(
+            camera, utilityZones, pipeline.particles().clock().time(), liveMap());
         // M7: the alpha particle batch joins the scene, so the fog darkens smoke and dust.
         pipeline.renderAlphaParticles(camera);
         pipeline.endScene();
@@ -978,8 +1034,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         // a single screen-space projection for everything the player reads.
         // The map's frame is decided in the composition root, from the state this screen already
         // holds and the same observer set the visibility pass just drew with. The widget is handed
-        // a finished list of markers and reaches back into nothing.
-        long nowMillis = System.currentTimeMillis();
+        // a finished list of markers and reaches back into nothing. The wall clock here is the
+        // same reading the enemy gate above took.
         MinimapModel.View minimapView = isMinimapOn()
             ? minimapModel.view(
                 new MinimapModel.Input(
@@ -1439,6 +1495,19 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     }
 
     /**
+     * Whether the composition root's enemy gate applies to this remote player: the minimap's
+     * allegiance rule verbatim — allies and the local player are exempt, and Neutral has no
+     * allies (mechanics §10), so an FFA stranger is an enemy. A missing local player (spectator,
+     * pre-spawn) has no opposite team to hide, so nobody is gated and the whole board is drawn.
+     */
+    private static boolean isEnemy(Player localPlayer, Player other) {
+        return localPlayer != null
+            && other != null
+            && other.id != localPlayer.id
+            && !Team.areAllies(localPlayer.teamIndex, other.teamIndex);
+    }
+
+    /**
      * Phase 9: whether the world blocks a sound.
      *
      * <p>Deliberately the same shared {@link VisionMath} call with the same live smoke volumes the
@@ -1459,6 +1528,9 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             return;
         }
         disposed = true;
+        // Leaving the match wipes the enemy gate's sightings the way the minimap's memory is
+        // wiped: they describe a fight this screen is no longer showing.
+        enemyGates.clear();
         hud.picker().setOpen(false, null);
         consoleDialog.dispose();
         pauseOverlay.dispose();

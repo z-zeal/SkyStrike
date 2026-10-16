@@ -26,6 +26,7 @@ import io.github.skystrike.shared.utility.UtilityDefinition;
 import io.github.skystrike.shared.utility.UtilityEffect;
 import io.github.skystrike.shared.utility.UtilityId;
 import io.github.skystrike.shared.utility.UtilityRegistry;
+import io.github.skystrike.shared.vision.SmokeField;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.shared.vision.VisionMath;
 import java.util.ArrayList;
@@ -44,8 +45,8 @@ import java.util.List;
  * by accident.
  *
  * <p>Persistent smoke zones are exposed both as {@link UtilityZone}s (for snapshots) and as the
- * matching {@link SmokeVolume} list (for gameplay sight queries). The client builds its shader
- * circle array from the snapshot zones through the same shared {@code SmokeCloud} cluster, so the
+ * matching {@link SmokeVolume} list (for gameplay sight queries). Both sides build that list
+ * through the shared {@link SmokeField} policy from the same {@code SmokeCloud} cluster, so the
  * server has no second smoke geometry to drift from.
  */
 public final class UtilitySystem {
@@ -624,21 +625,10 @@ public final class UtilitySystem {
 
     private void rebuildSmokeVolumes() {
         smokeVolumes.clear();
-        for (UtilityZone zone : zones) {
-            if (!zone.blocksVision()) {
-                continue;
-            }
-            // Each cloud contributes its whole SmokeCloud cluster, so the occlusion follows the
-            // rendered cloud's shape. The visibility shader has a finite uniform array; the same
-            // cap, filled in the same creation order the client derives from the snapshot, means
-            // visual and gameplay sight cannot disagree under a smoke-spam attempt.
-            for (SmokeVolume volume : zone.smokeVolumes()) {
-                if (smokeVolumes.size() >= VisionConfig.MAX_SMOKE_VOLUMES) {
-                    return;
-                }
-                smokeVolumes.add(volume);
-            }
-        }
+        // The one shared fill policy (SmokeField): creation order, whole clusters only, capped at
+        // VisionConfig.MAX_SMOKE_VOLUMES — so the shader's truncated set is this list verbatim and
+        // gameplay sight can never disagree with what the picture occludes.
+        smokeVolumes.addAll(SmokeField.volumes(zones));
     }
 
     private static UtilityDefinition safeDefinition(ThrownUtility thrown) {

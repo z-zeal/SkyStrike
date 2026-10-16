@@ -90,17 +90,17 @@ and `assets/sprites/melee.json` — the conversion rules live there and are summ
 | Black Horizon | sniper | 110.4 | 0.6333 | 1750 | 5 | 25 | 3.3 s | 0.58° | bolt | 1 | 1760 |
 | Ember Glass | sniper | 115 | 0.5667 | 1680 | 5 | 25 | 3.35 s | 0.64° | bolt | 1 | 1740 |
 | Tide Needle | sniper | 96.6 | 0.7333 | 1575 | 5 | 25 | 3.05 s | 0.7° | bolt | 1 | 1680 |
-| Door Hymn | shotgun | 20.8 | 1.1667 | 196 | 6 | 48 | 3.2 s | 13.44° | pump | 8 | 800 |
-| Room Sweeper | shotgun | 18.2 | 3.6667 | 168 | 10 | 80 | 2.6 s | 15.36° | auto | 8 | 780 |
-| Iron Goose | shotgun | 19.5 | 2.6667 | 308 | 5 | 40 | 2.8 s | 10.24° | semi | 8 | 840 |
-| Scatter Bench | shotgun | 20.8 | 1.25 | 224 | 8 | 64 | 3.4 s | 12.8° | pump | 8 | 810 |
-| Pump Chapel | shotgun | 22.1 | 1.3333 | 140 | 5 | 40 | 2.9 s | 16° | pump | 8 | 770 |
-| Magpie 12 | shotgun | 19.5 | 1.5 | 280 | 2 | 16 | 2 s | 9.6° | break | 8 | 830 |
-| Harbor Gate | shotgun | 20.8 | 3 | 210 | 8 | 64 | 2.5 s | 12.16° | semi | 8 | 800 |
-| Cinder Tube | shotgun | 23.4 | 1.6667 | 126 | 2 | 16 | 1.9 s | 16.64° | break | 8 | 740 |
-| Short Gospel | shotgun | 23.4 | 1.4167 | 112 | 4 | 32 | 2.6 s | 18.56° | pump | 8 | 720 |
-| Twin Barrel | shotgun | 20.8 | 1.5833 | 224 | 2 | 16 | 1.85 s | 11.52° | break | 8 | 790 |
-| Ash Hopper 12 | shotgun | 16.9 | 4 | 182 | 12 | 96 | 2.8 s | 14.72° | auto | 8 | 770 |
+| Door Hymn | shotgun | 20.8 | 1.1667 | 196 | 6 | 48 | 3.2 s | 13.44° | pump | 8 | 1400 |
+| Room Sweeper | shotgun | 18.2 | 3.6667 | 168 | 10 | 80 | 2.6 s | 15.36° | auto | 8 | 1385 |
+| Iron Goose | shotgun | 19.5 | 2.6667 | 308 | 5 | 40 | 2.8 s | 10.24° | semi | 8 | 1430 |
+| Scatter Bench | shotgun | 20.8 | 1.25 | 224 | 8 | 64 | 3.4 s | 12.8° | pump | 8 | 1408 |
+| Pump Chapel | shotgun | 22.1 | 1.3333 | 140 | 5 | 40 | 2.9 s | 16° | pump | 8 | 1378 |
+| Magpie 12 | shotgun | 19.5 | 1.5 | 280 | 2 | 16 | 2 s | 9.6° | break | 8 | 1422 |
+| Harbor Gate | shotgun | 20.8 | 3 | 210 | 8 | 64 | 2.5 s | 12.16° | semi | 8 | 1400 |
+| Cinder Tube | shotgun | 23.4 | 1.6667 | 126 | 2 | 16 | 1.9 s | 16.64° | break | 8 | 1355 |
+| Short Gospel | shotgun | 23.4 | 1.4167 | 112 | 4 | 32 | 2.6 s | 18.56° | pump | 8 | 1340 |
+| Twin Barrel | shotgun | 20.8 | 1.5833 | 224 | 2 | 16 | 1.85 s | 11.52° | break | 8 | 1392 |
+| Ash Hopper 12 | shotgun | 16.9 | 4 | 182 | 12 | 96 | 2.8 s | 14.72° | auto | 8 | 1378 |
 | Millstone | lmg | 29.9 | 14.1667 | 868 | 100 | 200 | 6.4 s | 5.12° | auto | 1 | 1640 |
 | Belt Hymn | lmg | 34.5 | 10.8333 | 980 | 100 | 200 | 7 s | 5.76° | auto | 1 | 1600 |
 | Iron Rain | lmg | 33.3 | 9.1667 | 952 | 100 | 200 | 6.8 s | 5.44° | auto | 1 | 1620 |
