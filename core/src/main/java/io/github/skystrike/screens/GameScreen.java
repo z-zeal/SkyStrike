@@ -1,6 +1,8 @@
 package io.github.skystrike.screens;
 
+import io.github.skystrike.platform.DeviceInfo;
 import io.github.skystrike.platform.PlatformServices;
+import io.github.skystrike.platform.SafeAreaInsets;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
@@ -30,6 +32,7 @@ import io.github.skystrike.gameplay.SurveillanceController;
 import io.github.skystrike.input.InputRouter;
 import io.github.skystrike.input.InputSampler;
 import io.github.skystrike.input.KeyBindings;
+import io.github.skystrike.input.TouchControls;
 import io.github.skystrike.net.ClientSession;
 import io.github.skystrike.net.Interpolator;
 import io.github.skystrike.net.LocalPrediction;
@@ -50,6 +53,7 @@ import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.hud.MinimapModel;
 import io.github.skystrike.shared.hud.SightingFade;
+import io.github.skystrike.shared.hud.TouchHudLayout;
 import io.github.skystrike.shared.hud.WorldProjection;
 import io.github.skystrike.shared.map.ArenaMap;
 import io.github.skystrike.shared.map.BlockBreak;
@@ -72,6 +76,10 @@ import io.github.skystrike.shared.vision.ObserverSet;
 import io.github.skystrike.shared.vision.SmokeField;
 import io.github.skystrike.shared.vision.SmokeVolume;
 import io.github.skystrike.settings.ClientPreferences;
+import io.github.skystrike.shared.input.TouchAction;
+import io.github.skystrike.shared.input.TouchControlModel;
+import io.github.skystrike.shared.input.TouchPreferences;
+import io.github.skystrike.shared.input.TouchSample;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.net.s2c.PacketBlockBreak;
 import io.github.skystrike.shared.net.s2c.PacketBlockDamage;
@@ -198,6 +206,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
      */
     private final DoorUseController doorUse;
     private final InputSampler inputSampler;
+    /** The touch controls' input processor; claims events only while touch is the control path. */
+    private final TouchControls touchControls = new TouchControls();
+    /** The key the touch layout was last built from; an equal key keeps the layout and zones. */
+    private TouchLayoutKey touchLayoutKey;
+    /** Whether the local player was alive on the previous frame, to seed touch aim on spawn. */
+    private boolean touchWasAlive;
     private final DebugKeyController debugKeyController;
     private final Runnable disconnectToMenu;
     private final Consumer<GameScreen> settingsOpener;
@@ -331,6 +345,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         this.pauseOverlay = new PauseOverlay(inputRouter, this::onPauseAction);
         this.settingsDialog = new GameSettingsDialog(inputRouter, this.settings, this.bindings);
         rootInput.addProcessor(inputRouter.multiplexer());
+        // After the router, so an open dialog still gets the first claim on every touch.
+        rootInput.addProcessor(touchControls);
         rootInput.addProcessor(scrollForwarder);
         addInputProcessor(rootInput);
 
@@ -791,6 +807,35 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             }
         }
 
+        // Touch is the control path on a touch device, and on desktop only while the dev
+        // cl_touch_hud preview is on. Then the match reads no keyboard or mouse binding (see
+        // InputSampler), and touch edges enter at the same points the keys do: loadout, view and
+        // door edges through their controllers, before the input is sampled.
+        boolean touchMode = touchHudOn();
+        touchControls.setEnabled(touchMode);
+        TouchSample touch = null;
+        if (touchMode) {
+            refreshTouchLayout(prediction.predicted());
+            Player touchPlayer = prediction.predicted();
+            touch = touchControls.sample(
+                inputRouter.hasModalFocus(),
+                touchPlayer == null ? null : touchPlayer.loadout,
+                touchPlayer == null ? SurveillanceView.SELF : touchPlayer.surveillance());
+            seedTouchAim(touchPlayer);
+            if (touch.uiAction() == TouchAction.PAUSE) {
+                // The same single owner as Escape: while piloting, the button returns to the body;
+                // otherwise it opens the pause menu. Chat, quick chat and loadout are not acted on
+                // here yet: their overlays have no touch close path (AN-5/AN-6), so a tap would
+                // trap the player, and the HUD draws them dimmed.
+                Player pausing = prediction.predicted();
+                if (pausing != null && pausing.isSurveillanceLocked()) {
+                    surveillance.exitSurveillance(pausing);
+                } else {
+                    pauseOverlay.open();
+                }
+            }
+        }
+
         // Console plan §6.4: the open key is one press, one owner. While the dialog is closed
         // and gameplay owns input, it opens the dialog; the same keystroke is consumed by the
         // focus machinery before it can type, and the close frame's key state cannot re-open.
@@ -821,19 +866,27 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
 
         if (localPlayer != null) {
             // 1. Loadout input first: a slot press this frame rides this frame's input packet
-            loadoutController.update(localPlayer);
-            // The surveillance and door-use controllers poll their edges the same way.
-            surveillance.update(localPlayer);
-            doorUse.update(localPlayer);
+            if (touchMode) {
+                loadoutController.applyTouch(touch, localPlayer);
+                surveillance.applyTouch(touch, localPlayer);
+                doorUse.applyTouch(
+                    touch.usePress() == PacketPlayerInput.USE_PRESS, localPlayer);
+            } else {
+                loadoutController.update(localPlayer);
+                // The surveillance and door-use controllers poll their edges the same way.
+                surveillance.update(localPlayer);
+                doorUse.update(localPlayer);
+            }
 
             // 2. Sample input and simulate predicted local motion. While surveilling, the aim is
             //    measured from the device the player is looking through, so the piloted cone
             //    follows the cursor rather than pointing from the locked body.
             SurveillanceController.ViewTarget aimAnchor = surveillance.aimAnchor(localPlayer);
-            PacketPlayerInput input = inputSampler.sample(localPlayer, camera, aimAnchor.x(), aimAnchor.y());
+            PacketPlayerInput input =
+                inputSampler.sample(localPlayer, camera, aimAnchor.x(), aimAnchor.y(), touch);
             surveillance.stampPacket(input);
             doorUse.stampPacket(input);
-            gunAudio.onLocalInput(input, localPlayer, bindings.isFireJustPressed());
+            gunAudio.onLocalInput(input, localPlayer, inputSampler.firePressedThisSample());
             localPlayer = prediction.predict(input, delta, liveMap());
             // The piloted drone is predicted locally, so the view and the cone stay crisp.
             surveillance.predictDrone(localPlayer, input, delta, liveMap());
@@ -1187,6 +1240,85 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
         return new PointerPosition(Gdx.input.getX(), Gdx.graphics.getHeight() - Gdx.input.getY());
     }
 
+    /**
+     * Touch is the control path on a touch device. On desktop it is only the dev {@code cl_touch_hud}
+     * preview, which is registered only under {@code --dev}; without it the cvar is absent here.
+     */
+    private boolean touchHudOn() {
+        if (platform.device().isTouchPrimary()) {
+            return true;
+        }
+        Cvar cvar = commandService.cvars().find("cl_touch_hud");
+        return cvar != null && Boolean.parseBoolean(cvar.value());
+    }
+
+    /**
+     * Rebuilds the touch layout only when something it depends on changes: window size, density,
+     * safe insets, the touch preferences, or which contextual buttons the match wants. Building an
+     * equal layout would also rebuild the model's zones, which must not happen under a held thumb.
+     */
+    private void refreshTouchLayout(Player localPlayer) {
+        DeviceInfo device = platform.device();
+        SafeAreaInsets insets = device.safeInsets();
+        TouchPreferences preferences = settings.touchPreferences();
+        TouchHudLayout.TouchHudContext context = touchContext(localPlayer);
+        int width = Gdx.graphics.getWidth();
+        int height = Gdx.graphics.getHeight();
+        float density = device.density();
+        TouchLayoutKey key = new TouchLayoutKey(width, height, density, insets, preferences, context);
+        if (key.equals(touchLayoutKey)) {
+            return;
+        }
+        touchLayoutKey = key;
+        touchControls.applyLayout(
+            TouchHudLayout.layout(
+                width, height, density,
+                insets.left(), insets.right(), insets.top(), insets.bottom(),
+                preferences, context),
+            preferences);
+    }
+
+    /** Which contextual buttons the match wants right now. Exit wins over use, as the layout rules. */
+    private TouchHudLayout.TouchHudContext touchContext(Player localPlayer) {
+        if (localPlayer == null) {
+            return TouchHudLayout.TouchHudContext.none();
+        }
+        boolean locked = localPlayer.isSurveillanceLocked();
+        SurveillanceController.OwnedDevices owned = surveillance.ownedDevices();
+        return new TouchHudLayout.TouchHudContext(
+            !locked && doorUse.doorInReach(localPlayer) != null,
+            locked,
+            locked || owned.droneLive() || owned.cameraReady(),
+            locked && localPlayer.alive,
+            debugState.overlay());
+    }
+
+    /**
+     * Gives touch aim the spawn facing the server uses, once per life, on the frame the local player
+     * comes alive. The model keeps its own angle otherwise, so it would carry a previous life's aim.
+     */
+    private void seedTouchAim(Player localPlayer) {
+        if (localPlayer == null) {
+            touchWasAlive = false;
+            return;
+        }
+        if (localPlayer.alive && !touchWasAlive) {
+            touchControls.model().setAimAngle(TouchControlModel.spawnAimDegrees(localPlayer.teamIndex));
+        }
+        touchWasAlive = localPlayer.alive;
+    }
+
+    /** The inputs a touch layout is built from. Equal keys mean an equal layout. */
+    private record TouchLayoutKey(
+        int width,
+        int height,
+        float density,
+        SafeAreaInsets insets,
+        TouchPreferences preferences,
+        TouchHudLayout.TouchHudContext context
+    ) {
+    }
+
     /** {@code r_shadows}: soft by default; unrouted through {@link DebugState} since it ships on. */
     private boolean isShadowsOn() {
         Cvar cvar = commandService.cvars().find("r_shadows");
@@ -1496,6 +1628,8 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
     public void hide() {
         // Leaving the match gives the OS pointer back: the menus behind this screen need an arrow.
         hud.releasePointer();
+        // A finger down at the moment of leaving must not stay down behind the menus.
+        touchControls.setEnabled(false);
         if (disposeOnHide) {
             dispose();
         } else {
