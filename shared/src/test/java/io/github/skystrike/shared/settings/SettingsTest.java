@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.config.TouchConfig;
+import io.github.skystrike.shared.input.TouchPreferences;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -104,5 +106,61 @@ class SettingsTest {
         assertEquals(0, settings.qualityTier);
         settings.cycleQualityTier(-1);
         assertEquals(Settings.MAX_QUALITY_TIER, settings.qualityTier);
+    }
+
+    @Test
+    @DisplayName("touch controls persist as scheme A, ADS toggle and a floating right-handed stick")
+    void touchPreferencesRoundTrip() {
+        Settings original = new Settings();
+        assertEquals(TouchPreferences.AimScheme.STICK, original.touchAimScheme);
+        assertEquals(TouchPreferences.AdsMode.TOGGLE, original.touchAdsMode);
+        assertTrue(original.touchFloatingStick);
+        assertFalse(original.touchLeftHanded);
+        assertTrue(original.touchOuterRingFire);
+        assertEquals(TouchPreferences.HudPreset.AUTO, original.touchHudPreset);
+
+        original.touchAimScheme = TouchPreferences.AimScheme.FLICK;
+        original.touchAdsMode = TouchPreferences.AdsMode.HOLD;
+        original.touchFloatingStick = false;
+        original.touchButtonScale = 1.25f;
+        original.touchButtonOpacity = 0.4f;
+        original.touchLeftHanded = true;
+        original.touchOuterRingFire = false;
+        original.touchHudPreset = TouchPreferences.HudPreset.PHONE;
+
+        Settings restored = new Settings();
+        restored.loadFrom(original.toValues());
+        assertEquals(TouchPreferences.AimScheme.FLICK, restored.touchAimScheme);
+        assertEquals(TouchPreferences.AdsMode.HOLD, restored.touchAdsMode);
+        assertFalse(restored.touchFloatingStick);
+        assertEquals(1.25f, restored.touchButtonScale, EPSILON);
+        assertEquals(0.4f, restored.touchButtonOpacity, EPSILON);
+        assertTrue(restored.touchLeftHanded);
+        assertFalse(restored.touchOuterRingFire);
+        assertEquals(TouchPreferences.HudPreset.PHONE, restored.touchHudPreset);
+        assertEquals(TouchPreferences.AimScheme.FLICK, restored.touchPreferences().aimScheme());
+    }
+
+    @Test
+    @DisplayName("malformed touch settings fall back to the decided defaults and stay in range")
+    void malformedTouchSettingsAreClamped() {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put(Settings.KEY_TOUCH_AIM_SCHEME, "scheme-c");
+        values.put(Settings.KEY_TOUCH_ADS_MODE, "maybe");
+        values.put(Settings.KEY_TOUCH_FLOATING_STICK, "sometimes");
+        values.put(Settings.KEY_TOUCH_BUTTON_SCALE, "99");
+        values.put(Settings.KEY_TOUCH_BUTTON_OPACITY, "NaN");
+        values.put(Settings.KEY_TOUCH_LEFT_HANDED, "nope");
+        values.put(Settings.KEY_TOUCH_HUD_PRESET, "desktop");
+
+        Settings settings = new Settings();
+        settings.loadFrom(values);
+        assertEquals(TouchPreferences.AimScheme.STICK, settings.touchAimScheme);
+        assertEquals(TouchPreferences.AdsMode.TOGGLE, settings.touchAdsMode);
+        assertTrue(settings.touchFloatingStick);
+        assertEquals(TouchConfig.BUTTON_SCALE_MAX, settings.touchButtonScale, EPSILON);
+        assertEquals(TouchConfig.BUTTON_OPACITY_DEFAULT, settings.touchButtonOpacity, EPSILON);
+        assertFalse(settings.touchLeftHanded);
+        assertEquals(TouchPreferences.HudPreset.AUTO, settings.touchHudPreset);
     }
 }
