@@ -48,9 +48,11 @@ import io.github.skystrike.render.UtilityZoneRenderer;
 import io.github.skystrike.shared.config.CombatConfig;
 import io.github.skystrike.shared.config.DebugFlags;
 import io.github.skystrike.shared.config.PlayerConfig;
+import io.github.skystrike.shared.config.TouchConfig;
 import io.github.skystrike.shared.config.VisionConfig;
 import io.github.skystrike.shared.debug.DebugState;
 import io.github.skystrike.shared.gadget.SurveillanceView;
+import io.github.skystrike.shared.hud.CrosshairMath;
 import io.github.skystrike.shared.hud.MinimapModel;
 import io.github.skystrike.shared.hud.SightingFade;
 import io.github.skystrike.shared.hud.TouchHudLayout;
@@ -100,6 +102,7 @@ import io.github.skystrike.ui.console.ConsoleDialog;
 import io.github.skystrike.ui.hud.HudFrame;
 import io.github.skystrike.ui.hud.HudStage;
 import io.github.skystrike.ui.hud.PointerPosition;
+import io.github.skystrike.ui.hud.TouchHudFrame;
 import io.github.skystrike.ui.text.ContrastTestOverlay;
 import io.github.skystrike.ui.text.MessageBuffer;
 import io.github.skystrike.ui.text.MessageSeverity;
@@ -1113,6 +1116,16 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 nowMillis)
             : null;
 
+        // The camera as this frame drew it: the damage numbers anchor in the same world the
+        // composite and the sprites were drawn in, so they cannot drift off their impacts. The
+        // touch reticle is projected through the same view, so it sits on the aim ray as drawn.
+        WorldProjection worldView = new WorldProjection(
+            camera.x(),
+            camera.y(),
+            camera.viewportWidth(),
+            camera.viewportHeight(),
+            Gdx.graphics.getWidth(),
+            Gdx.graphics.getHeight());
         hud.render(new HudFrame(
             localPlayer,
             adsAlpha,
@@ -1127,19 +1140,12 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
                 ? statusLines(localPlayer, visionReach, projectiles.size(), minimapView)
                 : List.of(),
             minimapView,
-            // The camera as this frame drew it: the damage numbers anchor in the same world the
-            // composite and the sprites were drawn in, so they cannot drift off their impacts.
-            new WorldProjection(
-                camera.x(),
-                camera.y(),
-                camera.viewportWidth(),
-                camera.viewportHeight(),
-                Gdx.graphics.getWidth(),
-                Gdx.graphics.getHeight()),
+            worldView,
             // The crosshair is drawn under the OS pointer on desktop: the same pixel the aim
             // angle was unprojected from, so the reticle is the cursor rather than a second
-            // opinion about where it is.
-            pointerPosition()));
+            // opinion about where it is. On touch the pointer is the touch reticle instead.
+            touchMode ? touchReticle(localPlayer, worldView) : pointerPosition(),
+            touchMode ? touchFrame() : null));
 
         // Pass 7: the chat/console dialog, above everything else (passive view when closed).
         consoleDialog.render(System.currentTimeMillis());
@@ -1306,6 +1312,40 @@ public final class GameScreen extends de.eskalon.commons.screen.ManagedScreenAda
             touchControls.model().setAimAngle(TouchControlModel.spawnAimDegrees(localPlayer.teamIndex));
         }
         touchWasAlive = localPlayer.alive;
+    }
+
+    /** What the touch overlay draws this frame; {@code null} when there is no layout yet. */
+    private TouchHudFrame touchFrame() {
+        TouchHudLayout layout = touchControls.layout();
+        if (layout == null) {
+            return null;
+        }
+        return new TouchHudFrame(
+            layout,
+            touchControls.model().moveStick(),
+            touchControls.model().aimStick(),
+            touchControls.highlighted());
+    }
+
+    /**
+     * Where the touch reticle is drawn this frame: the aim ray from the aim anchor (the device while
+     * piloting, the eye otherwise), at the look distance the ADS blend picks, projected through the
+     * camera as drawn. Clamped inside a margin, so it stays on the screen where a thumb can see it.
+     */
+    private PointerPosition touchReticle(Player localPlayer, WorldProjection view) {
+        if (localPlayer == null || view == null) {
+            return null;
+        }
+        SurveillanceController.ViewTarget anchor = surveillance.aimAnchor(localPlayer);
+        CrosshairMath.WorldPoint point = CrosshairMath.touchReticleWorldPoint(
+            anchor.x(),
+            anchor.y(),
+            touchControls.model().aimAngle(),
+            CrosshairMath.touchLookDistance(adsAlpha));
+        float margin = TouchConfig.HUD_PAD_DP * TouchConfig.saneDensity(platform.device().density());
+        float x = Math.max(margin, Math.min(view.screenWidth() - margin, view.toScreenX(point.x())));
+        float y = Math.max(margin, Math.min(view.screenHeight() - margin, view.toScreenY(point.y())));
+        return new PointerPosition(x, y);
     }
 
     /** The inputs a touch layout is built from. Equal keys mean an equal layout. */
