@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.skystrike.shared.config.TouchConfig;
+import io.github.skystrike.shared.math.Angles;
 import io.github.skystrike.shared.model.Player;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -82,6 +84,40 @@ class CrosshairMathTest {
             CrosshairMath.hitMarkerGapPixels(1f), 1e-4f);
         assertEquals(CrosshairMath.HIT_MARKER_GAP_PIXELS + CrosshairMath.HIT_MARKER_EXPANSION_PIXELS,
             CrosshairMath.hitMarkerGapPixels(0f), 1e-4f);
+    }
+
+    @Test
+    @DisplayName("the touch reticle sits on the aim ray, hip to ADS, and refuses nonsense")
+    void touchReticleFollowsAim() {
+        CrosshairMath.WorldPoint hip = CrosshairMath.touchReticleWorldPoint(10f, 20f, 0f, 220f);
+        assertEquals(230f, hip.x(), 1e-3f);
+        assertEquals(20f, hip.y(), 1e-3f);
+
+        CrosshairMath.WorldPoint up = CrosshairMath.touchReticleWorldPoint(0f, 0f, 90f, 100f);
+        assertEquals(0f, up.x(), 1e-3f);
+        assertEquals(100f, up.y(), 1e-3f);
+
+        CrosshairMath.WorldPoint back = CrosshairMath.touchReticleWorldPoint(5f, 5f, 180f, 40f);
+        assertEquals(-35f, back.x(), 1e-3f);
+        assertEquals(5f, back.y(), 1e-3f);
+
+        float diagonal = 80f * (float) Math.cos(Angles.toRadians(45f));
+        CrosshairMath.WorldPoint angled = CrosshairMath.touchReticleWorldPoint(1f, 2f, 45f, 80f);
+        assertEquals(1f + diagonal, angled.x(), 1e-3f);
+        assertEquals(2f + diagonal, angled.y(), 1e-3f);
+
+        assertEquals(TouchConfig.RETICLE_DISTANCE_HIP, CrosshairMath.touchLookDistance(0f), 1e-4f);
+        assertEquals(TouchConfig.RETICLE_DISTANCE_ADS, CrosshairMath.touchLookDistance(1f), 1e-4f);
+        assertEquals(TouchConfig.RETICLE_DISTANCE_ADS, CrosshairMath.touchLookDistance(4f), 1e-4f);
+        float mid = TouchConfig.RETICLE_DISTANCE_HIP
+            + 0.5f * (TouchConfig.RETICLE_DISTANCE_ADS - TouchConfig.RETICLE_DISTANCE_HIP);
+        assertEquals(mid, CrosshairMath.touchLookDistance(0.5f), 1e-3f);
+
+        CrosshairMath.WorldPoint safe = CrosshairMath.touchReticleWorldPoint(
+            Float.NaN, 4f, Float.NaN, -20f);
+        assertEquals(0f, safe.x(), 1e-4f);
+        assertEquals(4f, safe.y(), 1e-4f);
+        assertEquals(TouchConfig.RETICLE_DISTANCE_HIP, CrosshairMath.touchLookDistance(Float.NaN), 1e-4f);
     }
 
     @Test

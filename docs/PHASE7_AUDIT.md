@@ -769,6 +769,42 @@ run here either; each change carries its own unexecuted acceptance note.
   sounds agree; ballistics report clean; 89 guns / 21 melee; arena_sdf `ed6b335d...e173e`, 1500×1000
   texels @ 2.0, 1,500,060 bytes, the shipped asset is the bake of the committed map). Nothing was
   compiled, executed or observed: no JDK in this sandbox.
+- **Android plan, slice AN-2 — shared touch math, pointer arbitration and phone/tablet HUD
+  geometry.** Implemented on `arena/044aeeff-skystrike`, in `shared` only. `TouchControlModel`
+  owns pointer ids `0..9`: a button wins over either stick, a drag updates only the owner, the
+  aim stick retains its angle through release and through the `0.10` deadzone, and modal focus
+  clears every pointer without snapping that angle. On foot the movement stick is horizontal
+  (`moveX = dx / radius` past a radial `0.12` deadzone, not rescaled); `SurveillanceView.DRONE`
+  maps stick Y past `±0.20` to jump and crouch, and that pulse is dropped if the view is no
+  longer the drone before the sample. Scheme A fires guns from the outer ring (`0.85`) when that
+  setting is on; Scheme B holds fire for automatic guns past `0.35` and releases one shot for
+  semi, bolt, pump, break, burst, melee and throwables outside `0.20`. Scheme C is not
+  implemented. `TouchHudLayout` places the phone and tablet docks from the plan's reference
+  sizes, keeps a `48 dp` hit floor and a `6 dp` gap (including the diagonal), and steps button
+  scale down by `0.05` until those rules hold. `CrosshairMath.touchReticleWorldPoint` sits the
+  reticle on the aim ray; projecting it is still the client's job. Settings persist
+  `touch.aimScheme`, `touch.adsMode`, `touch.floatingStick`, `touch.buttonScale`,
+  `touch.buttonOpacity`, `touch.leftHanded`, `touch.outerRingFire` and `touch.hudPreset`.
+  Desktop controls are untouched. `PROTOCOL_VERSION` stays 18 — no wire change. AN-3 is not
+  started: no `TouchControls`, no `InputSampler` change, no `cl_touch_hud`, no HUD drawing.
+  AN-1 limitations still apply: auth is a persistence hook only, older Android IME detection is
+  a visible-frame heuristic, and HUD/chat do not yet consume the safe-area or keyboard services.
+  Provisional, and not a confirmed design answer: no Jump double-tap / slide-up jetpack gesture;
+  left-handed mode mirrors the thumbs and reflows the dock left-to-right rather than reversing
+  slots 1–5; scale `0.75–1.50` default `1` and opacity `0.35–1` default `0.72`. The plan's
+  `DoorConfig.USE_REACH` of `90 u` is stale — source is `72f`, and this slice does not change it.
+  Tests were written and not executed: `TouchControlModelTest`, `TouchHudLayoutTest`, the new
+  `CrosshairMathTest` pins and the `SettingsTest` touch round-trip. The seven permitted Python
+  checks were run clean before the code commits (`static_check.py` 470 Java files / 470 types,
+  no findings; `static_api_check.py` 592 project types from 464 files, no findings;
+  `static_audio_check.py` 13 world entries, 6 weapon events, 1 loop, 14 effect types, 30
+  manifest entries; `synth_sfx.py --check` 14 generated sounds agree; `phase3_ballistics.py`
+  analytical report completed without findings; `generate_weapon_tables.py` 89 guns / 21 melee,
+  no tracked generated-table diff; `arena_sdf_check.py` hash
+  `ed6b335dd502161da23943b414b5e8e2c95ba7816449710699f5d3503e8e173e`, 1500×1000 texels at 2.0
+  units/texel, 1,500,060 bytes, the shipped asset is the bake of the committed map) and
+  `git diff --check` was clean. Nothing was compiled, executed or observed: no JDK in this
+  sandbox. Every acceptance box remains unchecked.
 
 ---
 

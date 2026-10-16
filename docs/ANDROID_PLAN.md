@@ -1,25 +1,45 @@
 # Android compatibility, touch controls, UI/UX and mobile hardening — plan
 
-**Status: AN-1 foundation implemented in source, not compiled or device-verified.**
-- Added the six platform contracts and lazy, headless-construction-safe defaults; injected services
-  through `Main`, `GameScreen`, `HudStage` and application `ClientPreferences`.
-- Desktop launcher supplies desktop services. Android launcher supplies Android capabilities,
-  safe-area/IME snapshots, app-specific map storage and the planned preferences-backed auth hook.
-  The adapters are grouped in `DesktopPlatformServices` and `AndroidPlatformServices`, rather than
-  one class per interface. Auth persistence is a stub, not secure account storage or login.
-- Manifest now declares `INTERNET`, uses `sensorLandscape`, and opts into short-edge cutouts via
-  an API-28-qualified theme. Release rules retain shared wire models and Kryo/KryoNet; unused
-  Box2D rules are removed.
-- Removed direct application-type branches in core; the source checker now forbids them outside
-  `platform/`. `static_check.py`, `static_api_check.py`, manifest XML assertions and
-  `git diff --check` pass. These are source checks, not compilation or runtime verification.
+**Status: AN-1 foundation and AN-2 shared touch models are implemented in source, not compiled or device-verified.**
 
-AN-2–AN-7 remain planned. Safe-area and keyboard services are available but their HUD/chat
-consumers land in later slices. Older Android IME detection uses a visible-frame heuristic and
-needs device checks in fullscreen mode. The baseline audit below describes the pre-implementation
-tree, not current status. No project launch, Gradle invocation or CI wait was performed, per the
-working agreement. Every acceptance box in §10 remains unchecked. Phone layouts are the first
-priority for touch implementation; tablet support remains in scope.
+AN-1 (still the limit of the platform work, not a completed device port):
+- Six platform contracts and lazy, headless-construction-safe defaults, injected through `Main`,
+  `GameScreen`, `HudStage` and application `ClientPreferences`. Desktop and Android launchers
+  supply their services in `DesktopPlatformServices` and `AndroidPlatformServices`.
+- Manifest declares `INTERNET`, uses `sensorLandscape`, and opts into short-edge cutouts via an
+  API-28-qualified theme. Release rules retain shared wire models and Kryo/KryoNet; unused Box2D
+  rules are removed. Direct application-type branches are gone from core; the source checker
+  forbids them outside `platform/`.
+- **AN-1 limitations that still apply:** auth persistence is only a hook, not secure credential
+  storage or a working login. Older Android IME detection uses a visible-frame heuristic and needs
+  device verification in fullscreen. Safe-area and keyboard services exist, but no HUD or chat
+  consumer reads them yet. Every §10 acceptance box remains unchecked. No compilation, test run,
+  device run or CI result is claimed for AN-1.
+
+AN-2 source, distinct from verification:
+- Implemented in `shared` only: `TouchConfig`, `TouchAction`, `TouchZone`, `VirtualStickState`,
+  `TouchPreferences`, `TouchSample`, `TouchControlModel`, `TouchHudLayout`,
+  `CrosshairMath.touchReticleWorldPoint` / `touchLookDistance`, and the `touch.*` settings keys.
+  Focused tests sit beside them in `shared/src/test`. They were written and not executed — there
+  is no JDK here. `static_check.py`, `static_api_check.py` and `git diff --check` are source
+  checks, not compilation or runtime verification.
+- Not started, and not implied by the types above: `core/input/TouchControls`, `InputSampler`
+  wiring, `cl_touch_hud`, screen projection of the reticle, HUD drawing, and any phone or tablet
+  run. Desktop controls are unchanged. `NetConfig.PROTOCOL_VERSION` stays 18.
+- **Provisional, not confirmed by a design answer:** the optional Jump double-tap / slide-up
+  jetpack gesture is not implemented — the plan gives it no timing, and the decided jetpack
+  control is the dedicated button. Left-handed mode mirrors the sticks, crouch and the action
+  arc, then reflows the dock left-to-right so slots 1–5 stay in reading order; the top utility
+  bar and informational corners stay put, and tablet vitals follow the movement stick. Ranges
+  the plan names as fields but not as bounds: button scale `0.75–1.50` (default `1`, stepped
+  down by `0.05` until the 48 dp / 6 dp rules hold) and opacity `0.35–1` (default `0.72`;
+  geometry ignores it).
+
+AN-3–AN-7 remain planned. The baseline audit below describes the pre-implementation tree, not
+current status. No project launch, Gradle invocation or CI wait was performed. Phone layouts are
+the first priority; tablet support remains in scope. AN-3 must call the existing door query.
+`DoorConfig.USE_REACH` is `72f`; an earlier draft of this plan said `90 u`, and this slice does
+not change the constant.
 
 
 This plan covers Phases 10–11's mobile and platform items from `docs/IMPLEMENTATION_ROADMAP.md`
@@ -288,9 +308,11 @@ Today `GameScreen.pointerPosition()` returns `null` off desktop, which makes `Cr
 - **Contextual Door Use button (`USE` / `F`):**
   - Each frame `GameScreen` evaluates `MapQueries.doorAt(arena, localPlayer.centerX(), localPlayer.centerY(), DoorConfig.USE_REACH)`
     — the exact shared query `DoorUseController` already uses.
-  - When a door is within `DoorConfig.USE_REACH` (`90 u`) and the player is alive, not stunned, and
-    not surveillance-locked, a prominent **USE DOOR** touch button activates above the right action
-    arc (showing the door state: `OPEN` / `CLOSE`). Tapping it triggers `DoorUseController`,
+  - When a door is within `DoorConfig.USE_REACH` (source constant `72f`; an earlier draft of this
+    plan said `90 u`) and the player is alive, not stunned, and not surveillance-locked, a
+    prominent **USE DOOR** touch button activates above the right action arc (showing the door
+    state: `OPEN` / `CLOSE`). AN-2 does not change the constant. Tapping the button triggers
+    `DoorUseController`,
     predicting the swing locally and stamping `PacketPlayerInput.USE_PRESS` with its birth sequence.
 - **Surveillance View Controls (`SurveillanceView != SELF`):**
   - Whenever `localPlayer.isSurveillanceLocked()` is true (`DRONE` or `CAMERA`) or the player owns a
@@ -569,19 +591,24 @@ AN-7 Shaders, Tiers & Lifecycle ◄── AN-6 Mobile Chat & QuickChat ◄──
 - **Objective:** Build and unit-test all pure touch maths, multi-touch pointer ownership, virtual
   stick deadzones, aim-angle retention, drone flight-stick auto-switching, touch crosshair world
   projection and phone/tablet HUD layout geometry in `shared`.
-- **Files:**
+- **Files (source written; none of it compiled or run):**
   - `shared/src/main/java/io/github/skystrike/shared/config/TouchConfig.java`
   - `shared/src/main/java/io/github/skystrike/shared/input/TouchAction.java`
+  - `shared/src/main/java/io/github/skystrike/shared/input/TouchZone.java`
   - `shared/src/main/java/io/github/skystrike/shared/input/VirtualStickState.java`
+  - `shared/src/main/java/io/github/skystrike/shared/input/TouchPreferences.java`
+  - `shared/src/main/java/io/github/skystrike/shared/input/TouchSample.java`
   - `shared/src/main/java/io/github/skystrike/shared/input/TouchControlModel.java`
   - `shared/src/main/java/io/github/skystrike/shared/hud/TouchHudLayout.java`
-  - `shared/src/main/java/io/github/skystrike/shared/hud/CrosshairMath.java` (add
-    `touchReticleWorldPoint`)
-  - `shared/src/main/java/io/github/skystrike/shared/settings/Settings.java` (persist touch aim
-    scheme, ADS toggle/hold, floating stick, button scale/opacity, left-handed flip)
+  - `shared/src/main/java/io/github/skystrike/shared/hud/CrosshairMath.java`
+    (`touchReticleWorldPoint`, `touchLookDistance`; screen projection stays in the client)
+  - `shared/src/main/java/io/github/skystrike/shared/settings/Settings.java` (`touch.*` keys)
   - Tests in `shared/src/test/java/io/github/skystrike/shared/`: `input/TouchControlModelTest.java`,
     `hud/TouchHudLayoutTest.java`, `hud/CrosshairMathTest.java`, `settings/SettingsTest.java`.
 - **Dependencies:** AN-1; decisions AN1–AN4 (decided 2026-10-13).
+- **Source status:** The shared models and the tests that pin them are in the tree. Pending
+  verification: `shared:test` on a JDK, a device pass, and every AN-3 consumer. Scheme C, the
+  Jump jetpack gesture, `cl_touch_hud` and LibGDX wiring are not part of this slice.
 - **Gate:** Unit tests pin multi-pointer isolation (left thumb never alters `aimAngle`, button tap
   never alters either stick, releasing right stick retains `aimAngle`, modal focus resets all
   pointers, `SurveillanceView.DRONE` maps left stick Y to `jump`/`crouch`, phone vs tablet layout

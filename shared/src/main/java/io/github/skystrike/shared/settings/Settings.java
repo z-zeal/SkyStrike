@@ -1,5 +1,7 @@
 package io.github.skystrike.shared.settings;
 
+import io.github.skystrike.shared.config.TouchConfig;
+import io.github.skystrike.shared.input.TouchPreferences;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +30,14 @@ public final class Settings {
     public static final String KEY_MUSIC_VOLUME = "audio.musicVolume";
     public static final String KEY_EFFECTS_VOLUME = "audio.effectsVolume";
     public static final String KEY_CHAT_TARGET = "chatTarget";
+    public static final String KEY_TOUCH_AIM_SCHEME = "touch.aimScheme";
+    public static final String KEY_TOUCH_ADS_MODE = "touch.adsMode";
+    public static final String KEY_TOUCH_FLOATING_STICK = "touch.floatingStick";
+    public static final String KEY_TOUCH_BUTTON_SCALE = "touch.buttonScale";
+    public static final String KEY_TOUCH_BUTTON_OPACITY = "touch.buttonOpacity";
+    public static final String KEY_TOUCH_LEFT_HANDED = "touch.leftHanded";
+    public static final String KEY_TOUCH_OUTER_RING_FIRE = "touch.outerRingFire";
+    public static final String KEY_TOUCH_HUD_PRESET = "touch.hudPreset";
 
     /** Windowed resolutions offered by the settings screen. Custom valid values still round-trip. */
     public static final List<Resolution> RESOLUTIONS = List.of(
@@ -46,6 +56,18 @@ public final class Settings {
     public float musicVolume = 1f;
     public float effectsVolume = 1f;
     public String chatTarget = "team";
+    /**
+     * Touch controls (Android plan AN1–AN4). Defaults are Scheme A, ADS toggle, a floating
+     * movement stick and a right-handed layout. Scheme C is not a value.
+     */
+    public TouchPreferences.AimScheme touchAimScheme = TouchPreferences.AimScheme.STICK;
+    public TouchPreferences.AdsMode touchAdsMode = TouchPreferences.AdsMode.TOGGLE;
+    public boolean touchFloatingStick = true;
+    public float touchButtonScale = TouchConfig.BUTTON_SCALE_DEFAULT;
+    public float touchButtonOpacity = TouchConfig.BUTTON_OPACITY_DEFAULT;
+    public boolean touchLeftHanded;
+    public boolean touchOuterRingFire = true;
+    public TouchPreferences.HudPreset touchHudPreset = TouchPreferences.HudPreset.AUTO;
 
     /** A display size offered by the video menu. */
     public record Resolution(int width, int height) {
@@ -69,6 +91,26 @@ public final class Settings {
         musicVolume = clamp(musicVolume, 0f, 1f);
         effectsVolume = clamp(effectsVolume, 0f, 1f);
         chatTarget = normaliseChatTarget(chatTarget);
+        touchAimScheme = touchAimScheme == null
+            ? TouchPreferences.AimScheme.STICK : touchAimScheme;
+        touchAdsMode = touchAdsMode == null ? TouchPreferences.AdsMode.TOGGLE : touchAdsMode;
+        touchHudPreset = touchHudPreset == null ? TouchPreferences.HudPreset.AUTO : touchHudPreset;
+        touchButtonScale = TouchConfig.clampButtonScale(touchButtonScale);
+        touchButtonOpacity = TouchConfig.clampButtonOpacity(touchButtonOpacity);
+    }
+
+    /** The clamped touch settings the control model and the touch HUD read. */
+    public TouchPreferences touchPreferences() {
+        validate();
+        return new TouchPreferences(
+            touchAimScheme,
+            touchAdsMode,
+            touchFloatingStick,
+            touchButtonScale,
+            touchButtonOpacity,
+            touchLeftHanded,
+            touchOuterRingFire,
+            touchHudPreset);
     }
 
     /** Chooses the next or previous standard windowed resolution, wrapping at either end. */
@@ -117,6 +159,14 @@ public final class Settings {
         values.put(KEY_MUSIC_VOLUME, Float.toString(musicVolume));
         values.put(KEY_EFFECTS_VOLUME, Float.toString(effectsVolume));
         values.put(KEY_CHAT_TARGET, chatTarget);
+        values.put(KEY_TOUCH_AIM_SCHEME, touchAimScheme.token());
+        values.put(KEY_TOUCH_ADS_MODE, touchAdsMode.token());
+        values.put(KEY_TOUCH_FLOATING_STICK, Boolean.toString(touchFloatingStick));
+        values.put(KEY_TOUCH_BUTTON_SCALE, Float.toString(touchButtonScale));
+        values.put(KEY_TOUCH_BUTTON_OPACITY, Float.toString(touchButtonOpacity));
+        values.put(KEY_TOUCH_LEFT_HANDED, Boolean.toString(touchLeftHanded));
+        values.put(KEY_TOUCH_OUTER_RING_FIRE, Boolean.toString(touchOuterRingFire));
+        values.put(KEY_TOUCH_HUD_PRESET, touchHudPreset.token());
         return values;
     }
 
@@ -140,6 +190,20 @@ public final class Settings {
         String storedChatTarget = values.get(KEY_CHAT_TARGET);
         if (storedChatTarget != null) {
             chatTarget = storedChatTarget;
+        }
+        if (values.get(KEY_TOUCH_AIM_SCHEME) != null) {
+            touchAimScheme = TouchPreferences.AimScheme.parse(values.get(KEY_TOUCH_AIM_SCHEME));
+        }
+        if (values.get(KEY_TOUCH_ADS_MODE) != null) {
+            touchAdsMode = TouchPreferences.AdsMode.parse(values.get(KEY_TOUCH_ADS_MODE));
+        }
+        touchFloatingStick = parseBoolean(values.get(KEY_TOUCH_FLOATING_STICK), touchFloatingStick);
+        touchButtonScale = parseFloat(values.get(KEY_TOUCH_BUTTON_SCALE), touchButtonScale);
+        touchButtonOpacity = parseFloat(values.get(KEY_TOUCH_BUTTON_OPACITY), touchButtonOpacity);
+        touchLeftHanded = parseBoolean(values.get(KEY_TOUCH_LEFT_HANDED), touchLeftHanded);
+        touchOuterRingFire = parseBoolean(values.get(KEY_TOUCH_OUTER_RING_FIRE), touchOuterRingFire);
+        if (values.get(KEY_TOUCH_HUD_PRESET) != null) {
+            touchHudPreset = TouchPreferences.HudPreset.parse(values.get(KEY_TOUCH_HUD_PRESET));
         }
         validate();
     }
