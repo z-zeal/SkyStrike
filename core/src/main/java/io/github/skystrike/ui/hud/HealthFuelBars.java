@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import io.github.skystrike.shared.hud.HudVitals;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import java.util.Locale;
 
@@ -71,6 +72,16 @@ final class HealthFuelBars {
     /** Baseline of the status row (fuel note, or the respawn countdown), above the values. */
     private float statusBaseline(BitmapFont font) {
         return valueBaseline(font) + font.getLineHeight();
+    }
+
+    /**
+     * Touch layout: the bars take the layout's vitals rectangle. Their height and their text stay
+     * as they are on desktop; only where they start changes.
+     */
+    void placeAt(Rect rect) {
+        this.x = rect.x();
+        this.y = rect.y();
+        this.width = rect.width();
     }
 
     void drawShapes(ShapeRenderer shapes, BitmapFont font, HudFrame frame) {

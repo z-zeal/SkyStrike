@@ -805,6 +805,26 @@ run here either; each change carries its own unexecuted acceptance note.
   units/texel, 1,500,060 bytes, the shipped asset is the bake of the committed map) and
   `git diff --check` was clean. Nothing was compiled, executed or observed: no JDK in this
   sandbox. Every acceptance box remains unchecked.
+- **Android plan, slices AN-3 and AN-4 — touch input wiring and touch HUD drawing (source only).**
+  On `arena/73a592d8-skystrike`, commits `79b0e64`, `c5f233f`, `8f17c49`, `be0a1ca`, `ed3d9a0`,
+  `1b01b45`, `3a4ad14`, `abca27c` and `5e17a07`. Shared: `TouchControlModel.setCombatFrom` and
+  `isPressed`, with three tests. Gameplay: `LoadoutController`, `SurveillanceController` and
+  `DoorUseController` take touch edges through `applyTouch`, and every existing path (retransmission,
+  `DoorConfig.USE_REACH = 72f` through the existing door query) is unchanged. Core input:
+  `core/input/TouchControls` is connected to LibGDX touch events; `InputSampler` has a touch overload
+  that reads no keyboard or mouse gameplay binding. The `cl_touch_hud` cvar is `--dev`-only, default
+  `false`. HUD: `TouchHudFrame`, `TouchHudOverlay`, the 14th `HudFrame` component, `HudStage`
+  placement and overlay in both passes, `LoadoutBar.placeTouch`, the widgets' `placeAt` hooks, and
+  the `GameScreen` touch frame and reticle. `NetConfig.PROTOCOL_VERSION` stays 18 and no wire
+  format changed. Corrected: the AN-3 gate text "merges keyboard/mouse" is superseded, because
+  touch replaces keyboard and mouse in the match. Open: `CHAT`, `QUICK CHAT` and `LOADOUT` are drawn
+  dim and their taps have no consumer until AN-5/AN-6; `PAUSE` goes through the Escape path; whether
+  `ConsoleDialog` closes on touch is unresolved. Desktop preview: with `cl_touch_hud` on, mouse aim
+  and keyboard movement stop. Checks: the seven Python checks and `git diff --check` were run before
+  each code commit and exit 0 (`static_check.py` reports no findings; `CHECKS_FAILED=0`). These are
+  static checks only. Nothing was compiled, no unit test was run, and nothing was launched or seen on
+  a device: no JDK or Android SDK in this sandbox. A phone build would show touch controls from the
+  source path described here, but this has not been verified. Every acceptance box remains unchecked.
 
 ---
 

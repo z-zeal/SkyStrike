@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import io.github.skystrike.shared.hud.HudSurveillance;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 
 /**
@@ -34,6 +35,12 @@ final class SurveillanceBanner {
         this.scale = scale;
         this.centerX = screenWidth / 2f;
         this.topY = theme.margin * scale;
+    }
+
+    /** Touch layout: the banner is centred on, and rises from, the layout's reservation. */
+    void placeAt(Rect rect) {
+        this.centerX = rect.centerX();
+        this.topY = rect.y();
     }
 
     void drawShapes(ShapeRenderer shapes, BitmapFont font, HudFrame frame) {

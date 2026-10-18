@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import java.util.List;
+import io.github.skystrike.shared.map.Rect;
 
 /**
  * The status readout, behind {@code cl_debug_overlay} (F1) — playable build plan M4 §5.
@@ -45,6 +46,12 @@ final class DebugPanel {
         this.scale = scale;
         this.x = theme.margin * scale;
         this.top = screenHeight - topInset - theme.margin * scale;
+    }
+
+    /** Touch layout: the readout starts at the layout's debug rectangle, not the corner. */
+    void placeAt(Rect rect) {
+        this.x = rect.x();
+        this.top = rect.top();
     }
 
     void drawShapes(ShapeRenderer shapes, BitmapFont font, HudFrame frame) {

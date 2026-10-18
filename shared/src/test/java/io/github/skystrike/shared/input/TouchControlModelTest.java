@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.map.Rect;
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.weapons.FireMode;
 import java.util.List;
@@ -510,5 +511,59 @@ class TouchControlModelTest {
             TouchZone.button(TouchAction.JETPACK, new Rect(60f, 20f, 48f, 48f)),
             TouchZone.stick(TouchZone.Kind.MOVE, new Rect(0f, 0f, 400f, 400f), 100f, 100f, RADIUS),
             TouchZone.stick(TouchZone.Kind.AIM, new Rect(400f, 0f, 400f, 400f), 700f, 100f, RADIUS));
+    }
+
+    @Test
+    @DisplayName("isPressed lights a held button only while its finger is down")
+    void isPressedFollowsHeldFinger() {
+        TouchControlModel model = aimed(0f);
+        assertFalse(model.isPressed(TouchAction.FIRE));
+        model.touchDown(2, 30f, 30f);
+        assertTrue(model.isPressed(TouchAction.FIRE));
+        model.touchUp(2, 30f, 30f);
+        assertFalse(model.isPressed(TouchAction.FIRE));
+        assertFalse(model.isPressed(TouchAction.PAUSE));
+    }
+
+    @Test
+    @DisplayName("the ADS toggle reads as pressed while engaged, and survives the finger lifting")
+    void isPressedReportsAdsToggle() {
+        TouchControlModel model = aimed(0f);
+        model.touchDown(2, 200f, 40f);
+        model.touchUp(2, 200f, 40f);
+        assertTrue(model.isPressed(TouchAction.ADS));
+        model.touchDown(2, 200f, 40f);
+        model.touchUp(2, 200f, 40f);
+        assertFalse(model.isPressed(TouchAction.ADS));
+    }
+
+    @Test
+    @DisplayName("stick-fire reads the equipped item: gun, melee, throwable, or nothing")
+    void combatItemFollowsTheLoadout() {
+        TouchControlModel model = aimed(0f);
+        PlayerLoadout loadout = new PlayerLoadout();
+        model.setCombatFrom(loadout);
+        assertEquals(TouchControlModel.CombatItem.GUN, model.combatItem());
+
+        loadout.activeSlot = PlayerLoadout.SLOT_MELEE;
+        model.setCombatFrom(loadout);
+        assertEquals(TouchControlModel.CombatItem.MELEE, model.combatItem());
+
+        loadout.activeSlot = PlayerLoadout.SLOT_UTILITY_A;
+        loadout.utilityACount = 1;
+        model.setCombatFrom(loadout);
+        assertEquals(TouchControlModel.CombatItem.THROWABLE, model.combatItem());
+
+        loadout.utilityACount = 0;
+        model.setCombatFrom(loadout);
+        assertEquals(TouchControlModel.CombatItem.NONE, model.combatItem());
+
+        loadout.activeSlot = PlayerLoadout.SLOT_PRIMARY;
+        loadout.primary = null;
+        model.setCombatFrom(loadout);
+        assertEquals(TouchControlModel.CombatItem.NONE, model.combatItem());
+
+        model.setCombatFrom(null);
+        assertEquals(TouchControlModel.CombatItem.NONE, model.combatItem());
     }
 }

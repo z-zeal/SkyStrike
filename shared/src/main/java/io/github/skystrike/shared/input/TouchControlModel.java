@@ -3,7 +3,9 @@ package io.github.skystrike.shared.input;
 import io.github.skystrike.shared.config.TouchConfig;
 import io.github.skystrike.shared.gadget.SurveillanceView;
 import io.github.skystrike.shared.math.Angles;
+import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.model.Team;
+import io.github.skystrike.shared.model.WeaponItem;
 import io.github.skystrike.shared.net.c2s.PacketPlayerInput;
 import io.github.skystrike.shared.weapons.FireMode;
 import java.util.ArrayDeque;
@@ -182,6 +184,28 @@ public final class TouchControlModel {
     }
 
     /**
+     * Reads the equipped item for stick-fire: a gun with its own fire mode, the melee knife, the
+     * active throwable, or nothing. A null loadout is an empty hand.
+     */
+    public void setCombatFrom(PlayerLoadout loadout) {
+        if (loadout == null) {
+            setCombatItem(FireMode.SEMI, CombatItem.NONE);
+            return;
+        }
+        WeaponItem gun = loadout.activeItem();
+        if (gun != null) {
+            var definition = gun.definition();
+            setCombatItem(definition == null ? FireMode.SEMI : definition.fireMode(), CombatItem.GUN);
+        } else if (loadout.meleeActive()) {
+            setCombatItem(FireMode.SEMI, CombatItem.MELEE);
+        } else if (loadout.utilityActive()) {
+            setCombatItem(FireMode.SEMI, CombatItem.THROWABLE);
+        } else {
+            setCombatItem(FireMode.SEMI, CombatItem.NONE);
+        }
+    }
+
+    /**
      * Modal focus (chat, loadout picker, pause, settings) drops every pointer and zeroes action
      * intent. Aim angle and an ADS toggle are kept. While modal, new touches are ignored.
      */
@@ -248,6 +272,26 @@ public final class TouchControlModel {
 
     public boolean adsEngaged() {
         return adsEngaged;
+    }
+
+    /**
+     * Whether a control is asserted right now, for the HUD to light a button: a held action while
+     * its finger is down, or ADS while the toggle is engaged. Never feeds the packet, which reads
+     * {@link #sample()} only.
+     */
+    public boolean isPressed(TouchAction action) {
+        if (action == TouchAction.ADS && preferences.adsMode() == TouchPreferences.AdsMode.TOGGLE) {
+            return adsEngaged;
+        }
+        if (action == null || !action.held()) {
+            return false;
+        }
+        for (Binding binding : bindings) {
+            if (binding.active && binding.kind == TouchZone.Kind.BUTTON && binding.action == action) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int movePointer() {

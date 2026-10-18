@@ -16,6 +16,8 @@ import io.github.skystrike.render.RenderLayers;
 import io.github.skystrike.render.WeaponSprites;
 import io.github.skystrike.shared.hud.DamageNumberModel;
 import io.github.skystrike.shared.hud.KillFeedModel;
+import io.github.skystrike.shared.hud.TouchHudLayout;
+import io.github.skystrike.shared.map.Rect;
 import io.github.skystrike.shared.model.Player;
 import io.github.skystrike.shared.model.PlayerLoadout;
 import io.github.skystrike.shared.net.c2s.PacketLoadoutUpdate;
@@ -72,6 +74,7 @@ public final class HudStage implements Disposable {
     private final GadgetPanel gadgetPanel = new GadgetPanel(theme);
     private final DebugPanel debugPanel = new DebugPanel(theme);
     private final LoadoutPicker picker;
+    private final TouchHudOverlay touchOverlay;
 
     /**
      * The picker's product shots. Borrowed from the player renderer rather than loaded a
@@ -107,6 +110,25 @@ public final class HudStage implements Disposable {
     private boolean pointerHidden;
 
     /**
+     * The touch layout the widgets were last placed from, or {@code null} for the desktop corners.
+     * A change of layout identity relays the HUD out, so a new layout is never drawn over the old.
+     */
+    private TouchHudLayout placedTouch;
+
+    /**
+     * Which widgets the current layout has room for, and so draw. On desktop every one is true. On
+     * touch a widget the layout does not place is not drawn at all, because its corner would sit
+     * under a stick or a button.
+     */
+    private boolean showVitals = true;
+    private boolean showMinimap = true;
+    private boolean showBanner = true;
+    private boolean showFeed = true;
+    private boolean showGadgets = true;
+    private boolean showDebug = true;
+    private boolean dockShown = true;
+
+    /**
      * @param router        the focus stack the picker takes the keyboard from
      * @param loadoutSender where a picker request goes, normally {@code ClientSession::sendReliable}
      * @param sprites       the held-weapon atlas, owned and disposed by the player renderer
@@ -126,6 +148,7 @@ public final class HudStage implements Disposable {
         this.router = router;
         this.sprites = sprites;
         this.picker = new LoadoutPicker(theme, sprites, router, loadoutSender);
+        this.touchOverlay = new TouchHudOverlay(theme);
     }
 
     /** The layer this stage belongs to: after post, before the dialog. */
@@ -223,6 +246,12 @@ public final class HudStage implements Disposable {
         trackRespawn(frame.player());
         applyPointerCursor(frame);
 
+        TouchHudLayout touchLayout = frame.touch() == null ? null : frame.touch().layout();
+        if (touchLayout != placedTouch) {
+            placedTouch = touchLayout;
+            laidOut = false;
+        }
+
         float scale = theme.scale(screenHeight);
         if (!laidOut) {
             layout(font, scale);
@@ -233,13 +262,28 @@ public final class HudStage implements Disposable {
         shapes.setProjectionMatrix(projection);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         damageVignette.drawShapes(shapes, frame);
-        minimap.drawShapes(shapes, frame);
-        surveillanceBanner.drawShapes(shapes, font, frame);
-        debugPanel.drawShapes(shapes, font, frame);
-        killFeedWidget.drawShapes(shapes, font, frame);
-        vitals.drawShapes(shapes, font, frame);
-        gadgetPanel.drawShapes(shapes, font, frame);
-        loadoutBar.drawShapes(shapes, frame);
+        if (showMinimap) {
+            minimap.drawShapes(shapes, frame);
+        }
+        if (showBanner) {
+            surveillanceBanner.drawShapes(shapes, font, frame);
+        }
+        if (showDebug) {
+            debugPanel.drawShapes(shapes, font, frame);
+        }
+        if (showFeed) {
+            killFeedWidget.drawShapes(shapes, font, frame);
+        }
+        if (showVitals) {
+            vitals.drawShapes(shapes, font, frame);
+        }
+        if (showGadgets) {
+            gadgetPanel.drawShapes(shapes, font, frame);
+        }
+        if (dockShown) {
+            loadoutBar.drawShapes(shapes, frame);
+        }
+        touchOverlay.drawShapes(shapes, frame.touch());
         crosshair.drawShapes(shapes, frame);
         picker.drawShapes(shapes, font, frame);
         shapes.end();
@@ -248,12 +292,25 @@ public final class HudStage implements Disposable {
         batch.begin();
         // Floating numbers first among the text: they sit in the world, under every readout.
         damageNumbers.drawText(batch, font, frame);
-        surveillanceBanner.drawText(batch, font, frame);
-        debugPanel.drawText(batch, font, frame);
-        killFeedWidget.drawText(batch, font, frame);
-        vitals.drawText(batch, font, frame);
-        gadgetPanel.drawText(batch, font, frame);
-        loadoutBar.drawText(batch, font, frame);
+        if (showBanner) {
+            surveillanceBanner.drawText(batch, font, frame);
+        }
+        if (showDebug) {
+            debugPanel.drawText(batch, font, frame);
+        }
+        if (showFeed) {
+            killFeedWidget.drawText(batch, font, frame);
+        }
+        if (showVitals) {
+            vitals.drawText(batch, font, frame);
+        }
+        if (showGadgets) {
+            gadgetPanel.drawText(batch, font, frame);
+        }
+        if (dockShown) {
+            loadoutBar.drawText(batch, font, frame);
+        }
+        touchOverlay.drawText(batch, font, frame.touch());
         picker.drawText(batch, font, frame);
         batch.end();
 
@@ -264,13 +321,16 @@ public final class HudStage implements Disposable {
     /**
      * Hides the OS pointer while the crosshair stands in for it, and gives it back to every state
      * that needs an arrow: a dead local player (whose crosshair is not drawn), a touch device
-     * (which has no system pointer), and any dialog on the focus stack.
+     * (which has no system pointer), and any dialog on the focus stack. A touch frame draws its
+     * reticle rather than standing in for the pointer, so a desktop touch preview keeps the arrow:
+     * there the mouse is the finger, and a hidden arrow would leave nothing to point with.
      */
     private void applyPointerCursor(HudFrame frame) {
         PointerPosition pointer = frame.pointer();
         Player player = frame.player();
         applyPointerCursor(
-            pointer != null && player != null && player.alive && !router.hasModalFocus());
+            pointer != null && player != null && player.alive && !router.hasModalFocus()
+                && frame.touch() == null);
     }
 
     /**
@@ -326,8 +386,44 @@ public final class HudStage implements Disposable {
         // is off the inset is zero and the readout takes the corner back, leaving no hole.
         minimap.layout(screenWidth, screenHeight, scale);
         debugPanel.layout(screenWidth, screenHeight, scale, minimap.occupiedHeight(minimapShown));
+        placeOnTouch();
         picker.layout(screenWidth, screenHeight, scale, font);
         laidOut = true;
+    }
+
+    /**
+     * Moves every widget onto the touch layout when one is in force, and records which of them the
+     * layout places. Runs after the desktop layouts so it has the last word on their geometry.
+     */
+    private void placeOnTouch() {
+        TouchHudLayout touch = placedTouch;
+        if (touch == null) {
+            loadoutBar.clearTouch();
+            dockShown = true;
+            showVitals = true;
+            showMinimap = true;
+            showBanner = true;
+            showFeed = true;
+            showGadgets = true;
+            showDebug = true;
+            return;
+        }
+        dockShown = loadoutBar.placeTouch(touch);
+        showVitals = place(touch.vitals(), vitals::placeAt);
+        showMinimap = place(touch.minimap(), minimap::placeAt);
+        showBanner = place(touch.surveillanceBanner(), surveillanceBanner::placeAt);
+        showFeed = place(touch.killFeed(), killFeedWidget::placeAt);
+        showGadgets = place(touch.gadgetStrip(), gadgetPanel::placeAt);
+        showDebug = place(touch.debugPanel(), debugPanel::placeAt);
+    }
+
+    /** Places a widget where the rectangle says, and reports whether the layout has room for it. */
+    private static boolean place(Rect rect, Consumer<Rect> placement) {
+        if (rect == null) {
+            return false;
+        }
+        placement.accept(rect);
+        return true;
     }
 
     @Override

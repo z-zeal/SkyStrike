@@ -3,6 +3,7 @@ package io.github.skystrike.ui.hud;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import io.github.skystrike.shared.hud.MinimapModel;
+import io.github.skystrike.shared.map.Rect;
 
 /**
  * The arena minimap, top left (roadmap Phase 7 HUD; mechanics §4's teammate toggle).
@@ -53,6 +54,14 @@ final class Minimap {
      */
     float occupiedHeight(boolean visible) {
         return visible ? boxHeight + theme.innerPadding * scale : 0f;
+    }
+
+    /** Touch layout: the map takes the layout's rectangle in place of the top-left corner. */
+    void placeAt(Rect rect) {
+        this.boxX = rect.x();
+        this.boxY = rect.y();
+        this.boxWidth = rect.width();
+        this.boxHeight = rect.height();
     }
 
     void drawShapes(ShapeRenderer shapes, HudFrame frame) {

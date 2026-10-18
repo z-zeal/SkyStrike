@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import io.github.skystrike.shared.hud.KillFeedModel;
+import io.github.skystrike.shared.map.Rect;
 import java.util.List;
 
 /**
@@ -41,6 +42,12 @@ final class KillFeedWidget {
         this.right = screenWidth - theme.margin * scale;
         this.top = screenHeight - topInset - theme.margin * scale;
         this.maxWidth = theme.killFeedWidth * scale;
+    }
+
+    /** Touch layout: the feed hangs from the layout's top-right reservation. */
+    void placeAt(Rect rect) {
+        this.right = rect.right();
+        this.top = rect.top();
     }
 
     void drawShapes(ShapeRenderer shapes, BitmapFont font, HudFrame frame) {
