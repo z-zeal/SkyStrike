@@ -19,7 +19,7 @@ float doorOccluderVisibility(vec2 p0, vec2 p1) {
         // Slab test per axis: the ray is inside the rect exactly while it is inside both slabs.
         float tEnter = 0.0;
         float tExit = 1.0;
-        if (abs(d.x) < 1e-6) {
+        if (abs(d.x) < 1e-3) {
             if (p0.x < r.x || p0.x > r.x + r.z) continue;
         } else {
             float inv = 1.0 / d.x;

@@ -24,16 +24,18 @@ uniform int u_castsShadow;
 uniform int u_maxMarchSteps;
 
 void main() {
-    float distanceToLight = length(v_worldPos - u_lightPos);
-    float radialDistance = distanceToLight / max(u_lightRadius, 0.001);
-    if (radialDistance >= 1.0) {
+    // Divide by the radius before the dot so even large world-space lights stay within fp16's
+    // range. The light quad bounds both components to roughly [-1, 1] on the rasterized pixels.
+    vec2 lightDelta = (v_worldPos - u_lightPos) / max(u_lightRadius, 0.001);
+    float radialDistanceSq = dot(lightDelta, lightDelta);
+    if (radialDistanceSq >= 1.0) {
         discard;
     }
 
     // The sight field's own distance falloff: the same 1 - (d / reach)^2 curve the visibility
     // shader gives an observer, so the lamp and the field it lights fall off as one light. The
     // exponent only tunes how tightly the pool hugs the source (1 is the field's curve itself).
-    float radial = pow(max(0.0, 1.0 - radialDistance * radialDistance), u_falloff);
+    float radial = pow(max(0.0, 1.0 - radialDistanceSq), u_falloff);
 
     // Outside the local-body-only exception below, a light may not affect pixels the observer
     // cannot see. The dim peripheral floor must not become a remote-player glow outside the cone;

@@ -20,7 +20,10 @@ void main() {
     float vig = smoothstep(0.45, 1.05, distance(v_texCoords, vec2(0.5)));
     vec3 wash = mix(vec3(1.0), vec3(0.62, 0.64, 0.72), vig);
 
-    float grain = hash21(v_texCoords * vec2(1920.0, 1080.0) + vec2(u_time * 61.7)) - 0.5;
+    // Wrap the animation phase before multiplying so a long-running effects clock cannot push
+    // this mediump input out of range before hash21 can bound its pixel coordinates.
+    float grainPhase = mod(u_time, 256.0 / 61.7) * 61.7;
+    float grain = hash21(v_texCoords * vec2(1920.0, 1080.0) + vec2(grainPhase)) - 0.5;
     wash += grain * 0.05;
 
     float alpha = u_intensity * (0.94 - 0.45 * vig);

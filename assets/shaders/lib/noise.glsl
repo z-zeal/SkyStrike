@@ -4,6 +4,17 @@
 // the CPU and the shaders only add divergence-free wobble on top of it.
 
 float hash21(vec2 p) {
+#ifdef GL_ES
+#ifndef GL_FRAGMENT_PRECISION_HIGH
+    // Pixel-space callers (the blindness grain) can pass coordinates around 1920 x 1080.
+    // On mediump-only fragments, bound those values before the hash multipliers; normalising
+    // keeps the first product below 456 instead of overflowing fp16. Small noise coordinates
+    // keep the original hash path.
+    if (max(abs(p.x), abs(p.y)) > 32.0) {
+        p = mod(p, 256.0) / 256.0;
+    }
+#endif
+#endif
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
     return fract(p.x * p.y);
