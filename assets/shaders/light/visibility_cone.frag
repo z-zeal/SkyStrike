@@ -29,7 +29,12 @@ const float PI = 3.141592653589793;
 float calculateSmokeAttenuation(vec2 p0, vec2 p1) {
     float totalAtten = 0.0;
     vec2 seg = p1 - p0;
-    float segLenSq = dot(seg, seg);
+    // Use a shared component scale for the projection so neither dot product squares raw
+    // world-space distances. For sub-unit segments the scale stays at 1, preserving the original
+    // short-segment guard below.
+    float segScale = max(max(abs(seg.x), abs(seg.y)), 1.0);
+    vec2 scaledSeg = seg / segScale;
+    float segLenSq = dot(scaledSeg, scaledSeg);
 
     for (int i = 0; i < 16; i++) {
         if (i >= u_smokeCount) break;
@@ -41,12 +46,18 @@ float calculateSmokeAttenuation(vec2 p0, vec2 p1) {
 
         float t = 0.0;
         if (segLenSq > 0.001) {
-            t = clamp(dot(center - p0, seg) / segLenSq, 0.0, 1.0);
+            vec2 scaledCenterDelta = (center - p0) / segScale;
+            t = clamp(dot(scaledCenterDelta, scaledSeg) / segLenSq, 0.0, 1.0);
         }
         vec2 closestPoint = p0 + seg * t;
-        float distToCenter = length(center - closestPoint);
-        if (distToCenter < radius) {
-            totalAtten += density * (1.0 - distToCenter / radius);
+        vec2 centerDelta = center - closestPoint;
+        // Reject circles whose centre is outside either radius slab before length() so its
+        // remaining components are at most one radius (the bounded distance the test needs).
+        if (abs(centerDelta.x) < radius && abs(centerDelta.y) < radius) {
+            float distToCenter = length(centerDelta / max(radius, 0.001));
+            if (distToCenter < 1.0) {
+                totalAtten += density * (1.0 - distToCenter);
+            }
         }
     }
     return totalAtten;
@@ -54,16 +65,21 @@ float calculateSmokeAttenuation(vec2 p0, vec2 p1) {
 
 void main() {
     vec2 toFrag = v_worldPos - u_observerPos;
-    float dist = length(toFrag);
+    // Scale both values before squaring. The arena diagonal remains small at 1/2048 scale,
+    // including observers with the 70-unit device bubble, while the ratio preserves the same
+    // circular reach and quadratic falloff.
+    vec2 scaledToFrag = toFrag / 2048.0;
+    float scaledReach = u_reach / 2048.0;
+    float scaledReachSq = scaledReach * scaledReach;
+    float scaledDistSq = dot(scaledToFrag, scaledToFrag);
 
     // 1. Distance culling and continuous quadratic falloff
-    if (dist > u_reach) {
+    if (scaledDistSq > scaledReachSq) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
-    float u = dist / u_reach;
-    float distFactor = max(0.0, 1.0 - u * u);
+    float distFactor = max(0.0, 1.0 - scaledDistSq / scaledReachSq);
 
     // 2. Angular feathering across cone boundary with peripheral floor
     float fragAngle = atan(toFrag.y, toFrag.x);

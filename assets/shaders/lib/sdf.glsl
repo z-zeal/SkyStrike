@@ -12,20 +12,30 @@ float sampleSdf(sampler2D sdfTex, vec2 worldPos, vec2 worldSize) {
 vec2 sampleSdfGradient(sampler2D sdfTex, vec2 worldPos, vec2 worldSize, float eps) {
     float dx = sampleSdf(sdfTex, worldPos + vec2(eps, 0.0), worldSize) - sampleSdf(sdfTex, worldPos - vec2(eps, 0.0), worldSize);
     float dy = sampleSdf(sdfTex, worldPos + vec2(0.0, eps), worldSize) - sampleSdf(sdfTex, worldPos - vec2(0.0, eps), worldSize);
-    float len = length(vec2(dx, dy));
+    vec2 gradient = vec2(dx, dy);
+    float gradientScale = max(max(abs(dx), abs(dy)), 1.0);
+    vec2 scaledGradient = gradient / gradientScale;
+    float scaledLength = length(scaledGradient);
+    float len = gradientScale * scaledLength;
     if (len > 0.0001) {
-        return vec2(dx, dy) / len;
+        return scaledGradient / scaledLength;
     }
     return vec2(0.0, 1.0);
 }
 
 float sdfSoftShadow(sampler2D sdfTex, vec2 origin, vec2 target, vec2 worldSize, float k, int maxSteps) {
     vec2 dir = target - origin;
-    float totalDist = length(dir);
+    // Scale before length: a world-space ray can be thousands of units long, which overflows
+    // mediump when length() squares its unscaled components. The reconstructed length remains
+    // within the arena's world-unit range.
+    float dirScale = max(max(abs(dir.x), abs(dir.y)), 1.0);
+    vec2 scaledDir = dir / dirScale;
+    float scaledLength = length(scaledDir);
+    float totalDist = dirScale * scaledLength;
     if (totalDist < 1.0) {
         return 1.0;
     }
-    vec2 rayDir = dir / totalDist;
+    vec2 rayDir = scaledDir / scaledLength;
     float res = 1.0;
     float t = 4.0;
 
